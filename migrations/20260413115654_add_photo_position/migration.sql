@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "players" ADD COLUMN     "photoPositionX" INTEGER NOT NULL DEFAULT 50,
+ADD COLUMN     "photoPositionY" INTEGER NOT NULL DEFAULT 50;

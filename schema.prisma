@@ -1,0 +1,398 @@
+// ─────────────────────────────────────────────────────────────────
+// schema.prisma — Handball Transfer Platform
+// ─────────────────────────────────────────────────────────────────
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+// ── Enums ─────────────────────────────────────────────────────────
+
+enum Role {
+  PLAYER
+  CLUB
+  ADMIN
+}
+
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+}
+
+enum Position {
+  GOALKEEPER
+  LEFT_BACK
+  RIGHT_BACK
+  LEFT_WING
+  RIGHT_WING
+  CENTRE_BACK
+  PIVOT
+  CENTRE_FORWARD
+}
+
+enum ClubVerificationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum MedicalRecordType {
+  INJURY
+  PHYSICAL_TEST
+  CLEARANCE
+}
+
+enum PlayerVerificationStatus {
+  UNVERIFIED   // registered, no docs submitted
+  PENDING      // docs submitted, awaiting admin review
+  VERIFIED     // admin approved — profile is public
+  REJECTED     // admin rejected — player can resubmit
+}
+
+enum CommissionStatus {
+  PENDING     // logged, not yet invoiced
+  INVOICED    // invoice sent to club
+  PAID        // payment confirmed
+  DISPUTED    // club raised a dispute
+  WAIVED      // admin waived (e.g. error)
+}
+
+// ── User (shared auth record) ─────────────────────────────────────
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  emailVerified DateTime?
+  passwordHash  String
+  role          Role
+  registrationIp String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // NextAuth relations
+  sessions      Session[]
+  accounts      Account[]
+
+  sentMessages     Message[] @relation("SentMessages")
+  receivedMessages Message[] @relation("ReceivedMessages")
+
+  player        Player?
+  club          Club?
+  adminProfile  AdminProfile?
+
+  @@map("users")
+}
+
+// ── NextAuth tables ───────────────────────────────────────────────
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+// ── Player ────────────────────────────────────────────────────────
+
+model Player {
+  id              String    @id @default(cuid())
+  userId          String    @unique
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Personal
+  firstName       String
+  lastName        String
+  dateOfBirth     DateTime
+  nationality     String
+  bio             String?   @db.Text
+  photoUrl        String?   // MinIO URL
+
+  // Physical
+  heightCm        Int
+  weightKg        Int
+  dominantHand    String    @default("RIGHT")
+
+  // Career
+  position        Position
+  currentClub     String?
+  currentSalary   Int?      // in EUR cents (avoid float)
+  expectedSalary  Int?
+  availableFrom   DateTime?
+  isAvailable     Boolean   @default(true)
+
+  // Contact (only shown after club pays commission)
+  phone           String?
+  agentName       String?
+  agentPhone      String?
+  agentEmail      String?
+
+  // Photo position (percentage 0-100 for object-position)
+  photoPositionX  Int       @default(50)
+  photoPositionY  Int       @default(50)
+
+  // Verification
+  verificationStatus PlayerVerificationStatus @default(UNVERIFIED)
+  passportUrl        String?
+  selfieUrl          String?
+  verificationNote   String?  @db.Text
+  verifiedAt         DateTime?
+  verifiedBy         String?  // admin userId
+
+  // SEO / indexing
+  slug            String    @unique
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  videos          VideoVault[]
+  careerEntries   CareerEntry[]
+  medicalRecords  MedicalRecord[]
+  interactions    Interaction[]
+  watchlistItems  WatchlistItem[]
+  galleryImages   PlayerGalleryImage[]
+
+  @@index([position, isAvailable, heightCm])
+  @@index([expectedSalary])
+  @@map("players")
+}
+
+// ── Player Gallery ────────────────────────────────────────────────
+
+model PlayerGalleryImage {
+  id        String   @id @default(cuid())
+  playerId  String
+  player    Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  url       String
+  caption   String?
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([playerId])
+  @@map("player_gallery_images")
+}
+
+// ── Video Vault ───────────────────────────────────────────────────
+
+model VideoVault {
+  id          String   @id @default(cuid())
+  playerId    String
+  player      Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  title       String
+  youtubeUrl  String
+  description String?
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  @@map("video_vault")
+}
+
+// ── Career Timeline ───────────────────────────────────────────────
+
+model CareerEntry {
+  id            String   @id @default(cuid())
+  playerId      String
+  player        Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  clubName      String
+  country       String
+  startDate     DateTime
+  endDate       DateTime?
+  appearances   Int?
+  goals         Int?
+  assists       Int?
+  isCurrentClub Boolean @default(false)
+
+  @@map("career_entries")
+}
+
+// ── Medical / Physio Record ───────────────────────────────────────
+
+model MedicalRecord {
+  id            String   @id @default(cuid())
+  playerId      String
+  player        Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  // Injury history
+  injuryType    String?
+  bodyPart      String?
+  injuryDate    DateTime?
+  returnDate    DateTime?
+  notes         String?  @db.Text
+
+  // Physical tests
+  testName      String?   // e.g. "Yo-Yo Test"
+  testDate      DateTime?
+  testResult    String?
+  testUnit      String?   // e.g. "ml/kg/min"
+
+  // Documents stored in MinIO
+  documentUrl   String?
+
+  recordType       MedicalRecordType
+  isVisibleToClubs Boolean @default(false)
+
+  createdAt     DateTime @default(now())
+
+  @@map("medical_records")
+}
+
+// ── Club ──────────────────────────────────────────────────────────
+
+model Club {
+  id                 String                @id @default(cuid())
+  userId             String                @unique
+  user               User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name               String
+  country            String
+  city               String
+  leagueName         String?
+  logoUrl            String?
+  website            String?
+  contactEmail       String
+  contactPhone       String?
+
+  verificationStatus ClubVerificationStatus @default(PENDING)
+  verifiedAt         DateTime?
+  verifiedBy         String?               // admin userId
+
+  // Billing
+  subscriptionStatus SubscriptionStatus    @default(TRIAL)
+  subscriptionEndsAt DateTime?
+
+  slug               String @unique
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  interactions       Interaction[]
+  watchlist          WatchlistItem[]
+  scoutingNotes      ScoutingNote[]
+
+  @@map("clubs")
+}
+
+// ── INTERACTIONS (Commission Log) ─────────────────────────────────
+
+model Interaction {
+  id              String   @id @default(cuid())
+
+  clubId          String
+  club            Club     @relation(fields: [clubId], references: [id])
+  playerId        String
+  player          Player   @relation(fields: [playerId], references: [id])
+
+  ipAddress       String
+  userAgent       String?
+  acceptedTosAt   DateTime
+  acceptedTosVersion String @default("v1.0")
+
+  commissionStatus CommissionStatus @default(PENDING)
+  commissionRate   Decimal  @db.Decimal(5, 4) @default(0.0500)
+  invoiceId        String?
+
+  createdAt       DateTime @default(now()) @db.Timestamptz
+
+  messages         Message[]
+
+  @@unique([clubId, playerId])
+  @@index([clubId])
+  @@index([playerId])
+  @@index([createdAt])
+  @@index([commissionStatus])
+  @@map("interactions")
+}
+
+// ── Watchlist ─────────────────────────────────────────────────────
+
+model WatchlistItem {
+  id        String   @id @default(cuid())
+  clubId    String
+  club      Club     @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  playerId  String
+  player    Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  addedAt   DateTime @default(now())
+  notes     String?
+
+  @@unique([clubId, playerId])
+  @@map("watchlist_items")
+}
+
+// ── Scouting Notes (internal, per-club) ──────────────────────────
+
+model ScoutingNote {
+  id        String   @id @default(cuid())
+  clubId    String
+  club      Club     @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  playerId  String
+  content   String   @db.Text
+  rating    Int?     @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([clubId, playerId])
+  @@map("scouting_notes")
+}
+
+// ── Messages ──────────────────────────────────────────────────────
+
+model Message {
+  id            String      @id @default(cuid())
+  senderId      String
+  sender        User        @relation("SentMessages", fields: [senderId], references: [id])
+  receiverId    String
+  receiver      User        @relation("ReceivedMessages", fields: [receiverId], references: [id])
+  interactionId String
+  interaction   Interaction @relation(fields: [interactionId], references: [id], onDelete: Cascade)
+  content       String      @db.Text
+  isRead        Boolean     @default(false)
+  createdAt     DateTime    @default(now())
+
+  @@index([interactionId])
+  @@index([receiverId, isRead])
+  @@map("messages")
+}
+
+// ── Admin ─────────────────────────────────────────────────────────
+
+model AdminProfile {
+  id        String @id @default(cuid())
+  userId    String @unique
+  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("admin_profiles")
+}

@@ -142,7 +142,7 @@ export default async function HomePage() {
       </section>
 
       {/* Featured Players — only CLUB and ADMIN */}
-      <section className="featured-section">
+      {role !== "PLAYER" && <section className="featured-section">
         <div className="container">
           {canSeePlayers ? (
             <>
@@ -259,7 +259,7 @@ export default async function HomePage() {
             </div>
           )}
         </div>
-      </section>
+      </section>}
 
       {/* How it works */}
       <section style={{ padding:"80px 0", borderTop:"1px solid var(--border)", background:"var(--card)" }}>

@@ -49,6 +49,37 @@ function SettingsForm({ club }: { club: any }) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
+  // Logo upload state
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(club.logoUrl ?? null);
+  const [logoUploading, setLogoUploading] = useState(false);
+  const [logoSaved, setLogoSaved] = useState(false);
+  const [logoError, setLogoError] = useState<string | null>(null);
+  const logoRef = useRef<HTMLInputElement>(null);
+
+  function handleLogoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setLogoFile(file);
+    setLogoSaved(false);
+    setLogoError(null);
+    setLogoPreview(URL.createObjectURL(file));
+  }
+
+  async function uploadLogo() {
+    if (!logoFile) return;
+    setLogoUploading(true); setLogoError(null); setLogoSaved(false);
+    const fd = new FormData();
+    fd.append("file", logoFile);
+    const res = await fetch("/api/club/upload-logo", { method: "POST", body: fd });
+    const data = await res.json();
+    setLogoUploading(false);
+    if (!res.ok) { setLogoError(data.error ?? "Upload failed."); return; }
+    setLogoPreview(data.logoUrl);
+    setLogoFile(null);
+    setLogoSaved(true);
+  }
+
   function setF(k: string, v: string) { setForm(f => ({ ...f, [k]: v })); setSaved(false); }
 
   async function save() {
@@ -63,6 +94,45 @@ function SettingsForm({ club }: { club: any }) {
   }
 
   return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+    {/* Logo upload card */}
+    <div className="card">
+      <h4 style={{ textTransform: "uppercase", marginBottom: 16, fontSize: "0.9rem" }}>Club Logo</h4>
+      <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+        <div
+          onClick={() => logoRef.current?.click()}
+          style={{
+            width: 80, height: 80, borderRadius: "var(--radius)",
+            background: "var(--card2)", border: "2px dashed var(--border)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            cursor: "pointer", overflow: "hidden", flexShrink: 0,
+          }}
+          title="Click to change logo"
+        >
+          {logoPreview
+            ? <img src={logoPreview} alt="Club logo" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            : <span style={{ fontSize: "2rem" }}>🏟️</span>}
+        </div>
+        <div style={{ flex: 1 }}>
+          <input ref={logoRef} type="file" accept="image/jpeg,image/png,image/webp" style={{ display: "none" }} onChange={handleLogoChange} />
+          <button type="button" className="btn btn-outline" style={{ fontSize: "0.82rem", padding: "7px 14px", marginBottom: 6 }} onClick={() => logoRef.current?.click()}>
+            📎 {logoPreview ? "Change Logo" : "Upload Logo"}
+          </button>
+          {logoFile && (
+            <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontSize: "0.75rem", color: "var(--muted)" }}>{logoFile.name}</span>
+              <button className="btn btn-primary" style={{ fontSize: "0.78rem", padding: "6px 12px" }} onClick={uploadLogo} disabled={logoUploading}>
+                {logoUploading ? <><span className="spinner" /> Uploading…</> : "Save Logo"}
+              </button>
+            </div>
+          )}
+          {logoError && <div style={{ fontSize: "0.78rem", color: "var(--red)", marginTop: 6 }}>{logoError}</div>}
+          {logoSaved && <div style={{ fontSize: "0.78rem", color: "#00c864", marginTop: 6 }}>✓ Logo updated</div>}
+          <p style={{ fontSize: "0.72rem", color: "var(--muted)", marginTop: 6, marginBottom: 0 }}>JPEG, PNG or WebP · max 5 MB</p>
+        </div>
+      </div>
+    </div>
+
     <div className="card">
       <h4 style={{ textTransform: "uppercase", marginBottom: 20 }}>Club Information</h4>
       <div className="grid-2" style={{ gap: 16, marginBottom: 16 }}>
@@ -87,6 +157,7 @@ function SettingsForm({ club }: { club: any }) {
         </button>
         {saved && <span style={{ fontSize: "0.85rem", color: "#00c864" }}>✓ Saved</span>}
       </div>
+    </div>
     </div>
   );
 }

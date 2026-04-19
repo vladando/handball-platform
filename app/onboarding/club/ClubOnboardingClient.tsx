@@ -30,6 +30,20 @@ export default function ClubOnboardingClient({ club }: { club: any }) {
     description:  club.description  ?? "",
   });
 
+  // Logo upload
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(club.logoUrl ?? null);
+  const logoRef = useRef<HTMLInputElement>(null);
+
+  function handleLogoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setLogoFile(file);
+    const url = URL.createObjectURL(file);
+    setLogoPreview(url);
+    setError("");
+  }
+
   // Step 6 — verification docs
   const [officialDoc, setOfficialDoc] = useState<File | null>(null);
   const [authDoc, setAuthDoc]         = useState<File | null>(null);
@@ -62,6 +76,18 @@ export default function ClubOnboardingClient({ club }: { club: any }) {
 
   async function finishProfile() {
     setSaving(true); setError("");
+    // Upload logo first if a new one was selected
+    if (logoFile) {
+      const fd = new FormData();
+      fd.append("file", logoFile);
+      const logoRes = await fetch("/api/club/upload-logo", { method: "POST", body: fd });
+      if (!logoRes.ok) {
+        const d = await logoRes.json();
+        setSaving(false);
+        setError(d.error ?? "Logo upload failed.");
+        return;
+      }
+    }
     const res = await fetch("/api/club/onboarding", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -280,15 +306,49 @@ export default function ClubOnboardingClient({ club }: { club: any }) {
           </div>
         )}
 
-        {/* ── Step 5: Description ── */}
+        {/* ── Step 5: Description + Logo ── */}
         {step === 5 && (
           <div style={card}>
-            <StepLabel n={5} title="About your club" sub="Tell players about your club's history, ambitions and playing style. Optional." />
+            <StepLabel n={5} title="About your club" sub="Add a logo and tell players about your club's history, ambitions and playing style." />
+
+            {/* Logo upload */}
+            <div className="form-group" style={{ marginBottom: 24 }}>
+              <label className="label">Club Logo <span style={{ fontSize: "0.73rem", color: "var(--muted)", fontWeight: 400 }}>(optional)</span></label>
+              <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 4 }}>
+                {/* Preview circle */}
+                <div
+                  onClick={() => logoRef.current?.click()}
+                  style={{
+                    width: 80, height: 80, borderRadius: "var(--radius)",
+                    background: "var(--card2)", border: "2px dashed var(--border)",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    cursor: "pointer", overflow: "hidden", flexShrink: 0,
+                    transition: "border-color 0.2s",
+                  }}
+                  title="Click to upload logo"
+                >
+                  {logoPreview
+                    ? <img src={logoPreview} alt="Logo preview" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                    : <span style={{ fontSize: "2rem" }}>🏟️</span>}
+                </div>
+                <div>
+                  <button type="button" className="btn btn-outline" style={{ fontSize: "0.82rem", padding: "7px 14px", marginBottom: 6 }} onClick={() => logoRef.current?.click()}>
+                    📎 {logoPreview ? "Change Logo" : "Upload Logo"}
+                  </button>
+                  <p style={{ fontSize: "0.73rem", color: "var(--muted)", margin: 0, lineHeight: 1.5 }}>
+                    JPEG, PNG or WebP · max 5 MB
+                  </p>
+                  {logoFile && <p style={{ fontSize: "0.73rem", color: "#00c864", margin: "4px 0 0" }}>✓ {logoFile.name}</p>}
+                </div>
+              </div>
+              <input ref={logoRef} type="file" accept="image/jpeg,image/png,image/webp" style={{ display: "none" }} onChange={handleLogoChange} />
+            </div>
+
             <div className="form-group" style={{ marginBottom: 28 }}>
               <label className="label">Club Description <span style={{ fontSize: "0.73rem", color: "var(--muted)", fontWeight: 400 }}>(optional)</span></label>
               <textarea className="input" rows={5} value={form.description} onChange={e => set("description", e.target.value)}
                 placeholder="Founded in 1985, RK Zagreb is one of the most successful handball clubs in Europe, with 6 EHF Champions League titles..."
-                style={{ resize: "vertical", lineHeight: 1.6 }} autoFocus />
+                style={{ resize: "vertical", lineHeight: 1.6 }} />
             </div>
             {error && <div style={{ color: "var(--red)", fontSize: "0.85rem", marginBottom: 16 }}>{error}</div>}
             <ContinueBtn onClick={finishProfile} label={saving ? "Saving..." : "Continue →"} disabled={saving} />

@@ -168,6 +168,42 @@ export async function saveVerificationDoc(
   }
 }
 
+const LOCAL_CLUB_DIR = path.join(process.cwd(), "public", "uploads", "clubs");
+
+export async function saveClubLogo(
+  clubId: string,
+  file: File
+): Promise<{ url: string; error?: never } | { url?: never; error: string }> {
+  if (!ALLOWED_TYPES[file.type]) {
+    return { error: "Only JPEG, PNG, WebP and GIF images are allowed." };
+  }
+  if (file.size > MAX_SIZE_BYTES) {
+    return { error: "File is too large. Maximum 5 MB." };
+  }
+
+  const bytes = await file.arrayBuffer();
+  const buffer = Buffer.from(bytes);
+
+  try {
+    if (useCloudinary) {
+      const url = await uploadToCloudinary(
+        buffer,
+        `handball/clubs/${clubId}`,
+        file.type
+      );
+      return { url };
+    } else {
+      const ext = ALLOWED_TYPES[file.type];
+      const filename = `${randomUUID()}${ext}`;
+      const dir = path.join(LOCAL_CLUB_DIR, clubId);
+      const url = await uploadLocally(buffer, dir, filename);
+      return { url };
+    }
+  } catch (err: any) {
+    return { error: err?.message ?? "Upload failed." };
+  }
+}
+
 export function deleteLocalFile(url: string) {
   if (!url) return;
   if (url.includes("cloudinary.com")) {

@@ -41,14 +41,16 @@ export default async function HomePage() {
 
   // Check if club is verified + redirect to onboarding if not completed
   let isVerifiedClub = role === "ADMIN";
+  let hasSubscription = role === "ADMIN";
   if (role === "CLUB") {
     const userId = (session?.user as any)?.id;
     const club = await prisma.club.findUnique({
       where: { userId },
-      select: { verificationStatus: true, onboardingCompleted: true },
+      select: { verificationStatus: true, onboardingCompleted: true, subscriptionStatus: true },
     }).catch(() => null);
     if (club && !club.onboardingCompleted) redirect("/onboarding/club");
     isVerifiedClub = club?.verificationStatus === "VERIFIED";
+    hasSubscription = club?.subscriptionStatus === "ACTIVE";
   }
 
   // Unread messages count for homepage button badge
@@ -170,10 +172,20 @@ export default async function HomePage() {
                       </div>
                     </div>
                   )}
+                  {isVerifiedClub && !hasSubscription && (
+                    <div style={{ background:"rgba(232,255,71,0.06)", border:"1px solid rgba(232,255,71,0.3)", borderRadius:"var(--radius-lg)", padding:"14px 20px", marginBottom:24, display:"flex", alignItems:"center", gap:14, flexWrap:"wrap" }}>
+                      <span style={{ fontSize:"1.3rem" }}>💳</span>
+                      <div style={{ flex:1 }}>
+                        <span style={{ fontFamily:"var(--font-display)", fontWeight:800, color:"var(--accent)", textTransform:"uppercase", marginRight:8, fontSize:"0.82rem" }}>Subscription Required</span>
+                        <span style={{ fontSize:"0.82rem", color:"var(--muted)" }}>Subscribe to unlock full player access.</span>
+                      </div>
+                      <a href="/dashboard/club" style={{ padding:"8px 18px", background:"var(--accent)", color:"var(--black)", borderRadius:"var(--radius)", fontWeight:700, fontSize:"0.82rem", textDecoration:"none", whiteSpace:"nowrap" }}>Subscribe →</a>
+                    </div>
+                  )}
                   <div className="grid-3">
                     {players.map((p: any) => (
                       <div key={p.id} style={{ position:"relative" }}>
-                        <div style={{ filter: isVerifiedClub ? "none" : "blur(7px)", pointerEvents: isVerifiedClub ? "auto" : "none" }}>
+                        <div style={{ filter: (isVerifiedClub && hasSubscription) ? "none" : "blur(7px)", pointerEvents: (isVerifiedClub && hasSubscription) ? "auto" : "none" }}>
                           <Link href={`/players/${p.slug}`} className="player-card">
                             <div className="player-card-photo">
                               {p.photoUrl
@@ -205,10 +217,12 @@ export default async function HomePage() {
                             </div>
                           </Link>
                         </div>
-                        {!isVerifiedClub && (
+                        {(!isVerifiedClub || !hasSubscription) && (
                           <div style={{ position:"absolute", inset:0, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:6, borderRadius:"var(--radius-lg)" }}>
                             <span style={{ fontSize:"1.8rem" }}>🔒</span>
-                            <span style={{ fontSize:"0.68rem", color:"var(--muted)", textTransform:"uppercase", letterSpacing:"0.08em", textAlign:"center" }}>Verify club<br/>to unlock</span>
+                            <span style={{ fontSize:"0.68rem", color:"var(--muted)", textTransform:"uppercase", letterSpacing:"0.08em", textAlign:"center" }}>
+                              {!isVerifiedClub ? "Verify club\nto unlock" : "Subscribe\nto unlock"}
+                            </span>
                           </div>
                         )}
                       </div>

@@ -91,86 +91,82 @@ function SettingsForm({ club }: { club: any }) {
   );
 }
 
-export default function ClubDashboardClient({ club, stats }: { club: any; stats: any }) {
+export default function ClubDashboardClient({ club, stats, paypalClientId }: { club: any; stats: any; paypalClientId: string }) {
   const isVerified = club.verificationStatus === "VERIFIED";
   const hasSubscription = club.subscriptionStatus === "ACTIVE";
   const canAccess = isVerified && hasSubscription;
   const [tab, setTab] = useState("overview");
   const [showCheckout, setShowCheckout] = useState(false);
-  const [btClientToken, setBtClientToken] = useState<string | null>(null);
-  const [btLoading, setBtLoading] = useState(false);
-  const [btError, setBtError] = useState<string | null>(null);
-  const [btSuccess, setBtSuccess] = useState(false);
-  const dropinRef = useRef<any>(null);
+  const [ppLoading, setPpLoading] = useState(false);
+  const [ppError, setPpError] = useState<string | null>(null);
+  const [ppSuccess, setPpSuccess] = useState(false);
+  const ppButtonsRef = useRef<any>(null);
 
-  async function openCheckout() {
-    setBtError(null);
-    setBtLoading(true);
+  function openCheckout() {
+    setPpError(null);
+    setPpSuccess(false);
     setShowCheckout(true);
-    try {
-      const res = await fetch("/api/club/braintree/token", { method: "POST" });
-      const data = await res.json();
-      if (!res.ok) { setBtError(data.error || "Could not load payment form."); setBtLoading(false); return; }
-      setBtClientToken(data.clientToken);
-    } catch {
-      setBtError("Network error. Please try again.");
-    }
-    setBtLoading(false);
   }
 
-  // Mount Braintree Drop-in when clientToken is ready
+  // Load PayPal SDK and render buttons when modal opens
   useEffect(() => {
-    if (!btClientToken || !showCheckout) return;
-    const container = document.getElementById("bt-dropin");
-    if (!container) return;
+    if (!showCheckout || ppSuccess) return;
 
-    function loadDropin() {
-      const bt = (window as any).braintree;
-      if (!bt) return;
-      if (dropinRef.current) { dropinRef.current.teardown(); dropinRef.current = null; }
-      bt.dropin.create({ authorization: btClientToken, container: "#bt-dropin", locale: "en_US" }, (err: any, instance: any) => {
-        if (err) { setBtError("Payment form error: " + err.message); return; }
-        dropinRef.current = instance;
+    function renderButtons() {
+      const paypal = (window as any).paypal;
+      if (!paypal) return;
+      const container = document.getElementById("paypal-button-container");
+      if (!container) return;
+      if (ppButtonsRef.current) { try { ppButtonsRef.current.close(); } catch {} ppButtonsRef.current = null; }
+
+      const buttons = paypal.Buttons({
+        style: { layout: "vertical", color: "gold", shape: "rect", label: "pay" },
+        createOrder: async () => {
+          setPpLoading(true); setPpError(null);
+          const res = await fetch("/api/club/paypal/create-order", { method: "POST" });
+          const data = await res.json();
+          setPpLoading(false);
+          if (!res.ok) { setPpError(data.error || "Could not create order."); return null; }
+          return data.orderId;
+        },
+        onApprove: async (data: any) => {
+          setPpLoading(true); setPpError(null);
+          const res = await fetch("/api/club/paypal/capture-order", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ orderId: data.orderID }),
+          });
+          const result = await res.json();
+          setPpLoading(false);
+          if (!res.ok) { setPpError(result.error || "Payment capture failed."); return; }
+          setPpSuccess(true);
+          setTimeout(() => window.location.reload(), 2500);
+        },
+        onError: () => { setPpError("Payment error. Please try again."); setPpLoading(false); },
+        onCancel: () => { setPpError("Payment cancelled."); },
       });
+
+      buttons.render("#paypal-button-container");
+      ppButtonsRef.current = buttons;
     }
 
-    if ((window as any).braintree?.dropin) {
-      loadDropin();
-    } else {
+    const existingScript = document.getElementById("paypal-sdk-script");
+    if ((window as any).paypal) {
+      setTimeout(renderButtons, 50);
+    } else if (!existingScript) {
       const script = document.createElement("script");
-      script.src = "https://js.braintreegateway.com/web/dropin/1.43.0/js/dropin.min.js";
-      script.onload = loadDropin;
+      script.id = "paypal-sdk-script";
+      script.src = `https://www.paypal.com/sdk/js?client-id=${paypalClientId}&currency=EUR`;
+      script.onload = () => setTimeout(renderButtons, 50);
       document.body.appendChild(script);
-      const css = document.createElement("link");
-      css.rel = "stylesheet";
-      css.href = "https://js.braintreegateway.com/web/dropin/1.43.0/css/dropin.min.css";
-      document.head.appendChild(css);
+    } else {
+      existingScript.addEventListener("load", () => setTimeout(renderButtons, 50));
     }
-    return () => { if (dropinRef.current) { dropinRef.current.teardown(); dropinRef.current = null; } };
-  }, [btClientToken, showCheckout]);
 
-  async function submitPayment() {
-    if (!dropinRef.current) return;
-    setBtLoading(true);
-    setBtError(null);
-    try {
-      const { nonce } = await new Promise<any>((resolve, reject) =>
-        dropinRef.current.requestPaymentMethod((err: any, payload: any) => err ? reject(err) : resolve(payload))
-      );
-      const res = await fetch("/api/club/braintree/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nonce }),
-      });
-      const data = await res.json();
-      if (!res.ok) { setBtError(data.error || "Payment failed."); setBtLoading(false); return; }
-      setBtSuccess(true);
-      setTimeout(() => window.location.reload(), 2000);
-    } catch (e: any) {
-      setBtError(e?.message || "Payment error.");
-    }
-    setBtLoading(false);
-  }
+    return () => {
+      if (ppButtonsRef.current) { try { ppButtonsRef.current.close(); } catch {} ppButtonsRef.current = null; }
+    };
+  }, [showCheckout, ppSuccess, paypalClientId]);
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [filters, setFilters] = useState({ q: "", position: "", nationality: "", minH: "", maxH: "", minSalary: "" });
@@ -616,21 +612,21 @@ export default function ClubDashboardClient({ club, stats }: { club: any; stats:
         </div>
         </div>
       </div>
-      {/* ── Braintree Checkout Modal ─────────────────────── */}
+      {/* ── PayPal Checkout Modal ─────────────────────── */}
       {showCheckout && (
         <div style={{ position: "fixed", inset: 0, zIndex: 9000, background: "rgba(0,0,0,0.78)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px 16px" }}
-          onClick={e => { if (e.target === e.currentTarget && !btLoading) { setShowCheckout(false); setBtClientToken(null); setBtError(null); } }}>
+          onClick={e => { if (e.target === e.currentTarget && !ppLoading) { setShowCheckout(false); setPpError(null); } }}>
           <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", padding: "32px 28px", maxWidth: 480, width: "100%", position: "relative" }}>
-            <button onClick={() => { setShowCheckout(false); setBtClientToken(null); setBtError(null); }}
+            <button onClick={() => { setShowCheckout(false); setPpError(null); }}
               style={{ position: "absolute", top: 14, right: 16, background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: "1.3rem", lineHeight: 1 }}>✕</button>
 
             <div className="section-label" style={{ marginBottom: 4 }}>Secure Checkout</div>
             <h4 style={{ textTransform: "uppercase", marginBottom: 4 }}>Annual Subscription</h4>
             <div style={{ fontFamily: "var(--font-display)", fontWeight: 900, fontSize: "2rem", color: "var(--accent)", marginBottom: 20 }}>
-              €1,000 <span style={{ fontSize: "0.85rem", color: "var(--muted)", fontWeight: 400 }}>/year</span>
+              €1 <span style={{ fontSize: "0.85rem", color: "var(--muted)", fontWeight: 400 }}>/year (test)</span>
             </div>
 
-            {btSuccess ? (
+            {ppSuccess ? (
               <div style={{ textAlign: "center", padding: "24px 0" }}>
                 <div style={{ fontSize: "3rem", marginBottom: 12 }}>✅</div>
                 <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: "1.1rem", textTransform: "uppercase", color: "#00c864" }}>Payment Successful!</div>
@@ -638,25 +634,18 @@ export default function ClubDashboardClient({ club, stats }: { club: any; stats:
               </div>
             ) : (
               <>
-                {btLoading && !btClientToken ? (
-                  <div style={{ textAlign: "center", padding: "40px 0", color: "var(--muted)" }}><span className="spinner" style={{ marginRight: 8 }} /> Loading payment form…</div>
-                ) : (
-                  <>
-                    <div id="bt-dropin" style={{ marginBottom: 16 }} />
-                    {btError && (
-                      <div style={{ background: "rgba(255,59,59,0.08)", border: "1px solid rgba(255,59,59,0.3)", borderRadius: "var(--radius)", padding: "10px 14px", marginBottom: 16, fontSize: "0.83rem", color: "#ff6b6b" }}>
-                        {btError}
-                      </div>
-                    )}
-                    <button className="btn btn-primary" style={{ width: "100%", justifyContent: "center", fontSize: "1rem" }}
-                      disabled={btLoading || !btClientToken} onClick={submitPayment}>
-                      {btLoading ? <><span className="spinner" /> Processing…</> : "Pay €1,000 — Activate Subscription"}
-                    </button>
-                    <div style={{ textAlign: "center", marginTop: 12, fontSize: "0.75rem", color: "var(--muted)" }}>
-                      🔒 Secured by Braintree (PayPal) · No refunds · <a href="/terms#refund" style={{ color: "var(--muted)" }}>See refund policy</a>
-                    </div>
-                  </>
+                {ppLoading && (
+                  <div style={{ textAlign: "center", padding: "16px 0", color: "var(--muted)" }}><span className="spinner" style={{ marginRight: 8 }} /> Processing…</div>
                 )}
+                {ppError && (
+                  <div style={{ background: "rgba(255,59,59,0.08)", border: "1px solid rgba(255,59,59,0.3)", borderRadius: "var(--radius)", padding: "10px 14px", marginBottom: 16, fontSize: "0.83rem", color: "#ff6b6b" }}>
+                    {ppError}
+                  </div>
+                )}
+                <div id="paypal-button-container" style={{ minHeight: 50 }} />
+                <div style={{ textAlign: "center", marginTop: 12, fontSize: "0.75rem", color: "var(--muted)" }}>
+                  🔒 Secured by PayPal · Pay with card or PayPal account · <a href="/terms#refund" style={{ color: "var(--muted)" }}>Refund policy</a>
+                </div>
               </>
             )}
           </div>

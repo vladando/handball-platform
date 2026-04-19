@@ -9,6 +9,10 @@ const POS_LABELS: Record<string, string> = {
   PIVOT: "Pivot", CENTRE_FORWARD: "Centre Forward",
 };
 
+const DEF_LABELS: Record<string, string> = {
+  POS_1: "1", POS_2: "2", POS_3: "3", POS_4: "4", POS_5: "5", POS_6: "6", POS_51: "5:1",
+};
+
 type Tab = "overview" | "career" | "videos" | "medical" | "photos";
 
 export default function PlayerProfileClient({
@@ -78,12 +82,12 @@ export default function PlayerProfileClient({
 
       {/* ── Overview ─────────────────────────────────────────────── */}
       {tab === "overview" && (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 32, alignItems: "start" }}>
+        <div className="profile-layout">
           <div>
             {/* Physical stats */}
             <div className="card" style={{ marginBottom: 24, position: "relative", overflow: "hidden" }}>
               <div className="section-label" style={{ marginBottom: 16 }}>Physical Attributes</div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, filter: isLocked ? "blur(6px)" : "none", userSelect: isLocked ? "none" : "auto" }}>
+              <div className="stats-grid-4" style={{ filter: isLocked ? "blur(6px)" : "none", userSelect: isLocked ? "none" : "auto" }}>
                 {[
                   { label: "Age", val: age, unit: "yrs" },
                   { label: "Height", val: player.heightCm, unit: "cm" },
@@ -110,11 +114,19 @@ export default function PlayerProfileClient({
               )}
             </div>
 
-            {/* Bio */}
-            {player.bio && (
+            {/* Bio + Achievements */}
+            {(player.bio || player.achievements) && (
               <div className="card" style={{ marginBottom: 24 }}>
                 <div className="section-label" style={{ marginBottom: 12 }}>About</div>
-                <p style={{ color: "rgba(245,243,238,0.8)", lineHeight: 1.8, fontSize: "0.95rem" }}>{player.bio}</p>
+                {player.bio && <p style={{ color: "rgba(245,243,238,0.8)", lineHeight: 1.8, fontSize: "0.95rem", marginBottom: player.achievements ? 16 : 0 }}>{player.bio}</p>}
+                {player.achievements && (
+                  <div>
+                    <div style={{ fontSize: "0.72rem", color: "var(--accent)", fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 6 }}>
+                      &#127942; Trophies &amp; Achievements
+                    </div>
+                    <p style={{ color: "rgba(245,243,238,0.8)", lineHeight: 1.8, fontSize: "0.9rem" }}>{player.achievements}</p>
+                  </div>
+                )}
               </div>
             )}
 
@@ -215,14 +227,22 @@ export default function PlayerProfileClient({
           </div>
 
           {/* Sidebar: Contact / Reveal */}
-          <div style={{ position: "sticky", top: 84 }}>
+          <div style={{ position: "sticky", top: 84, minWidth: 0 }}>
             <div className="card" style={{ marginBottom: 16 }}>
               <div className="section-label" style={{ marginBottom: 12 }}>Player Details</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.85rem" }}>
-                  <span style={{ color: "var(--muted)" }}>Position</span>
+                  <span style={{ color: "var(--muted)" }}>Attack Position</span>
                   <span style={{ fontFamily: "var(--font-display)", fontWeight: 700 }}>{POS_LABELS[player.position]}</span>
                 </div>
+                {player.defensivePosition && (
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.85rem" }}>
+                    <span style={{ color: "var(--muted)" }}>Defence Position</span>
+                    <span style={{ fontFamily: "var(--font-display)", fontWeight: 700 }}>
+                      {player.defensivePosition.split(",").filter(Boolean).map((v: string) => DEF_LABELS[v] ?? v).join(", ")}
+                    </span>
+                  </div>
+                )}
                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.85rem" }}>
                   <span style={{ color: "var(--muted)" }}>Nationality</span>
                   <span>{player.nationality}</span>
@@ -231,10 +251,18 @@ export default function PlayerProfileClient({
                   <span style={{ color: "var(--muted)" }}>Current Club</span>
                   <span>{player.currentClub ?? "Free Agent"}</span>
                 </div>
-                {player.expectedSalary && (
+                {(player.expectedSalaryMin || player.expectedSalaryMax || player.expectedSalary) && (
                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.85rem" }}>
                     <span style={{ color: "var(--muted)" }}>Expected Salary</span>
-                    <span className="badge badge-accent">€{Math.round(player.expectedSalary / 100).toLocaleString()}/yr</span>
+                    <span className="badge badge-accent">
+                      {player.expectedSalaryMin && player.expectedSalaryMax
+                        ? `€${Math.round(player.expectedSalaryMin / 100).toLocaleString()} – €${Math.round(player.expectedSalaryMax / 100).toLocaleString()}/yr`
+                        : player.expectedSalaryMin
+                        ? `from €${Math.round(player.expectedSalaryMin / 100).toLocaleString()}/yr`
+                        : player.expectedSalaryMax
+                        ? `up to €${Math.round(player.expectedSalaryMax / 100).toLocaleString()}/yr`
+                        : `€${Math.round((player.expectedSalary ?? 0) / 100).toLocaleString()}/yr`}
+                    </span>
                   </div>
                 )}
                 {player.availableFrom && (
@@ -292,7 +320,7 @@ export default function PlayerProfileClient({
             </div>
           ) : (
             <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-              <table className="table">
+              <div className="table-wrap"><table className="table">
                 <thead>
                   <tr>
                     <th>Club</th>
@@ -324,7 +352,7 @@ export default function PlayerProfileClient({
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </table></div>
             </div>
           )}
         </div>
@@ -435,7 +463,7 @@ export default function PlayerProfileClient({
                 .map((r: any) => (
                   <div key={r.id} className="card">
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
-                      <span className={`badge ${r.recordType === "INJURY" ? "badge-red" : r.recordType === "CLEARANCE" ? "badge-green" : "badge-blue"}`}>
+                      <span className={`badge ${r.recordType === "INJURY" ? "badge-red" : "badge-blue"}`}>
                         {r.recordType}
                       </span>
                       <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.75rem", color: "var(--muted)" }}>

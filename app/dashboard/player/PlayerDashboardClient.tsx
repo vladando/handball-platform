@@ -4,8 +4,20 @@ import { useRef, useState, useEffect } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import PhotoLightbox from "@/components/PhotoLightbox";
+import PhotoCropModal from "@/components/PhotoCropModal";
+import { COUNTRIES } from "@/lib/countries";
 
 const POSITIONS = ["GOALKEEPER","LEFT_BACK","RIGHT_BACK","LEFT_WING","RIGHT_WING","CENTRE_BACK","PIVOT","CENTRE_FORWARD"];
+
+const DEFENSIVE_POSITIONS = [
+  { value: "POS_1",  label: "1" },
+  { value: "POS_2",  label: "2" },
+  { value: "POS_3",  label: "3" },
+  { value: "POS_4",  label: "4" },
+  { value: "POS_5",  label: "5" },
+  { value: "POS_6",  label: "6" },
+  { value: "POS_51", label: "5:1" },
+];
 
 const NAV_ITEMS = [
   { id: "overview",      label: "Overview",        icon: "⊞" },
@@ -16,6 +28,26 @@ const NAV_ITEMS = [
   { id: "verification",  label: "Verification",    icon: "🔐" },
   { id: "visibility",    label: "Visibility",      icon: "👁" },
   { id: "messages",      label: "Messages",        icon: "💬" },
+  { id: "premium",       label: "Premium",         icon: "⭐" },
+  { id: "settings",      label: "Settings",        icon: "⚙" },
+];
+
+const LANGUAGES = [
+  { code: "en", label: "English" }, { code: "sr", label: "Srpski" },
+  { code: "hr", label: "Hrvatski" }, { code: "bs", label: "Bosanski" },
+  { code: "de", label: "Deutsch" }, { code: "fr", label: "Français" },
+  { code: "es", label: "Español" }, { code: "it", label: "Italiano" },
+  { code: "pt", label: "Português" }, { code: "pl", label: "Polski" },
+  { code: "sl", label: "Slovenščina" }, { code: "ar", label: "العربية" },
+];
+
+const TAB_FLOW = [
+  { id: "profile",    label: "Edit Profile" },
+  { id: "career",     label: "Career History" },
+  { id: "videos",     label: "Video Vault" },
+  { id: "medical",    label: "Medical Records" },
+  { id: "visibility", label: "Visibility" },
+  { id: "overview",   label: "⊞ Overview" },
 ];
 
 export default function PlayerDashboardClient({ player, revealCount }: { player: any; revealCount: number }) {
@@ -37,11 +69,13 @@ export default function PlayerDashboardClient({ player, revealCount }: { player:
   const [selfieFile, setSelfieFile] = useState<File | null>(null);
   const [verifying, setVerifying] = useState(false);
   const [verifyMsg, setVerifyMsg] = useState("");
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const passportInputRef = useRef<HTMLInputElement>(null);
   const selfieInputRef = useRef<HTMLInputElement>(null);
 
   async function submitVerification() {
     if (!passportFile || !selfieFile) { setVerifyMsg("Both passport and selfie are required."); return; }
+    if (!termsAccepted) { setVerifyMsg("You must accept the Terms of Service before submitting."); return; }
     setVerifying(true); setVerifyMsg("");
     const fd = new FormData();
     fd.append("passport", passportFile);
@@ -51,8 +85,9 @@ export default function PlayerDashboardClient({ player, revealCount }: { player:
     setVerifying(false);
     if (res.ok) {
       setVerificationStatus("PENDING");
-      setVerifyMsg("✓ Documents submitted! An admin will review your account shortly.");
+      setVerifyMsg("✓ Documents submitted! Redirecting to your profile...");
       setPassportFile(null); setSelfieFile(null);
+      setTimeout(() => { window.location.href = `/players/${player.slug}`; }, 1200);
     } else {
       setVerifyMsg("✕ " + (data.error ?? "Upload failed."));
     }
@@ -63,6 +98,7 @@ export default function PlayerDashboardClient({ player, revealCount }: { player:
   const [photoUploading, setPhotoUploading] = useState(false);
   const [photoError, setPhotoError] = useState("");
   const photoInputRef = useRef<HTMLInputElement>(null);
+  const [cropFile, setCropFile] = useState<File | null>(null);
 
   // ── Photo position (drag-to-reposition) ───────────────────────
   const [photoPos, setPhotoPos] = useState({ x: player.photoPositionX ?? 50, y: player.photoPositionY ?? 50 });
@@ -101,14 +137,19 @@ export default function PlayerDashboardClient({ player, revealCount }: { player:
 
   // ── Profile form ──────────────────────────────────────────────
   const [profile, setProfile] = useState({
-    firstName: player.firstName, lastName: player.lastName,
-    bio: player.bio ?? "", nationality: player.nationality,
-    heightCm: player.heightCm, weightKg: player.weightKg,
+    firstName: player.firstName ?? "", lastName: player.lastName ?? "",
+    bio: player.bio ?? "",
+    nationality: (player.nationality === "unknown" || !player.nationality) ? "" : player.nationality,
+    heightCm: player.heightCm ?? "", weightKg: player.weightKg ?? "",
     position: player.position, dominantHand: player.dominantHand,
     currentClub: player.currentClub ?? "",
-    expectedSalary: player.expectedSalary ? Math.round(player.expectedSalary / 100) : "",
-    phone: player.phone ?? "", agentName: player.agentName ?? "",
+    expectedSalaryMin: player.expectedSalaryMin ? Math.round(player.expectedSalaryMin / 100) : "",
+    expectedSalaryMax: player.expectedSalaryMax ? Math.round(player.expectedSalaryMax / 100) : "",
+    phone: player.phone ?? "", viber: player.viber ?? "",
+    agentName: player.agentName ?? "",
     agentPhone: player.agentPhone ?? "", agentEmail: player.agentEmail ?? "",
+    achievements: (player as any).achievements ?? "",
+    defensivePosition: (player as any).defensivePosition ?? "",
     isAvailable: player.isAvailable,
   });
 
@@ -116,11 +157,12 @@ export default function PlayerDashboardClient({ player, revealCount }: { player:
   const [videos, setVideos] = useState(player.videos ?? []);
   const [newVideo, setNewVideo] = useState({ title: "", youtubeUrl: "", description: "" });
   const [career, setCareer] = useState(player.careerEntries ?? []);
-  const [newCareer, setNewCareer] = useState({ clubName: "", country: "", startDate: "", endDate: "", goals: "", assists: "", isCurrentClub: false });
+  const THIS_YEAR = new Date().getFullYear();
+  const [newCareer, setNewCareer] = useState({ clubName: "", country: "", startYear: "", endYear: "", isCurrentClub: false });
   const [careerMsg, setCareerMsg] = useState("");
   const [medical, setMedical] = useState(player.medicalRecords ?? []);
   const [newMedical, setNewMedical] = useState({
-    recordType: "PHYSICAL_TEST",
+    recordType: "INJURY",
     testName: "", testResult: "", testUnit: "",
     injuryType: "", bodyPart: "", injuryDate: "", returnDate: "",
     notes: "", isVisibleToClubs: true,
@@ -129,13 +171,20 @@ export default function PlayerDashboardClient({ player, revealCount }: { player:
   function setP(k: string, v: any) { setProfile(p => ({ ...p, [k]: v })); }
 
   // ── Upload profile photo ──────────────────────────────────────
-  async function handlePhotoSelect(e: React.ChangeEvent<HTMLInputElement>) {
+  function handlePhotoSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    setCropFile(file); // open crop modal
+    if (photoInputRef.current) photoInputRef.current.value = "";
+  }
+
+  async function handleCropConfirm(croppedFile: File, posX: number, posY: number) {
+    setCropFile(null);
     setPhotoUploading(true);
     setPhotoError("");
+    setPhotoPos({ x: posX, y: posY });
     const fd = new FormData();
-    fd.append("file", file);
+    fd.append("file", croppedFile);
     const res = await fetch("/api/player/upload-photo", { method: "POST", body: fd });
     const data = await res.json();
     setPhotoUploading(false);
@@ -144,8 +193,6 @@ export default function PlayerDashboardClient({ player, revealCount }: { player:
     } else {
       setPhotoError(data.error ?? "Upload failed.");
     }
-    // reset input so same file can be selected again
-    if (photoInputRef.current) photoInputRef.current.value = "";
   }
 
   // ── Upload gallery image ──────────────────────────────────────
@@ -175,20 +222,43 @@ export default function PlayerDashboardClient({ player, revealCount }: { player:
   }
 
   // ── Save profile ──────────────────────────────────────────────
-  async function saveProfile() {
+  async function saveProfile(): Promise<boolean> {
+    // Client-side required field validation
+    const required: [string, string][] = [
+      [profile.firstName,  "First Name"],
+      [profile.lastName,   "Last Name"],
+      [profile.nationality,"Nationality"],
+      [String(profile.heightCm), "Height"],
+      [String(profile.weightKg), "Weight"],
+      [profile.phone,      "Phone Number"],
+    ];
+    const missing = required.filter(([v]) => !v || v === "0").map(([, l]) => l);
+    if (missing.length) {
+      setMsg(`✕ Required fields missing: ${missing.join(", ")}`);
+      return false;
+    }
     setSaving(true); setMsg("");
     const res = await fetch("/api/player/profile", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         ...profile,
-        expectedSalary: profile.expectedSalary ? +profile.expectedSalary * 100 : null,
         photoPositionX: photoPos.x,
         photoPositionY: photoPos.y,
       }),
     });
     setSaving(false);
     setMsg(res.ok ? "✓ Profile saved successfully." : "✕ Failed to save. Try again.");
+    return res.ok;
+  }
+
+  async function saveAndNext() {
+    const ok = await saveProfile();
+    if (ok) {
+      const idx = TAB_FLOW.findIndex(t => t.id === "profile");
+      const next = TAB_FLOW[idx + 1];
+      if (next) selectTab(next.id);
+    }
   }
 
   async function addVideo() {
@@ -209,18 +279,25 @@ export default function PlayerDashboardClient({ player, revealCount }: { player:
   }
 
   async function addCareer() {
-    if (!newCareer.clubName || !newCareer.country || !newCareer.startDate) {
-      setCareerMsg("✕ Club name, country and start date are required.");
+    if (!newCareer.clubName || !newCareer.country || !newCareer.startYear) {
+      setCareerMsg("✕ Club name, country and start year are required.");
       return;
     }
     setCareerMsg("");
+    const payload = {
+      clubName: newCareer.clubName,
+      country: newCareer.country,
+      startDate: `${newCareer.startYear}-01-01`,
+      endDate: newCareer.endYear ? `${newCareer.endYear}-07-01` : undefined,
+      isCurrentClub: newCareer.isCurrentClub,
+    };
     const res = await fetch("/api/player/career", {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(newCareer),
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
     });
     if (res.ok) {
       const data = await res.json();
       setCareer((c: any[]) => [data.entry, ...c]);
-      setNewCareer({ clubName: "", country: "", startDate: "", endDate: "", goals: "", assists: "", isCurrentClub: false });
+      setNewCareer({ clubName: "", country: "", startYear: "", endYear: "", isCurrentClub: false });
       setCareerMsg("✓ Career entry saved.");
       setTimeout(() => setCareerMsg(""), 3000);
     } else {
@@ -240,13 +317,58 @@ export default function PlayerDashboardClient({ player, revealCount }: { player:
     }
   }
 
+  async function deleteCareer(id: string) {
+    await fetch(`/api/player/career/${id}`, { method: "DELETE" });
+    setCareer((c: any[]) => c.filter((x: any) => x.id !== id));
+  }
+
+  async function deleteMedical(id: string) {
+    await fetch(`/api/player/medical/${id}`, { method: "DELETE" });
+    setMedical((m: any[]) => m.filter((x: any) => x.id !== id));
+  }
+
   const verifBadge = verificationStatus === "VERIFIED" ? "✓" : verificationStatus === "PENDING" ? "⏳" : verificationStatus === "REJECTED" ? "✕" : "!";
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [language, setLanguage] = useState(() => typeof window !== "undefined" ? (localStorage.getItem("hhLang") ?? "en") : "en");
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  function handleLanguageChange(code: string) {
+    setLanguage(code);
+    if (typeof window !== "undefined") localStorage.setItem("hhLang", code);
+  }
+
+  async function deleteAccount() {
+    setDeleting(true);
+    const res = await fetch("/api/player/account", { method: "DELETE" });
+    if (res.ok) {
+      window.location.href = "/";
+    }
+    setDeleting(false);
+  }
+
+  function selectTab(id: string) {
+    setTab(id);
+    setSidebarOpen(false);
+  }
 
   return (
     <main className="page">
       <div className="sidebar-layout">
+        {/* ── Crop modal ────────────────────────────────────────── */}
+        {cropFile && (
+          <PhotoCropModal
+            file={cropFile}
+            onConfirm={handleCropConfirm}
+            onCancel={() => { setCropFile(null); }}
+          />
+        )}
+
+        {/* ── Sidebar overlay (mobile) ──────────────────────────── */}
+        {sidebarOpen && <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />}
+
         {/* ── Sidebar ──────────────────────────────────────────── */}
-        <aside className="sidebar">
+        <aside className={`sidebar${sidebarOpen ? " is-open" : ""}`}>
           <div style={{ padding: "0 24px 20px", borderBottom: "1px solid var(--border)", marginBottom: 8 }}>
             <div style={{ width: 56, height: 56, borderRadius: "50%", background: "var(--card2)", border: "2px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.8rem", marginBottom: 12, overflow: "hidden" }}>
               {photoUrl ? <img src={photoUrl} style={{ width: "100%", height: "100%", objectFit: "cover" }} alt="" /> : "🏐"}
@@ -264,7 +386,7 @@ export default function PlayerDashboardClient({ player, revealCount }: { player:
                 <a
                   href="#"
                   className={tab === item.id ? "active" : ""}
-                  onClick={e => { e.preventDefault(); setTab(item.id); }}
+                  onClick={e => { e.preventDefault(); selectTab(item.id); }}
                 >
                   <span>{item.icon}</span> {item.label}
                   {item.id === "verification" && <span style={{ marginLeft: "auto", fontSize: "0.8rem" }}>{verifBadge}</span>}
@@ -282,14 +404,31 @@ export default function PlayerDashboardClient({ player, revealCount }: { player:
         {/* ── Main Content ─────────────────────────────────────── */}
         <div className="main-content">
           <div>
-            <div style={{ marginBottom: 32 }}>
+            {/* Mobile menu toggle */}
+            <button className="sidebar-toggle" onClick={() => setSidebarOpen(o => !o)}>
+              {sidebarOpen ? "✕ Close" : `☰ ${NAV_ITEMS.find(n => n.id === tab)?.label ?? "Menu"}`}
+            </button>
+            <div style={{ marginBottom: 24 }}>
               <div className="section-label">Player Dashboard</div>
               <h2>{player.firstName} {player.lastName}</h2>
             </div>
 
+            {/* ── Horizontal tab bar ──────────────────────────────── */}
+            <div className="horiz-tabs">
+              {TAB_FLOW.map(t => (
+                <button
+                  key={t.id}
+                  className={`horiz-tab${tab === t.id ? " active" : ""}${t.id === "overview" ? " overview-tab" : ""}`}
+                  onClick={() => selectTab(t.id)}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+
             {/* ── Overview ──────────────────────────────────────────── */}
             {tab === "overview" && (
-              <div>
+              <div className="tab-content">
                 <div className="grid-3" style={{ marginBottom: 32 }}>
                   {[
                     { label: "Clubs Viewed Profile", val: revealCount, accent: true },
@@ -589,34 +728,103 @@ export default function PlayerDashboardClient({ player, revealCount }: { player:
 
                 {/* ── Personal Information ───────────────────────────── */}
                 <div className="card" style={{ marginBottom: 20 }}>
-                  <h4 style={{ textTransform: "uppercase", marginBottom: 20, fontSize: "0.9rem" }}>Personal Information</h4>
+                  <h4 style={{ textTransform: "uppercase", marginBottom: 4, fontSize: "0.9rem" }}>Personal Information</h4>
+                  <p style={{ fontSize: "0.78rem", color: "var(--muted)", marginBottom: 20 }}>Fields marked <span style={{ color: "var(--accent)" }}>*</span> are required.</p>
                   <div className="grid-2">
-                    <div className="form-group"><label className="label">First Name</label><input className="input" value={profile.firstName} onChange={e => setP("firstName", e.target.value)} /></div>
-                    <div className="form-group"><label className="label">Last Name</label><input className="input" value={profile.lastName} onChange={e => setP("lastName", e.target.value)} /></div>
-                    <div className="form-group"><label className="label">Nationality</label><input className="input" value={profile.nationality} onChange={e => setP("nationality", e.target.value)} /></div>
                     <div className="form-group">
-                      <label className="label">Position</label>
-                      <select className="input" value={profile.position} onChange={e => setP("position", e.target.value)}>
+                      <label className="label">First Name <span style={{ color: "var(--accent)" }}>*</span></label>
+                      {profile.firstName ? (
+                        <div className="input" style={{ background: "var(--card)", color: "var(--muted)", cursor: "not-allowed", userSelect: "none" }} title="Name cannot be changed after profile creation">
+                          {profile.firstName} <span style={{ fontSize: "0.7rem", marginLeft: 8, color: "var(--muted)" }}>🔒 locked</span>
+                        </div>
+                      ) : (
+                        <input className="input" required value={profile.firstName} onChange={e => setP("firstName", e.target.value)} placeholder="Ivan" />
+                      )}
+                    </div>
+                    <div className="form-group">
+                      <label className="label">Last Name <span style={{ color: "var(--accent)" }}>*</span></label>
+                      {profile.lastName ? (
+                        <div className="input" style={{ background: "var(--card)", color: "var(--muted)", cursor: "not-allowed", userSelect: "none" }} title="Name cannot be changed after profile creation">
+                          {profile.lastName} <span style={{ fontSize: "0.7rem", marginLeft: 8, color: "var(--muted)" }}>🔒 locked</span>
+                        </div>
+                      ) : (
+                        <input className="input" required value={profile.lastName} onChange={e => setP("lastName", e.target.value)} placeholder="Horvat" />
+                      )}
+                    </div>
+                    <div className="form-group">
+                      <label className="label">Nationality <span style={{ color: "var(--accent)" }}>*</span></label>
+                      <select className="input" required value={profile.nationality} onChange={e => setP("nationality", e.target.value)}>
+                        <option value="">— Select country —</option>
+                        {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label className="label">Position <span style={{ color: "var(--accent)" }}>*</span></label>
+                      <select className="input" required value={profile.position} onChange={e => setP("position", e.target.value)}>
                         {POSITIONS.map(p => <option key={p} value={p}>{p.replace(/_/g, " ")}</option>)}
                       </select>
                     </div>
-                    <div className="form-group"><label className="label">Height (cm)</label><input className="input" type="number" value={profile.heightCm} onChange={e => setP("heightCm", +e.target.value)} /></div>
-                    <div className="form-group"><label className="label">Weight (kg)</label><input className="input" type="number" value={profile.weightKg} onChange={e => setP("weightKg", +e.target.value)} /></div>
                     <div className="form-group">
-                      <label className="label">Dominant Hand</label>
-                      <select className="input" value={profile.dominantHand} onChange={e => setP("dominantHand", e.target.value)}>
-                        <option value="RIGHT">Right</option><option value="LEFT">Left</option>
+                      <label className="label">Defensive Position <span style={{ fontSize: "0.73rem", color: "var(--muted)", fontWeight: 400 }}>(select all that apply)</span></label>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 7, marginTop: 6 }}>
+                        {DEFENSIVE_POSITIONS.map(p => {
+                          const selected = (profile.defensivePosition || "").split(",").filter(Boolean).includes(p.value);
+                          return (
+                            <button key={p.value} type="button" onClick={() => {
+                              const cur = (profile.defensivePosition || "").split(",").filter(Boolean);
+                              const idx = cur.indexOf(p.value);
+                              if (idx >= 0) cur.splice(idx, 1); else cur.push(p.value);
+                              setP("defensivePosition", cur.join(","));
+                            }} style={{ padding: "10px 8px", borderRadius: "var(--radius)", fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "0.9rem", cursor: "pointer", transition: "all 0.15s", background: selected ? "var(--accent)" : "var(--card2)", color: selected ? "var(--black)" : "var(--muted)", border: selected ? "2px solid var(--accent)" : "1px solid var(--border)" }}>
+                              {p.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    <div className="form-group">
+                      <label className="label">Height (cm) <span style={{ color: "var(--accent)" }}>*</span></label>
+                      <input className="input" type="number" required min={140} max={230} value={profile.heightCm} onChange={e => setP("heightCm", e.target.value)} placeholder="190" />
+                    </div>
+                    <div className="form-group">
+                      <label className="label">Weight (kg) <span style={{ color: "var(--accent)" }}>*</span></label>
+                      <input className="input" type="number" required min={50} max={180} value={profile.weightKg} onChange={e => setP("weightKg", e.target.value)} placeholder="85" />
+                    </div>
+                    <div className="form-group">
+                      <label className="label">Dominant Hand <span style={{ color: "var(--accent)" }}>*</span></label>
+                      <select className="input" required value={profile.dominantHand} onChange={e => setP("dominantHand", e.target.value)}>
+                        <option value="RIGHT">Right</option>
+                        <option value="LEFT">Left</option>
                       </select>
                     </div>
-                    <div className="form-group"><label className="label">Current Club</label><input className="input" value={profile.currentClub} onChange={e => setP("currentClub", e.target.value)} placeholder="FC Barcelona or Free Agent" /></div>
+                    <div className="form-group">
+                      <label className="label">Current Club</label>
+                      <input className="input" value={profile.currentClub} onChange={e => setP("currentClub", e.target.value)} placeholder="RK Zagreb or Free Agent" />
+                    </div>
                   </div>
                   <div className="form-group">
-                    <label className="label">Bio</label>
-                    <textarea className="input" rows={4} value={profile.bio} onChange={e => setP("bio", e.target.value)} placeholder="Tell clubs about yourself, your playing style, achievements…" style={{ resize: "vertical", lineHeight: 1.6 }} />
-                  </div>
-                  <div className="form-group">
-                    <label className="label">Expected Annual Salary (€)</label>
-                    <input className="input" type="number" value={profile.expectedSalary} onChange={e => setP("expectedSalary", e.target.value)} placeholder="80000" />
+                    <label className="label">Expected Annual Salary Range (€)</label>
+                    <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                      <input
+                        className="input"
+                        type="number"
+                        min={0}
+                        value={profile.expectedSalaryMin}
+                        onChange={e => setP("expectedSalaryMin", e.target.value)}
+                        placeholder="From e.g. 60000"
+                        style={{ flex: 1 }}
+                      />
+                      <span style={{ color: "var(--muted)", flexShrink: 0 }}>—</span>
+                      <input
+                        className="input"
+                        type="number"
+                        min={0}
+                        value={profile.expectedSalaryMax}
+                        onChange={e => setP("expectedSalaryMax", e.target.value)}
+                        placeholder="To e.g. 100000"
+                        style={{ flex: 1 }}
+                      />
+                    </div>
                   </div>
                 </div>
 
@@ -625,7 +833,8 @@ export default function PlayerDashboardClient({ player, revealCount }: { player:
                   <p style={{ fontSize: "0.78rem", color: "var(--muted)", marginBottom: 20 }}>Revealed to clubs only after they accept Terms of Service.</p>
                   <div className="grid-2">
                     <div className="form-group"><label className="label">Your Email</label><input className="input" type="email" value={player.user?.email ?? ""} disabled style={{ opacity: 0.6 }} /></div>
-                    <div className="form-group"><label className="label">Direct Phone</label><input className="input" value={profile.phone} onChange={e => setP("phone", e.target.value)} placeholder="+385 91 234 5678" /></div>
+                    <div className="form-group"><label className="label">Direct Phone <span style={{ color: "var(--accent)" }}>*</span></label><input className="input" required value={profile.phone} onChange={e => setP("phone", e.target.value)} placeholder="+385 91 234 5678" /></div>
+                    <div className="form-group"><label className="label">Viber / WhatsApp</label><input className="input" value={profile.viber} onChange={e => setP("viber", e.target.value)} placeholder="+385 91 234 5678" /></div>
                   </div>
                   <div style={{ borderTop: "1px solid var(--border)", paddingTop: 16, marginTop: 4 }}>
                     <div style={{ fontSize: "0.8rem", color: "var(--muted)", marginBottom: 14 }}>
@@ -639,15 +848,36 @@ export default function PlayerDashboardClient({ player, revealCount }: { player:
                   </div>
                 </div>
 
-                <button className="btn btn-primary" onClick={saveProfile} disabled={saving} style={{ minWidth: 160, justifyContent: "center" }}>
-                  {saving ? <><span className="spinner" /> Saving…</> : "Save Profile"}
-                </button>
+                <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+                  <button className="btn btn-primary" onClick={saveProfile} disabled={saving} style={{ minWidth: 160, justifyContent: "center" }}>
+                    {saving ? <><span className="spinner" /> Saving…</> : "Save Profile"}
+                  </button>
+                  <button className="btn btn-outline" onClick={saveAndNext} disabled={saving} style={{ minWidth: 160, justifyContent: "center" }}>
+                    {saving ? <><span className="spinner" /> Saving…</> : "Save & Next →"}
+                  </button>
+                </div>
               </div>
             )}
 
             {/* ── Career ────────────────────────────────────────────── */}
             {tab === "career" && (
               <div>
+                {/* ── About / Bio / Achievements ── */}
+                <div className="card" style={{ marginBottom: 24 }}>
+                  <h4 style={{ textTransform: "uppercase", marginBottom: 4, fontSize: "0.9rem" }}>About You</h4>
+                  <p style={{ fontSize: "0.78rem", color: "var(--muted)", marginBottom: 16 }}>Your bio and trophies appear on your public profile.</p>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="label">Trophies &amp; Achievements <span style={{ fontSize: "0.75rem", color: "var(--muted)", fontWeight: 400 }}>(optional)</span></label>
+                    <textarea className="input" rows={4} value={profile.achievements} onChange={e => setP("achievements", e.target.value)} placeholder="EHF Champions League winner 2022, Croatian national champion 2021..." style={{ resize: "vertical", lineHeight: 1.6 }} />
+                  </div>
+                  <div style={{ marginTop: 16, display: "flex", gap: 12, flexWrap: "wrap" }}>
+                    <button className="btn btn-primary" onClick={saveProfile} disabled={saving} style={{ minWidth: 140, justifyContent: "center" }}>
+                      {saving ? "Saving..." : "Save"}
+                    </button>
+                  </div>
+                  {msg && <div style={{ marginTop: 10, fontSize: "0.82rem", color: msg.startsWith("✓") ? "#00c864" : "var(--red)" }}>{msg}</div>}
+                </div>
+
                 <div className="card" style={{ marginBottom: 24 }}>
                   <h4 style={{ textTransform: "uppercase", marginBottom: 16, fontSize: "0.9rem" }}>Add Career Entry</h4>
                   {careerMsg && (
@@ -661,16 +891,17 @@ export default function PlayerDashboardClient({ player, revealCount }: { player:
                   <div className="grid-2">
                     <div className="form-group"><label className="label">Club Name *</label><input className="input" value={newCareer.clubName} onChange={e => setNewCareer(c => ({ ...c, clubName: e.target.value }))} placeholder="RK Zagreb" /></div>
                     <div className="form-group"><label className="label">Country *</label><input className="input" value={newCareer.country} onChange={e => setNewCareer(c => ({ ...c, country: e.target.value }))} placeholder="Croatia" /></div>
-                    <div className="form-group"><label className="label">Start Date *</label><input className="input" type="date" value={newCareer.startDate} onChange={e => setNewCareer(c => ({ ...c, startDate: e.target.value }))} /></div>
-                    <div className="form-group"><label className="label">End Date <span style={{ fontWeight: 400, color: "var(--muted)" }}>(blank if current)</span></label><input className="input" type="date" value={newCareer.endDate} onChange={e => setNewCareer(c => ({ ...c, endDate: e.target.value }))} /></div>
-                    <div className="form-group"><label className="label">Goals</label><input className="input" type="number" min="0" value={newCareer.goals} onChange={e => setNewCareer(c => ({ ...c, goals: e.target.value }))} /></div>
-                    <div className="form-group"><label className="label">Assists</label><input className="input" type="number" min="0" value={newCareer.assists} onChange={e => setNewCareer(c => ({ ...c, assists: e.target.value }))} /></div>
+                    <div className="form-group"><label className="label">Start Year *</label><input className="input" type="number" min={1960} max={THIS_YEAR} value={newCareer.startYear} onChange={e => setNewCareer(c => ({ ...c, startYear: e.target.value }))} placeholder="2020" /></div>
+                    <div className="form-group"><label className="label">End Year <span style={{ fontWeight: 400, color: "var(--muted)" }}>(blank if current)</span></label><input className="input" type="number" min={1960} max={THIS_YEAR} value={newCareer.endYear} onChange={e => setNewCareer(c => ({ ...c, endYear: e.target.value }))} placeholder="2023" /></div>
                     <div className="form-group" style={{ display: "flex", alignItems: "center", gap: 10, paddingTop: 24 }}>
                       <input type="checkbox" id="isCurrent" checked={newCareer.isCurrentClub} onChange={e => setNewCareer(c => ({ ...c, isCurrentClub: e.target.checked }))} style={{ accentColor: "var(--accent)", width: 16, height: 16 }} />
                       <label htmlFor="isCurrent" className="label" style={{ margin: 0 }}>Current Club</label>
                     </div>
                   </div>
-                  <button className="btn btn-primary" onClick={addCareer} style={{ minWidth: 140, justifyContent: "center" }}>Save Entry</button>
+                  <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                    <button className="btn btn-primary" onClick={addCareer} style={{ minWidth: 140, justifyContent: "center" }}>Save Entry</button>
+                    <button className="btn btn-outline" onClick={async () => { await addCareer(); selectTab("videos"); }} style={{ minWidth: 160, justifyContent: "center" }}>Save & Next →</button>
+                  </div>
                 </div>
 
                 {career.length === 0 ? (
@@ -686,14 +917,16 @@ export default function PlayerDashboardClient({ player, revealCount }: { player:
                               {entry.isCurrentClub && <span className="badge badge-green" style={{ marginLeft: 8 }}>Current</span>}
                             </div>
                             <div style={{ fontSize: "0.85rem", color: "var(--muted)" }}>{entry.country} · {new Date(entry.startDate).getFullYear()} — {entry.endDate ? new Date(entry.endDate).getFullYear() : "Present"}</div>
-                            {(entry.appearances || entry.goals) && (
-                              <div style={{ display: "flex", gap: 16, marginTop: 8 }}>
-                                {entry.appearances != null && <span style={{ fontSize: "0.8rem" }}><strong style={{ color: "var(--accent)" }}>{entry.appearances}</strong> <span style={{ color: "var(--muted)" }}>apps</span></span>}
-                                {entry.goals != null && <span style={{ fontSize: "0.8rem" }}><strong style={{ color: "var(--accent)" }}>{entry.goals}</strong> <span style={{ color: "var(--muted)" }}>goals</span></span>}
-                                {entry.assists != null && <span style={{ fontSize: "0.8rem" }}><strong style={{ color: "var(--accent)" }}>{entry.assists}</strong> <span style={{ color: "var(--muted)" }}>assists</span></span>}
-                              </div>
-                            )}
                           </div>
+                          <button
+                            onClick={() => deleteCareer(entry.id)}
+                            title="Delete entry"
+                            style={{ background: "none", border: "1px solid var(--border)", borderRadius: "var(--radius)", color: "var(--muted)", cursor: "pointer", fontSize: "0.8rem", padding: "4px 10px", flexShrink: 0, transition: "color 0.15s, border-color 0.15s" }}
+                            onMouseOver={e => { (e.currentTarget as HTMLButtonElement).style.color = "var(--red)"; (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--red)"; }}
+                            onMouseOut={e => { (e.currentTarget as HTMLButtonElement).style.color = "var(--muted)"; (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--border)"; }}
+                          >
+                            ✕ Delete
+                          </button>
                         </div>
                       </div>
                     ))}
@@ -710,7 +943,10 @@ export default function PlayerDashboardClient({ player, revealCount }: { player:
                   <div className="form-group"><label className="label">Video Title</label><input className="input" value={newVideo.title} onChange={e => setNewVideo(v => ({ ...v, title: e.target.value }))} placeholder="Highlights vs THW Kiel 2024" /></div>
                   <div className="form-group"><label className="label">YouTube URL</label><input className="input" value={newVideo.youtubeUrl} onChange={e => setNewVideo(v => ({ ...v, youtubeUrl: e.target.value }))} placeholder="https://youtube.com/watch?v=..." /></div>
                   <div className="form-group"><label className="label">Description (optional)</label><input className="input" value={newVideo.description} onChange={e => setNewVideo(v => ({ ...v, description: e.target.value }))} placeholder="EHF Champions League Quarter Final…" /></div>
-                  <button className="btn btn-primary" onClick={addVideo}>Add Video</button>
+                  <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                    <button className="btn btn-primary" onClick={addVideo}>Add Video</button>
+                    <button className="btn btn-outline" onClick={async () => { await addVideo(); selectTab("medical"); }} style={{ minWidth: 160, justifyContent: "center" }}>Save & Next →</button>
+                  </div>
                 </div>
 
                 {videos.length === 0 ? (
@@ -750,9 +986,8 @@ export default function PlayerDashboardClient({ player, revealCount }: { player:
                     <div className="form-group">
                       <label className="label">Record Type</label>
                       <select className="input" value={newMedical.recordType} onChange={e => setNewMedical(m => ({ ...m, recordType: e.target.value }))}>
-                        <option value="PHYSICAL_TEST">Physical Test</option>
                         <option value="INJURY">Injury</option>
-                        <option value="CLEARANCE">Medical Clearance</option>
+                        <option value="PHYSICAL_TEST">Physical Test</option>
                       </select>
                     </div>
                     {newMedical.recordType === "PHYSICAL_TEST" ? (
@@ -778,7 +1013,10 @@ export default function PlayerDashboardClient({ player, revealCount }: { player:
                     <input type="checkbox" id="visibleToClubs" checked={newMedical.isVisibleToClubs} onChange={e => setNewMedical(m => ({ ...m, isVisibleToClubs: e.target.checked }))} style={{ accentColor: "var(--accent)", width: 16, height: 16 }} />
                     <label htmlFor="visibleToClubs" className="label" style={{ margin: 0 }}>Visible to clubs</label>
                   </div>
-                  <button className="btn btn-primary" onClick={addMedical}>Add Record</button>
+                  <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                    <button className="btn btn-primary" onClick={addMedical}>Add Record</button>
+                    <button className="btn btn-outline" onClick={async () => { await addMedical(); selectTab("visibility"); }} style={{ minWidth: 160, justifyContent: "center" }}>Save & Next →</button>
+                  </div>
                 </div>
 
                 {medical.length === 0 ? (
@@ -806,11 +1044,20 @@ export default function PlayerDashboardClient({ player, revealCount }: { player:
                           )}
                           {r.notes && <div style={{ fontSize: "0.8rem", color: "var(--muted)", marginTop: 6 }}>{r.notes}</div>}
                         </div>
-                        <div>
+                        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8, flexShrink: 0 }}>
                           {r.isVisibleToClubs
                             ? <span className="badge badge-green">Visible</span>
                             : <span className="badge badge-muted">Private</span>
                           }
+                          <button
+                            onClick={() => deleteMedical(r.id)}
+                            title="Delete record"
+                            style={{ background: "none", border: "1px solid var(--border)", borderRadius: "var(--radius)", color: "var(--muted)", cursor: "pointer", fontSize: "0.75rem", padding: "3px 9px", transition: "color 0.15s, border-color 0.15s" }}
+                            onMouseOver={e => { (e.currentTarget as HTMLButtonElement).style.color = "var(--red)"; (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--red)"; }}
+                            onMouseOut={e => { (e.currentTarget as HTMLButtonElement).style.color = "var(--muted)"; (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--border)"; }}
+                          >
+                            ✕ Delete
+                          </button>
                         </div>
                       </div>
                     ))}
@@ -942,7 +1189,39 @@ export default function PlayerDashboardClient({ player, revealCount }: { player:
                       </div>
                     )}
 
-                    <button className="btn btn-primary" onClick={submitVerification} disabled={verifying || !passportFile || !selfieFile} style={{ minWidth: 180, justifyContent: "center" }}>
+                    {/* Legal consent */}
+                    <div style={{
+                      padding: "16px 20px", borderRadius: "var(--radius)",
+                      background: "rgba(232,255,71,0.04)", border: "1px solid rgba(232,255,71,0.15)",
+                      marginBottom: 20,
+                    }}>
+                      <label style={{ display: "flex", gap: 14, alignItems: "flex-start", cursor: "pointer" }}>
+                        <input
+                          type="checkbox"
+                          checked={termsAccepted}
+                          onChange={e => setTermsAccepted(e.target.checked)}
+                          style={{ accentColor: "var(--accent)", width: 18, height: 18, flexShrink: 0, marginTop: 2 }}
+                        />
+                        <span style={{ fontSize: "0.82rem", color: "rgba(245,243,238,0.8)", lineHeight: 1.7 }}>
+                          I have read and agree to the{" "}
+                          <a href="/terms" target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent)", textDecoration: "underline" }}>
+                            Terms of Service &amp; Privacy Policy
+                          </a>
+                          . I confirm that all documents and information I submit are genuine, accurate and belong to me.
+                          I understand that my profile information will be visible to clubs on this platform, that my contact details
+                          will be shared with verified clubs upon their request, and that{" "}
+                          <strong style={{ color: "var(--white)" }}>all platform activity is logged and may serve as digital evidence</strong>{" "}
+                          in the event of a dispute or legal proceeding. Player registration and profile use are free of charge.
+                        </span>
+                      </label>
+                    </div>
+
+                    <button
+                      className="btn btn-primary"
+                      onClick={submitVerification}
+                      disabled={verifying || !passportFile || !selfieFile || !termsAccepted}
+                      style={{ minWidth: 180, justifyContent: "center" }}
+                    >
                       {verifying ? <><span className="spinner" /> Uploading…</> : "Submit for Verification"}
                     </button>
                   </div>
@@ -984,6 +1263,11 @@ export default function PlayerDashboardClient({ player, revealCount }: { player:
                     </Link>
                     . Contact details are only shown to clubs after they accept our Terms of Service.
                   </div>
+                  <div style={{ marginTop: 24, paddingTop: 20, borderTop: "1px solid var(--border)" }}>
+                    <Link href={`/players/${player.slug}`} className="btn btn-primary" style={{ justifyContent: "center", display: "inline-flex" }}>
+                      👁 View Public Profile →
+                    </Link>
+                  </div>
                 </div>
               </div>
             )}
@@ -1001,6 +1285,90 @@ export default function PlayerDashboardClient({ player, revealCount }: { player:
                     Go to Messages Inbox →
                   </Link>
                 </div>
+              </div>
+            )}
+
+            {/* ── Premium ───────────────────────────────────────────── */}
+            {tab === "premium" && (
+              <div style={{ maxWidth: 560 }}>
+                <div style={{ textAlign: "center", padding: "60px 24px", background: "var(--card2)", borderRadius: "var(--radius-lg)", border: "1px solid rgba(232,255,71,0.2)" }}>
+                  <div style={{ fontSize: "3.5rem", marginBottom: 20 }}>⭐</div>
+                  <div style={{ fontSize: "0.75rem", color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.14em", fontFamily: "var(--font-mono)", marginBottom: 12 }}>Coming Soon</div>
+                  <h2 style={{ marginBottom: 16, fontSize: "1.8rem" }}>Premium is on its way</h2>
+                  <p style={{ color: "var(--muted)", lineHeight: 1.8, fontSize: "0.95rem", maxWidth: 400, margin: "0 auto 36px" }}>
+                    We&apos;re working on Premium features to help you get noticed by top clubs faster. Stay tuned — it&apos;s launching soon.
+                  </p>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 12, maxWidth: 320, margin: "0 auto 36px", textAlign: "left" }}>
+                    {[
+                      { icon: "⭐", text: "Featured placement in club searches" },
+                      { icon: "📊", text: "Profile analytics — see who viewed you" },
+                      { icon: "🏆", text: "Verified Premium badge on your profile" },
+                      { icon: "🔔", text: "Priority alerts to matching clubs" },
+                    ].map((item, i) => (
+                      <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, fontSize: "0.88rem", color: "rgba(245,243,238,0.7)" }}>
+                        <span style={{ flexShrink: 0 }}>{item.icon}</span>
+                        <span>{item.text}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ background: "rgba(232,255,71,0.06)", border: "1px solid rgba(232,255,71,0.2)", borderRadius: "var(--radius)", padding: "14px 20px", fontSize: "0.85rem", color: "var(--muted)" }}>
+                    🔔 You&apos;ll be notified by email when Premium becomes available.
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ── Settings ──────────────────────────────────────────── */}
+            {tab === "settings" && (
+              <div style={{ maxWidth: 520, display: "flex", flexDirection: "column", gap: 20 }}>
+
+                {/* Language */}
+                <div className="card">
+                  <h4 style={{ textTransform: "uppercase", marginBottom: 4, fontSize: "0.9rem" }}>🌐 Language</h4>
+                  <p style={{ fontSize: "0.78rem", color: "var(--muted)", marginBottom: 16 }}>
+                    Choose your preferred display language. Full translations coming soon.
+                  </p>
+                  <select
+                    className="input"
+                    value={language}
+                    onChange={e => handleLanguageChange(e.target.value)}
+                  >
+                    {LANGUAGES.map(l => (
+                      <option key={l.code} value={l.code}>{l.label}</option>
+                    ))}
+                  </select>
+                  {language !== "en" && (
+                    <div style={{ marginTop: 12, padding: "10px 14px", borderRadius: "var(--radius)", background: "rgba(232,255,71,0.06)", border: "1px solid rgba(232,255,71,0.15)", fontSize: "0.78rem", color: "var(--muted)" }}>
+                      ⚡ Translation for <strong style={{ color: "var(--accent)" }}>{LANGUAGES.find(l => l.code === language)?.label}</strong> is in progress. The interface will update as translations are added.
+                    </div>
+                  )}
+                </div>
+
+                {/* Delete account */}
+                <div className="card" style={{ border: "1px solid rgba(255,59,59,0.2)" }}>
+                  <h4 style={{ textTransform: "uppercase", marginBottom: 4, fontSize: "0.9rem", color: "var(--red)" }}>⚠ Delete Account</h4>
+                  <p style={{ fontSize: "0.82rem", color: "var(--muted)", marginBottom: 16, lineHeight: 1.6 }}>
+                    Permanently delete your account and all associated data — profile, photos, career history, videos and medical records. This action cannot be undone.
+                  </p>
+                  {!deleteConfirm ? (
+                    <button className="btn btn-danger" onClick={() => setDeleteConfirm(true)}>
+                      🗑 Delete My Account
+                    </button>
+                  ) : (
+                    <div style={{ padding: "16px", background: "rgba(255,59,59,0.06)", borderRadius: "var(--radius)", border: "1px solid rgba(255,59,59,0.2)" }}>
+                      <p style={{ fontSize: "0.85rem", color: "var(--white)", marginBottom: 14, fontWeight: 600 }}>
+                        Are you absolutely sure? Type your action to confirm:
+                      </p>
+                      <div style={{ display: "flex", gap: 10 }}>
+                        <button className="btn btn-danger" disabled={deleting} style={{ justifyContent: "center" }} onClick={deleteAccount}>
+                          {deleting ? <><span className="spinner" /> Deleting…</> : "Yes, delete permanently"}
+                        </button>
+                        <button className="btn btn-outline" onClick={() => setDeleteConfirm(false)}>Cancel</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
               </div>
             )}
           </div>

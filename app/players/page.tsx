@@ -20,15 +20,17 @@ export default async function PlayersPage() {
     redirect("/players/access-denied");
   }
 
-  // Check if club is verified
+  // Check if club is verified AND has active subscription
   let isVerified = role === "ADMIN";
+  let hasSubscription = role === "ADMIN";
   if (role === "CLUB") {
     const userId = (session.user as any).id;
     const club = await prisma.club.findUnique({
       where: { userId },
-      select: { verificationStatus: true },
+      select: { verificationStatus: true, subscriptionStatus: true },
     }).catch(() => null);
     isVerified = club?.verificationStatus === "VERIFIED";
+    hasSubscription = club?.subscriptionStatus === "ACTIVE";
   }
 
   const players = await prisma.player.findMany({
@@ -62,8 +64,24 @@ export default async function PlayersPage() {
             </div>
           </div>
         )}
-        <div style={{ display:"grid", gridTemplateColumns:"260px 1fr", gap:32, alignItems:"start" }}>
-          <PlayersClient players={players as any} positions={POSITIONS} posLabels={POS_LABELS} nationalities={nationalities} isVerified={isVerified} />
+        {isVerified && !hasSubscription && (
+          <div style={{ background:"rgba(232,255,71,0.06)", border:"1px solid rgba(232,255,71,0.3)", borderRadius:"var(--radius-lg)", padding:"20px 24px", marginBottom:32, display:"flex", alignItems:"center", gap:16, flexWrap:"wrap" }}>
+            <span style={{ fontSize:"1.6rem" }}>💳</span>
+            <div style={{ flex:1 }}>
+              <div style={{ fontFamily:"var(--font-display)", fontWeight:800, fontSize:"0.9rem", textTransform:"uppercase", color:"var(--accent)", marginBottom:4 }}>
+                Subscription Required
+              </div>
+              <div style={{ fontSize:"0.82rem", color:"var(--muted)" }}>
+                Your club is verified but your subscription is not active. Subscribe for €1,000/year to unlock full player access.
+              </div>
+            </div>
+            <a href="/dashboard/club" style={{ padding:"10px 20px", background:"var(--accent)", color:"var(--black)", borderRadius:"var(--radius)", fontWeight:700, fontSize:"0.85rem", textDecoration:"none", whiteSpace:"nowrap" }}>
+              Subscribe →
+            </a>
+          </div>
+        )}
+        <div className="players-layout">
+          <PlayersClient players={players as any} positions={POSITIONS} posLabels={POS_LABELS} nationalities={nationalities} isVerified={isVerified && hasSubscription} />
         </div>
       </div>
     </main>

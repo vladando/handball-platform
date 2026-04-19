@@ -141,10 +141,16 @@ export default async function PlayerProfilePage({
                 <span>{player.heightCm}cm / {player.weightKg}kg</span>
               </div>
 
-              {player.expectedSalary && (
+              {(player.expectedSalaryMin || player.expectedSalaryMax || player.expectedSalary) && (
                 <div style={{ marginTop: 12 }}>
                   <span className="badge badge-accent" style={{ fontSize: "0.8rem", padding: "4px 10px" }}>
-                    Asking: €{Math.round(player.expectedSalary / 100).toLocaleString()}/yr
+                    {player.expectedSalaryMin && player.expectedSalaryMax
+                      ? `Asking: €${Math.round(player.expectedSalaryMin / 100).toLocaleString()} – €${Math.round(player.expectedSalaryMax / 100).toLocaleString()}/yr`
+                      : player.expectedSalaryMin
+                      ? `Asking: from €${Math.round(player.expectedSalaryMin / 100).toLocaleString()}/yr`
+                      : player.expectedSalaryMax
+                      ? `Asking: up to €${Math.round(player.expectedSalaryMax / 100).toLocaleString()}/yr`
+                      : `Asking: €${Math.round((player.expectedSalary ?? 0) / 100).toLocaleString()}/yr`}
                   </span>
                 </div>
               )}

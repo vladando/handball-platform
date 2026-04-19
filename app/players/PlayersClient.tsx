@@ -1,5 +1,5 @@
 "use client";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import Link from "next/link";
 
 const POS_SHORT: Record<string,string> = {
@@ -14,6 +14,37 @@ export default function PlayersClient({ players, positions, posLabels, nationali
   const [minH, setMinH] = useState(160);
   const [maxH, setMaxH] = useState(220);
   const [view, setView] = useState<"grid"|"list">("grid");
+
+  // Debounced search logging for verified clubs
+  const logTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const prevFilters = useRef({ pos: "", nat: "", minH: 160, maxH: 220 });
+
+  useEffect(() => {
+    if (!isVerified) return;
+    // Only log if at least one filter is active (not default state)
+    const hasFilter = pos !== "" || nat !== "" || minH !== 160 || maxH !== 220;
+    if (!hasFilter) return;
+    // Avoid duplicate logs for identical filters
+    const prev = prevFilters.current;
+    if (prev.pos === pos && prev.nat === nat && prev.minH === minH && prev.maxH === maxH) return;
+
+    if (logTimer.current) clearTimeout(logTimer.current);
+    logTimer.current = setTimeout(() => {
+      prevFilters.current = { pos, nat, minH, maxH };
+      fetch("/api/club/search-log", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          position:    pos  || null,
+          nationality: nat  || null,
+          minHeight:   minH !== 160 ? minH : null,
+          maxHeight:   maxH !== 220 ? maxH : null,
+        }),
+      }).catch(() => {}); // fire-and-forget
+    }, 1500);
+
+    return () => { if (logTimer.current) clearTimeout(logTimer.current); };
+  }, [pos, nat, minH, maxH, isVerified]);
 
   const filtered = useMemo(() => players.filter((p: any) => {
     if (pos && p.position !== pos) return false;

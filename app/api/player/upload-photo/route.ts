@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+
+export const maxDuration = 30;
 import { savePlayerImage, deleteLocalFile } from "@/lib/storage";
 
 export async function POST(req: NextRequest) {

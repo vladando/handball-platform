@@ -1,7 +1,32 @@
 "use client";
 // app/dashboard/club/ClubDashboardClient.tsx
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
+
+function ClubDeleteButton() {
+  const [confirm, setConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  async function del() {
+    setDeleting(true);
+    const res = await fetch("/api/club/account", { method: "DELETE" });
+    if (res.ok) window.location.href = "/";
+    setDeleting(false);
+  }
+  if (!confirm) return (
+    <button className="btn btn-danger" onClick={() => setConfirm(true)}>🗑 Delete Club Account</button>
+  );
+  return (
+    <div style={{ padding: 14, background: "rgba(255,59,59,0.06)", borderRadius: "var(--radius)", border: "1px solid rgba(255,59,59,0.2)" }}>
+      <p style={{ fontSize: "0.85rem", color: "var(--white)", marginBottom: 12, fontWeight: 600 }}>Are you absolutely sure?</p>
+      <div style={{ display: "flex", gap: 10 }}>
+        <button className="btn btn-danger" disabled={deleting} style={{ justifyContent: "center" }} onClick={del}>
+          {deleting ? <><span className="spinner" /> Deleting…</> : "Yes, delete permanently"}
+        </button>
+        <button className="btn btn-outline" onClick={() => setConfirm(false)}>Cancel</button>
+      </div>
+    </div>
+  );
+}
 
 const POS_SHORT: Record<string, string> = {
   GOALKEEPER: "GK", LEFT_BACK: "LB", RIGHT_BACK: "RB",
@@ -13,9 +38,139 @@ const STATUS_COLORS: Record<string, string> = {
   PAID: "badge-green", DISPUTED: "badge-red", WAIVED: "badge-muted",
 };
 
+function SettingsForm({ club }: { club: any }) {
+  const [form, setForm] = useState({
+    name: club.name ?? "", country: club.country ?? "", city: club.city ?? "",
+    address: club.address ?? "", leagueName: club.leagueName ?? "",
+    website: club.website ?? "", contactPhone: club.contactPhone ?? "",
+    contactEmail: club.contactEmail ?? "", contactName: club.contactName ?? "",
+    contactTitle: club.contactTitle ?? "", description: club.description ?? "",
+  });
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  function setF(k: string, v: string) { setForm(f => ({ ...f, [k]: v })); setSaved(false); }
+
+  async function save() {
+    setSaving(true);
+    const res = await fetch("/api/club/onboarding", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(form),
+    });
+    setSaving(false);
+    if (res.ok) setSaved(true);
+  }
+
+  return (
+    <div className="card">
+      <h4 style={{ textTransform: "uppercase", marginBottom: 20 }}>Club Information</h4>
+      <div className="grid-2" style={{ gap: 16, marginBottom: 16 }}>
+        <div className="form-group" style={{ marginBottom: 0 }}><label className="label">Club Name</label><input className="input" value={form.name} onChange={e => setF("name", e.target.value)} /></div>
+        <div className="form-group" style={{ marginBottom: 0 }}><label className="label">Country</label><input className="input" value={form.country} onChange={e => setF("country", e.target.value)} /></div>
+        <div className="form-group" style={{ marginBottom: 0 }}><label className="label">City</label><input className="input" value={form.city} onChange={e => setF("city", e.target.value)} /></div>
+        <div className="form-group" style={{ marginBottom: 0 }}><label className="label">Address</label><input className="input" value={form.address} onChange={e => setF("address", e.target.value)} /></div>
+        <div className="form-group" style={{ marginBottom: 0 }}><label className="label">League</label><input className="input" value={form.leagueName} onChange={e => setF("leagueName", e.target.value)} /></div>
+        <div className="form-group" style={{ marginBottom: 0 }}><label className="label">Website</label><input className="input" value={form.website} onChange={e => setF("website", e.target.value)} /></div>
+        <div className="form-group" style={{ marginBottom: 0 }}><label className="label">Contact Phone</label><input className="input" value={form.contactPhone} onChange={e => setF("contactPhone", e.target.value)} /></div>
+        <div className="form-group" style={{ marginBottom: 0 }}><label className="label">Contact Email</label><input className="input" value={form.contactEmail} onChange={e => setF("contactEmail", e.target.value)} /></div>
+        <div className="form-group" style={{ marginBottom: 0 }}><label className="label">Representative Name</label><input className="input" value={form.contactName} onChange={e => setF("contactName", e.target.value)} /></div>
+        <div className="form-group" style={{ marginBottom: 0 }}><label className="label">Representative Title</label><input className="input" value={form.contactTitle} onChange={e => setF("contactTitle", e.target.value)} /></div>
+      </div>
+      <div className="form-group" style={{ marginBottom: 20 }}>
+        <label className="label">Club Description</label>
+        <textarea className="input" rows={4} value={form.description} onChange={e => setF("description", e.target.value)} style={{ resize: "vertical" }} />
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+        <button className="btn btn-primary" onClick={save} disabled={saving}>
+          {saving ? <><span className="spinner" /> Saving…</> : "Save Changes"}
+        </button>
+        {saved && <span style={{ fontSize: "0.85rem", color: "#00c864" }}>✓ Saved</span>}
+      </div>
+    </div>
+  );
+}
+
 export default function ClubDashboardClient({ club, stats }: { club: any; stats: any }) {
   const isVerified = club.verificationStatus === "VERIFIED";
+  const hasSubscription = club.subscriptionStatus === "ACTIVE";
+  const canAccess = isVerified && hasSubscription;
   const [tab, setTab] = useState("overview");
+  const [showCheckout, setShowCheckout] = useState(false);
+  const [btClientToken, setBtClientToken] = useState<string | null>(null);
+  const [btLoading, setBtLoading] = useState(false);
+  const [btError, setBtError] = useState<string | null>(null);
+  const [btSuccess, setBtSuccess] = useState(false);
+  const dropinRef = useRef<any>(null);
+
+  async function openCheckout() {
+    setBtError(null);
+    setBtLoading(true);
+    setShowCheckout(true);
+    try {
+      const res = await fetch("/api/club/braintree/token", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) { setBtError(data.error || "Could not load payment form."); setBtLoading(false); return; }
+      setBtClientToken(data.clientToken);
+    } catch {
+      setBtError("Network error. Please try again.");
+    }
+    setBtLoading(false);
+  }
+
+  // Mount Braintree Drop-in when clientToken is ready
+  useEffect(() => {
+    if (!btClientToken || !showCheckout) return;
+    const container = document.getElementById("bt-dropin");
+    if (!container) return;
+
+    function loadDropin() {
+      const bt = (window as any).braintree;
+      if (!bt) return;
+      if (dropinRef.current) { dropinRef.current.teardown(); dropinRef.current = null; }
+      bt.dropin.create({ authorization: btClientToken, container: "#bt-dropin", locale: "en_US" }, (err: any, instance: any) => {
+        if (err) { setBtError("Payment form error: " + err.message); return; }
+        dropinRef.current = instance;
+      });
+    }
+
+    if ((window as any).braintree?.dropin) {
+      loadDropin();
+    } else {
+      const script = document.createElement("script");
+      script.src = "https://js.braintreegateway.com/web/dropin/1.43.0/js/dropin.min.js";
+      script.onload = loadDropin;
+      document.body.appendChild(script);
+      const css = document.createElement("link");
+      css.rel = "stylesheet";
+      css.href = "https://js.braintreegateway.com/web/dropin/1.43.0/css/dropin.min.css";
+      document.head.appendChild(css);
+    }
+    return () => { if (dropinRef.current) { dropinRef.current.teardown(); dropinRef.current = null; } };
+  }, [btClientToken, showCheckout]);
+
+  async function submitPayment() {
+    if (!dropinRef.current) return;
+    setBtLoading(true);
+    setBtError(null);
+    try {
+      const { nonce } = await new Promise<any>((resolve, reject) =>
+        dropinRef.current.requestPaymentMethod((err: any, payload: any) => err ? reject(err) : resolve(payload))
+      );
+      const res = await fetch("/api/club/braintree/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nonce }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setBtError(data.error || "Payment failed."); setBtLoading(false); return; }
+      setBtSuccess(true);
+      setTimeout(() => window.location.reload(), 2000);
+    } catch (e: any) {
+      setBtError(e?.message || "Payment error.");
+    }
+    setBtLoading(false);
+  }
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [filters, setFilters] = useState({ q: "", position: "", nationality: "", minH: "", maxH: "", minSalary: "" });
@@ -53,11 +208,28 @@ export default function ClubDashboardClient({ club, stats }: { club: any; stats:
     { id: "settings",      label: "Settings",               icon: "⚙" },
   ];
 
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [langValue, setLangValue] = useState("en");
+
+  // Load lang from localStorage after mount (avoids hydration mismatch)
+  useEffect(() => {
+    const stored = localStorage.getItem("hhLang");
+    if (stored) setLangValue(stored);
+  }, []);
+
+  function selectTab(id: string) {
+    setTab(id);
+    setSidebarOpen(false);
+  }
+
   return (
     <main className="page">
       <div className="sidebar-layout">
+        {/* ── Sidebar overlay (mobile) ──────────────────────────── */}
+        {sidebarOpen && <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />}
+
         {/* ── Sidebar ──────────────────────────────────────── */}
-        <aside className="sidebar">
+        <aside className={`sidebar${sidebarOpen ? " is-open" : ""}`}>
           <div style={{ padding: "0 24px 20px", borderBottom: "1px solid var(--border)", marginBottom: 8 }}>
             <div style={{ width: 48, height: 48, borderRadius: "var(--radius)", background: "var(--card2)", border: "2px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.5rem", marginBottom: 12, overflow: "hidden" }}>
               {club.logoUrl ? <img src={club.logoUrl} style={{ width: "100%", height: "100%", objectFit: "cover" }} alt="" /> : "🏟️"}
@@ -77,7 +249,7 @@ export default function ClubDashboardClient({ club, stats }: { club: any; stats:
                 <a
                   href="#"
                   className={tab === item.id ? "active" : ""}
-                  onClick={e => { e.preventDefault(); setTab(item.id); }}
+                  onClick={e => { e.preventDefault(); selectTab(item.id); }}
                 >
                   <span>{item.icon}</span> {item.label}
                 </a>
@@ -94,6 +266,10 @@ export default function ClubDashboardClient({ club, stats }: { club: any; stats:
         {/* ── Main Content ─────────────────────────────────── */}
         <div className="main-content">
         <div>
+          {/* Mobile menu toggle */}
+          <button className="sidebar-toggle" onClick={() => setSidebarOpen(o => !o)}>
+            {sidebarOpen ? "✕ Close" : `☰ ${NAV_ITEMS.find(n => n.id === tab)?.label ?? "Menu"}`}
+          </button>
           <div style={{ marginBottom: 32 }}>
             <div className="section-label">Club Dashboard</div>
             <h2>{club.name}</h2>
@@ -115,32 +291,75 @@ export default function ClubDashboardClient({ club, stats }: { club: any; stats:
             ))}
           </div>
 
-          {/* Subscription status */}
-          <div className="card" style={{ marginBottom: 24 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
-              <div>
-                <div className="section-label" style={{ marginBottom: 4 }}>Subscription</div>
-                <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "1.1rem", textTransform: "uppercase" }}>
-                  {club.subscriptionStatus}
-                </div>
-                {club.subscriptionEndsAt && (
-                  <div style={{ fontSize: "0.8rem", color: "var(--muted)", marginTop: 4 }}>
-                    Renews {new Date(club.subscriptionEndsAt).toLocaleDateString()}
+          {/* Subscription block */}
+          {hasSubscription ? (
+            <div className="card" style={{ marginBottom: 24, borderColor: "rgba(0,200,100,0.3)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+                <div>
+                  <div className="section-label" style={{ marginBottom: 4 }}>Subscription</div>
+                  <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "1.1rem", textTransform: "uppercase", color: "var(--white)" }}>
+                    Annual Plan — €1,000/year
                   </div>
-                )}
+                  {club.subscriptionEndsAt && (
+                    <div style={{ fontSize: "0.8rem", color: "var(--muted)", marginTop: 4 }}>
+                      Valid until {new Date(club.subscriptionEndsAt).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}
+                    </div>
+                  )}
+                </div>
+                <span className="badge badge-green" style={{ fontSize: "0.85rem", padding: "6px 14px" }}>✓ Active</span>
               </div>
-              <span className={`badge ${club.subscriptionStatus === "ACTIVE" ? "badge-green" : club.subscriptionStatus === "TRIAL" ? "badge-accent" : "badge-red"}`} style={{ fontSize: "0.85rem", padding: "6px 12px" }}>
-                {club.subscriptionStatus}
-              </span>
             </div>
-          </div>
+          ) : isVerified ? (
+            /* Verified but no active subscription — show offer */
+            <div className="card" style={{ marginBottom: 24, borderColor: "rgba(232,255,71,0.35)", background: "rgba(232,255,71,0.03)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
+                <div>
+                  <div className="section-label" style={{ marginBottom: 4 }}>Subscription Required</div>
+                  <div style={{ fontFamily: "var(--font-display)", fontWeight: 900, fontSize: "1.8rem", color: "var(--accent)", lineHeight: 1 }}>
+                    €1,000 <span style={{ fontSize: "0.9rem", color: "var(--muted)", fontWeight: 400 }}>/year</span>
+                  </div>
+                </div>
+                <span className="badge badge-muted" style={{ fontSize: "0.85rem", padding: "6px 14px" }}>Not Active</span>
+              </div>
+              <div style={{ fontSize: "0.85rem", color: "var(--muted)", lineHeight: 1.8, marginBottom: 20 }}>
+                Your club is verified. Subscribe to unlock full access to the player database and all platform features.
+              </div>
+              <div style={{ background: "var(--card2)", borderRadius: "var(--radius)", padding: "14px 18px", marginBottom: 20, fontSize: "0.83rem", color: "rgba(245,243,238,0.75)", lineHeight: 1.9 }}>
+                ✓ Unlimited player search with advanced filters<br/>
+                ✓ Reveal player contacts &amp; agent info<br/>
+                ✓ Watchlist, scouting notes &amp; messaging<br/>
+                ✓ Full transfer history &amp; interaction log
+              </div>
+              <div style={{ padding: "12px 16px", background: "rgba(255,255,255,0.03)", border: "1px solid var(--border)", borderRadius: "var(--radius)", fontSize: "0.82rem", color: "var(--muted)", marginBottom: 16, lineHeight: 1.7 }}>
+                💳 Secure payment via <strong style={{ color: "var(--white)" }}>Paddle</strong>. Pay by card — your subscription activates immediately after payment.
+              </div>
+              <button
+                className="btn btn-primary"
+                style={{ width: "100%", justifyContent: "center", fontSize: "1rem" }}
+                onClick={openCheckout}
+              >
+                💳 Subscribe Now — €1,000/year
+              </button>
+            </div>
+          ) : (
+            /* Not verified yet — show locked state */
+            <div className="card" style={{ marginBottom: 24 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+                <div>
+                  <div className="section-label" style={{ marginBottom: 4 }}>Subscription</div>
+                  <div style={{ fontSize: "0.85rem", color: "var(--muted)" }}>Available after club verification</div>
+                </div>
+                <span className="badge badge-muted">Locked</span>
+              </div>
+            </div>
+          )}
 
           {/* Recent reveals */}
           {club.interactions?.length > 0 && (
             <div>
               <h4 style={{ textTransform: "uppercase", marginBottom: 16 }}>Recent Reveals</h4>
               <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-                <table className="table">
+                <div className="table-wrap"><table className="table">
                   <thead><tr><th>Player</th><th>Revealed</th><th>Commission</th></tr></thead>
                   <tbody>
                     {club.interactions.slice(0, 5).map((i: any) => (
@@ -157,7 +376,7 @@ export default function ClubDashboardClient({ club, stats }: { club: any; stats:
                       </tr>
                     ))}
                   </tbody>
-                </table>
+                </table></div>
               </div>
             </div>
           )}
@@ -167,15 +386,23 @@ export default function ClubDashboardClient({ club, stats }: { club: any; stats:
       {/* ── Search ────────────────────────────────────────────── */}
       {tab === "search" && (
         <div>
-          {!isVerified && (
-            <div style={{ background: "rgba(232,255,71,0.06)", border: "1px solid rgba(232,255,71,0.25)", borderRadius: "var(--radius-lg)", padding: "16px 20px", marginBottom: 20, display: "flex", alignItems: "center", gap: 14 }}>
-              <span style={{ fontSize: "1.4rem" }}>🔒</span>
-              <div>
-                <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: "0.88rem", textTransform: "uppercase", color: "var(--accent)", marginBottom: 3 }}>Verification Required</div>
-                <div style={{ fontSize: "0.81rem", color: "var(--muted)" }}>Your club must be verified before you can view full player profiles and reveal contact details. Search is available but results are locked.</div>
+          {!canAccess && (
+            <div style={{ background: "rgba(232,255,71,0.06)", border: "1px solid rgba(232,255,71,0.25)", borderRadius: "var(--radius-lg)", padding: "24px", marginBottom: 20, textAlign: "center" }}>
+              <div style={{ fontSize: "2.5rem", marginBottom: 12 }}>🔒</div>
+              <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: "0.95rem", textTransform: "uppercase", color: "var(--accent)", marginBottom: 8 }}>
+                {!isVerified ? "Verification Required" : "Active Subscription Required"}
               </div>
+              <div style={{ fontSize: "0.83rem", color: "var(--muted)", marginBottom: 16, lineHeight: 1.7 }}>
+                {!isVerified
+                  ? "Your club must be verified by an admin before you can search players."
+                  : "Your club is verified! Subscribe for €1,000/year to unlock the full player database."}
+              </div>
+              <button className="btn btn-primary" onClick={() => setTab("overview")} style={{ fontSize: "0.85rem" }}>
+                {!isVerified ? "Check Verification Status →" : "View Subscription Offer →"}
+              </button>
             </div>
           )}
+          {canAccess && (<>
           <div className="card" style={{ marginBottom: 24 }}>
             <div className="grid-3" style={{ marginBottom: 16 }}>
               <div className="form-group" style={{ marginBottom: 0 }}>
@@ -217,7 +444,7 @@ export default function ClubDashboardClient({ club, stats }: { club: any; stats:
 
           {searchResults.length > 0 && (
             <div style={{ position: "relative" }}>
-              <div className="card" style={{ padding: 0, overflow: "hidden", filter: isVerified ? "none" : "blur(4px)", pointerEvents: isVerified ? "auto" : "none", userSelect: isVerified ? "auto" : "none" }}>
+              <div className="card" style={{ padding: 0, overflow: "hidden" }}>
                 <table className="table">
                   <thead><tr><th>Player</th><th>Position</th><th>Nation</th><th>Height</th><th>Age</th><th>Salary</th><th>Actions</th></tr></thead>
                   <tbody>
@@ -243,21 +470,9 @@ export default function ClubDashboardClient({ club, stats }: { club: any; stats:
                   </tbody>
                 </table>
               </div>
-              {!isVerified && (
-                <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(9,9,9,0.5)", borderRadius: "var(--radius-lg)" }}>
-                  <div style={{ textAlign: "center", padding: 24 }}>
-                    <div style={{ fontSize: "2.5rem", marginBottom: 10 }}>🔒</div>
-                    <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: "0.95rem", textTransform: "uppercase", color: "var(--accent)", marginBottom: 8 }}>
-                      Results Locked
-                    </div>
-                    <div style={{ fontSize: "0.82rem", color: "var(--muted)", marginBottom: 16 }}>
-                      Verify your club to access full player profiles
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
           )}
+          </>)}
         </div>
       )}
 
@@ -317,7 +532,7 @@ export default function ClubDashboardClient({ club, stats }: { club: any; stats:
       {tab === "interactions" && (
         <div>
           <div style={{ marginBottom: 20, padding: "14px 20px", background: "rgba(232,255,71,0.05)", border: "1px solid rgba(232,255,71,0.15)", borderRadius: "var(--radius)", fontSize: "0.85rem", color: "rgba(245,243,238,0.7)" }}>
-            ℹ Each row below represents a legally logged contact reveal. A 5% commission on any signed transfer is due.
+            ℹ Each row below represents a legally logged contact reveal. All activity is recorded and serves as a digital record.
           </div>
           {club.interactions?.length === 0 ? (
             <div style={{ textAlign: "center", padding: "60px 0", color: "var(--muted)" }}>
@@ -368,21 +583,85 @@ export default function ClubDashboardClient({ club, stats }: { club: any; stats:
 
       {/* ── Settings ──────────────────────────────────────────── */}
       {tab === "settings" && (
-        <div style={{ maxWidth: 560 }}>
+        <div style={{ maxWidth: 560, display: "flex", flexDirection: "column", gap: 20 }}>
+          <SettingsForm club={club} />
+
+          {/* Language */}
           <div className="card">
-            <h4 style={{ textTransform: "uppercase", marginBottom: 20 }}>Club Information</h4>
-            <div className="form-group"><label className="label">Club Name</label><input className="input" defaultValue={club.name} /></div>
-            <div className="form-group"><label className="label">Country</label><input className="input" defaultValue={club.country} /></div>
-            <div className="form-group"><label className="label">City</label><input className="input" defaultValue={club.city} /></div>
-            <div className="form-group"><label className="label">League</label><input className="input" defaultValue={club.leagueName ?? ""} /></div>
-            <div className="form-group"><label className="label">Website</label><input className="input" defaultValue={club.website ?? ""} /></div>
-            <button className="btn btn-primary">Save Changes</button>
+            <h4 style={{ textTransform: "uppercase", marginBottom: 4, fontSize: "0.9rem" }}>🌐 Language</h4>
+            <p style={{ fontSize: "0.78rem", color: "var(--muted)", marginBottom: 16 }}>Choose your preferred display language.</p>
+            <select className="input" value={langValue}
+              onChange={e => { setLangValue(e.target.value); localStorage.setItem("hhLang", e.target.value); }}>
+              {[
+                { code: "en", label: "English" }, { code: "sr", label: "Srpski" },
+                { code: "hr", label: "Hrvatski" }, { code: "bs", label: "Bosanski" },
+                { code: "de", label: "Deutsch" }, { code: "fr", label: "Français" },
+                { code: "es", label: "Español" }, { code: "it", label: "Italiano" },
+                { code: "pt", label: "Português" }, { code: "pl", label: "Polski" },
+                { code: "sl", label: "Slovenščina" }, { code: "ar", label: "العربية" },
+              ].map(l => <option key={l.code} value={l.code}>{l.label}</option>)}
+            </select>
+          </div>
+
+          {/* Delete account */}
+          <div className="card" style={{ border: "1px solid rgba(255,59,59,0.2)" }}>
+            <h4 style={{ textTransform: "uppercase", marginBottom: 4, fontSize: "0.9rem", color: "var(--red)" }}>⚠ Delete Account</h4>
+            <p style={{ fontSize: "0.82rem", color: "var(--muted)", marginBottom: 16, lineHeight: 1.6 }}>
+              Permanently delete the club account and all associated data. This cannot be undone.
+            </p>
+            <ClubDeleteButton />
           </div>
         </div>
       )}
         </div>
         </div>
       </div>
+      {/* ── Braintree Checkout Modal ─────────────────────── */}
+      {showCheckout && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 9000, background: "rgba(0,0,0,0.78)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px 16px" }}
+          onClick={e => { if (e.target === e.currentTarget && !btLoading) { setShowCheckout(false); setBtClientToken(null); setBtError(null); } }}>
+          <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", padding: "32px 28px", maxWidth: 480, width: "100%", position: "relative" }}>
+            <button onClick={() => { setShowCheckout(false); setBtClientToken(null); setBtError(null); }}
+              style={{ position: "absolute", top: 14, right: 16, background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: "1.3rem", lineHeight: 1 }}>✕</button>
+
+            <div className="section-label" style={{ marginBottom: 4 }}>Secure Checkout</div>
+            <h4 style={{ textTransform: "uppercase", marginBottom: 4 }}>Annual Subscription</h4>
+            <div style={{ fontFamily: "var(--font-display)", fontWeight: 900, fontSize: "2rem", color: "var(--accent)", marginBottom: 20 }}>
+              €1,000 <span style={{ fontSize: "0.85rem", color: "var(--muted)", fontWeight: 400 }}>/year</span>
+            </div>
+
+            {btSuccess ? (
+              <div style={{ textAlign: "center", padding: "24px 0" }}>
+                <div style={{ fontSize: "3rem", marginBottom: 12 }}>✅</div>
+                <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: "1.1rem", textTransform: "uppercase", color: "#00c864" }}>Payment Successful!</div>
+                <div style={{ fontSize: "0.85rem", color: "var(--muted)", marginTop: 8 }}>Your subscription is now active. Reloading…</div>
+              </div>
+            ) : (
+              <>
+                {btLoading && !btClientToken ? (
+                  <div style={{ textAlign: "center", padding: "40px 0", color: "var(--muted)" }}><span className="spinner" style={{ marginRight: 8 }} /> Loading payment form…</div>
+                ) : (
+                  <>
+                    <div id="bt-dropin" style={{ marginBottom: 16 }} />
+                    {btError && (
+                      <div style={{ background: "rgba(255,59,59,0.08)", border: "1px solid rgba(255,59,59,0.3)", borderRadius: "var(--radius)", padding: "10px 14px", marginBottom: 16, fontSize: "0.83rem", color: "#ff6b6b" }}>
+                        {btError}
+                      </div>
+                    )}
+                    <button className="btn btn-primary" style={{ width: "100%", justifyContent: "center", fontSize: "1rem" }}
+                      disabled={btLoading || !btClientToken} onClick={submitPayment}>
+                      {btLoading ? <><span className="spinner" /> Processing…</> : "Pay €1,000 — Activate Subscription"}
+                    </button>
+                    <div style={{ textAlign: "center", marginTop: 12, fontSize: "0.75rem", color: "var(--muted)" }}>
+                      🔒 Secured by Braintree (PayPal) · No refunds · <a href="/terms#refund" style={{ color: "var(--muted)" }}>See refund policy</a>
+                    </div>
+                  </>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </main>
   );
 }

@@ -9,6 +9,7 @@ export default function RegisterPage() {
   const defaultRole = (params.get("role") ?? "PLAYER") as "PLAYER" | "CLUB";
   const [role, setRole] = useState<"PLAYER" | "CLUB">(defaultRole);
   const [form, setForm] = useState({ email:"", password:"", name:"", confirmPassword:"" });
+  const [gender, setGender] = useState<"MALE"|"FEMALE">("MALE");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -21,12 +22,12 @@ export default function RegisterPage() {
     setLoading(true); setError("");
     const res = await fetch("/api/auth/register", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: form.email, password: form.password, name: form.name, role }),
+      body: JSON.stringify({ email: form.email, password: form.password, name: form.name, role, gender: role === "CLUB" ? gender : undefined }),
     });
     const data = await res.json();
     setLoading(false);
     if (!res.ok) { setError(data.error ?? "Registration failed."); return; }
-    router.push("/auth/login?registered=1");
+    router.push(`/auth/login?registered=1&next=/onboarding/${role.toLowerCase()}`);
   }
 
   return (
@@ -40,6 +41,7 @@ export default function RegisterPage() {
           <p style={{ color:"var(--muted)", fontSize:"0.9rem" }}>Join the handball transfer marketplace</p>
         </div>
 
+        {/* Role selector */}
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:24 }}>
           {(["PLAYER","CLUB"] as const).map(r => (
             <button key={r} type="button" onClick={() => setRole(r)} style={{
@@ -62,6 +64,28 @@ export default function RegisterPage() {
               <input className="input" value={form.name} onChange={e => set("name", e.target.value)}
                 placeholder={role === "PLAYER" ? "Ivan Petrović" : "RK Zagreb"} required />
             </div>
+
+            {/* Gender selector — clubs only */}
+            {role === "CLUB" && (
+              <div className="form-group">
+                <label className="label">Club Type <span style={{ color:"var(--accent)" }}>*</span></label>
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+                  {(["MALE","FEMALE"] as const).map(g => (
+                    <button key={g} type="button" onClick={() => setGender(g)} style={{
+                      padding:"11px", borderRadius:"var(--radius)", fontFamily:"var(--font-display)",
+                      fontWeight:700, fontSize:"0.82rem", letterSpacing:"0.04em", textTransform:"uppercase",
+                      cursor:"pointer", transition:"all 0.15s",
+                      background: gender === g ? "var(--accent)" : "var(--card2)",
+                      color: gender === g ? "var(--black)" : "var(--muted)",
+                      border: gender === g ? "none" : "1px solid var(--border)",
+                    }}>
+                      {g === "MALE" ? "♂ Men's Club" : "♀ Women's Club"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="form-group">
               <label className="label">Email</label>
               <input className="input" type="email" value={form.email} onChange={e => set("email", e.target.value)} placeholder="you@email.com" required />
@@ -76,7 +100,7 @@ export default function RegisterPage() {
             </div>
             {role === "CLUB" && (
               <div style={{ background:"rgba(232,255,71,0.05)", border:"1px solid rgba(232,255,71,0.15)", borderRadius:"var(--radius)", padding:"12px 16px", fontSize:"0.82rem", color:"rgba(245,243,238,0.6)", marginBottom:20 }}>
-                ℹ Club accounts require admin verification. A 5% commission applies on completed transfers.
+                ℹ Club accounts require admin verification before accessing the player database.
               </div>
             )}
             {error && (

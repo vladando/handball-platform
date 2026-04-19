@@ -614,9 +614,9 @@ export default function ClubDashboardClient({ club, stats, paypalClientId }: { c
       </div>
       {/* ── PayPal Checkout Modal ─────────────────────── */}
       {showCheckout && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 9000, background: "rgba(0,0,0,0.78)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px 16px" }}
+        <div style={{ position: "fixed", inset: 0, zIndex: 9000, background: "rgba(0,0,0,0.78)", backdropFilter: "blur(4px)", overflowY: "auto", padding: "24px 16px" }}
           onClick={e => { if (e.target === e.currentTarget && !ppLoading) { setShowCheckout(false); setPpError(null); } }}>
-          <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", padding: "32px 28px", maxWidth: 480, width: "100%", position: "relative" }}>
+          <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", padding: "32px 28px", maxWidth: 480, width: "100%", position: "relative", margin: "auto" }}>
             <button onClick={() => { setShowCheckout(false); setPpError(null); }}
               style={{ position: "absolute", top: 14, right: 16, background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: "1.3rem", lineHeight: 1 }}>✕</button>
 

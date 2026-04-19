@@ -38,8 +38,9 @@ export async function POST(req: Request) {
       headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" },
     });
     const capture = await res.json();
+    console.log("[PayPal] capture response:", JSON.stringify(capture));
     if (!res.ok || capture.status !== "COMPLETED")
-      throw new Error(capture.message || "Payment capture failed");
+      throw new Error(capture.details?.[0]?.description || capture.message || "Payment capture failed");
 
     await prisma.club.update({
       where: { id: club.id },

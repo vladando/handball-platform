@@ -14,7 +14,7 @@ export default async function ClubDashboardPage() {
       watchlist: { include: { player: true }, orderBy: { addedAt: "desc" } },
       interactions: { include: { player: true }, orderBy: { createdAt: "desc" }, take: 50 },
     },
-  }).catch(() => null);
+  }).catch((err) => { console.error("[ClubDashboard] Prisma error:", err?.message ?? err); return null; });
 
   if (!club) redirect("/auth/register?role=CLUB");
 

@@ -62,7 +62,7 @@ export default async function PlayersPage() {
             </div>
           </div>
         )}
-        <div style={{ display:"grid", gridTemplateColumns:"260px 1fr", gap:32, alignItems:"start" }}>
+        <div className="players-layout">
           <PlayersClient players={players as any} positions={POSITIONS} posLabels={POS_LABELS} nationalities={nationalities} isVerified={isVerified} />
         </div>
       </div>

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
+import { sendWelcomeEmail, sendAdminNewClubEmail } from "@/lib/email";
 
 function makeSlug(name: string) {
   return name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "") + "-" + Math.random().toString(36).slice(2, 7);
@@ -15,7 +16,7 @@ function getClientIp(req: NextRequest): string {
 }
 
 export async function POST(req: NextRequest) {
-  const { email, password, name, role } = await req.json();
+  const { email, password, name, role, gender } = await req.json();
   if (!email || !password || !name || !role) return NextResponse.json({ error: "Missing fields." }, { status: 400 });
   if (!["PLAYER", "CLUB"].includes(role)) return NextResponse.json({ error: "Invalid role." }, { status: 400 });
 
@@ -49,6 +50,7 @@ export async function POST(req: NextRequest) {
         data: {
           userId: user.id,
           name,
+          gender: gender === "FEMALE" ? "FEMALE" : "MALE",
           country: "Unknown",
           city: "Unknown",
           contactEmail: email,
@@ -59,6 +61,18 @@ export async function POST(req: NextRequest) {
       });
     }
   });
+
+  // Send welcome email (non-blocking)
+  sendWelcomeEmail(email, name, role as "PLAYER" | "CLUB").catch(err =>
+    console.error("[register] welcome email failed:", err)
+  );
+
+  // Notify admin when a new club registers
+  if (role === "CLUB") {
+    sendAdminNewClubEmail(name, email, registrationIp).catch(err =>
+      console.error("[register] admin club notification failed:", err)
+    );
+  }
 
   return NextResponse.json({ success: true });
 }

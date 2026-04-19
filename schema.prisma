@@ -19,9 +19,9 @@ enum Role {
 
 enum SubscriptionStatus {
   TRIAL
+  PENDING_PAYMENT
   ACTIVE
-  PAST_DUE
-  CANCELLED
+  EXPIRED
 }
 
 enum Position {
@@ -39,6 +39,11 @@ enum ClubVerificationStatus {
   PENDING
   VERIFIED
   REJECTED
+}
+
+enum ClubGender {
+  MALE
+  FEMALE
 }
 
 enum MedicalRecordType {
@@ -128,6 +133,16 @@ model VerificationToken {
   @@map("verification_tokens")
 }
 
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  email     String
+  token     String   @unique
+  expires   DateTime
+  createdAt DateTime @default(now())
+
+  @@map("password_reset_tokens")
+}
+
 // ── Player ────────────────────────────────────────────────────────
 
 model Player {
@@ -151,16 +166,23 @@ model Player {
   // Career
   position        Position
   currentClub     String?
-  currentSalary   Int?      // in EUR cents (avoid float)
-  expectedSalary  Int?
+  currentSalary     Int?      // in EUR cents (avoid float)
+  expectedSalary    Int?      // kept for backward compat
+  expectedSalaryMin Int?      // range: from
+  expectedSalaryMax Int?      // range: to
   availableFrom   DateTime?
   isAvailable     Boolean   @default(true)
 
   // Contact (only shown after club pays commission)
   phone           String?
+  viber           String?
   agentName       String?
   agentPhone      String?
   agentEmail      String?
+
+  // About / Career highlights
+  achievements      String?   @db.Text
+  defensivePosition String?
 
   // Photo position (percentage 0-100 for object-position)
   photoPositionX  Int       @default(50)
@@ -176,6 +198,9 @@ model Player {
 
   // SEO / indexing
   slug            String    @unique
+
+  // Onboarding
+  onboardingCompleted Boolean @default(false)
 
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
@@ -279,31 +304,68 @@ model Club {
   user               User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   name               String
+  gender             ClubGender?
   country            String
   city               String
+  address            String?
   leagueName         String?
   logoUrl            String?
   website            String?
   contactEmail       String
   contactPhone       String?
 
+  // Representative
+  contactName        String?
+  contactTitle       String?
+  description        String?  @db.Text
+  foundedYear        Int?
+
   verificationStatus ClubVerificationStatus @default(PENDING)
+  verificationNote   String?
   verifiedAt         DateTime?
   verifiedBy         String?               // admin userId
+
+  // Verification documents
+  officialDocUrl              String?
+  authorizationDocUrl         String?
+  representativePassportUrl   String?
 
   // Billing
   subscriptionStatus SubscriptionStatus    @default(TRIAL)
   subscriptionEndsAt DateTime?
 
   slug               String @unique
+
+  // Onboarding
+  onboardingCompleted Boolean @default(false)
+
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
   interactions       Interaction[]
   watchlist          WatchlistItem[]
   scoutingNotes      ScoutingNote[]
+  searchLogs         ClubSearchLog[]
 
   @@map("clubs")
+}
+
+// ── Club Search Log ───────────────────────────────────────────────
+
+model ClubSearchLog {
+  id          String   @id @default(cuid())
+  clubId      String
+  club        Club     @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  position    String?
+  nationality String?
+  minHeight   Int?
+  maxHeight   Int?
+  minAge      Int?
+  maxAge      Int?
+  searchedAt  DateTime @default(now())
+
+  @@index([clubId])
+  @@map("club_search_logs")
 }
 
 // ── INTERACTIONS (Commission Log) ─────────────────────────────────

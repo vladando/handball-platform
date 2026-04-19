@@ -18,7 +18,11 @@ export default function LoginPage() {
     const res = await signIn("credentials", { email, password, redirect: false });
     setLoading(false);
     if (res?.error) setError("Invalid email or password.");
-    else { router.push("/"); router.refresh(); }
+    else {
+      const next = params.get("next");
+      router.push(next ?? "/");
+      router.refresh();
+    }
   }
 
   return (
@@ -43,7 +47,10 @@ export default function LoginPage() {
               <input className="input" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@email.com" required />
             </div>
             <div className="form-group">
-              <label className="label">Password</label>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                <label className="label" style={{ marginBottom: 0 }}>Password</label>
+                <Link href="/auth/forgot-password" style={{ fontSize: "0.78rem", color: "var(--muted)" }}>Forgot password?</Link>
+              </div>
               <input className="input" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" required />
             </div>
             {error && (
@@ -58,6 +65,9 @@ export default function LoginPage() {
         </div>
         <p style={{ textAlign:"center", marginTop:20, fontSize:"0.85rem", color:"var(--muted)" }}>
           No account? <Link href="/auth/register" style={{ color:"var(--accent)" }}>Join free →</Link>
+        </p>
+        <p style={{ textAlign:"center", marginTop:10, fontSize:"0.85rem", color:"var(--muted)" }}>
+          <Link href="/auth/forgot-password" style={{ color:"var(--muted)" }}>Forgot your password?</Link>
         </p>
       </div>
     </main>

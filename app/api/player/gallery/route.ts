@@ -5,6 +5,8 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { savePlayerImage } from "@/lib/storage";
 
+export const maxDuration = 30;
+
 // GET /api/player/gallery — list gallery images for logged-in player
 export async function GET() {
   const session = await getServerSession(authOptions);

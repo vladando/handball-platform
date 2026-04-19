@@ -108,65 +108,54 @@ export default function ClubDashboardClient({ club, stats, paypalClientId }: { c
     setShowCheckout(true);
   }
 
-  // Load PayPal SDK and render buttons when modal opens
+  // Load PayPal Hosted Button SDK when modal opens
   useEffect(() => {
     if (!showCheckout || ppSuccess) return;
 
-    function renderButtons() {
+    function renderHostedButton() {
       const paypal = (window as any).paypal;
-      if (!paypal) return;
+      if (!paypal?.HostedButtons) return;
       const container = document.getElementById("paypal-button-container");
-      if (!container) return;
-      if (ppButtonsRef.current) { try { ppButtonsRef.current.close(); } catch {} ppButtonsRef.current = null; }
+      if (!container || container.children.length > 0) return;
 
-      const buttons = paypal.Buttons({
-        style: { layout: "vertical", color: "gold", shape: "rect", label: "pay" },
-        createOrder: async () => {
-          setPpLoading(true); setPpError(null);
-          const res = await fetch("/api/club/paypal/create-order", { method: "POST" });
-          const data = await res.json();
-          setPpLoading(false);
-          if (!res.ok) { setPpError(data.error || "Could not create order."); return null; }
-          return data.orderId;
-        },
+      paypal.HostedButtons({
+        hostedButtonId: "2ZUREDWYRXR8G",
         onApprove: async (data: any) => {
           setPpLoading(true); setPpError(null);
-          const res = await fetch("/api/club/paypal/capture-order", {
+          const res = await fetch("/api/club/paypal/activate", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ orderId: data.orderID }),
           });
           const result = await res.json();
           setPpLoading(false);
-          if (!res.ok) { setPpError(result.error || "Payment capture failed."); return; }
+          if (!res.ok) { setPpError(result.error || "Payment failed."); return; }
           setPpSuccess(true);
           setTimeout(() => window.location.reload(), 2500);
         },
         onError: () => { setPpError("Payment error. Please try again."); setPpLoading(false); },
         onCancel: () => { setPpError("Payment cancelled."); },
-      });
-
-      buttons.render("#paypal-button-container");
-      ppButtonsRef.current = buttons;
+      }).render("#paypal-button-container");
     }
 
     const existingScript = document.getElementById("paypal-sdk-script");
-    if ((window as any).paypal) {
-      setTimeout(renderButtons, 50);
+    if ((window as any).paypal?.HostedButtons) {
+      setTimeout(renderHostedButton, 50);
     } else if (!existingScript) {
       const script = document.createElement("script");
       script.id = "paypal-sdk-script";
-      script.src = `https://www.paypal.com/sdk/js?client-id=${paypalClientId}&currency=EUR`;
-      script.onload = () => setTimeout(renderButtons, 50);
+      script.src = "https://www.paypal.com/sdk/js?client-id=BAAxDIUtdudwpzA-ep4tXiBSuVsIp3n8gGVNMH_kBorn5A215RGNLEceFTolyK8gA-aNq_WpzELerqZB4Q&components=hosted-buttons&disable-funding=venmo&currency=EUR";
+      script.onload = () => setTimeout(renderHostedButton, 50);
       document.body.appendChild(script);
     } else {
-      existingScript.addEventListener("load", () => setTimeout(renderButtons, 50));
+      existingScript.addEventListener("load", () => setTimeout(renderHostedButton, 50));
     }
 
     return () => {
-      if (ppButtonsRef.current) { try { ppButtonsRef.current.close(); } catch {} ppButtonsRef.current = null; }
+      const container = document.getElementById("paypal-button-container");
+      if (container) container.innerHTML = "";
     };
-  }, [showCheckout, ppSuccess, paypalClientId]);
+  }, [showCheckout, ppSuccess]);
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [filters, setFilters] = useState({ q: "", position: "", nationality: "", minH: "", maxH: "", minSalary: "" });

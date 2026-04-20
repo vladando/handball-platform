@@ -332,6 +332,37 @@ export async function sendSubscriptionActivatedEmail(to: string, clubName: strin
   });
 }
 
+// ── Admin notification — player submitted verification docs ───────
+
+export async function sendAdminPlayerVerificationEmail(playerName: string, playerEmail: string) {
+  await transporter.sendMail({
+    from: `"HandballHub" <${ADMIN_EMAIL}>`,
+    to: "vladandjurdjevic17@gmail.com",
+    subject: `[HandballHub] New player verification request: ${playerName}`,
+    html: `
+      <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;background:#0d0d0d;color:#f5f3ee;padding:40px 32px;border-radius:12px;">
+        ${logo()}
+        <h2 style="margin:0 0 16px;font-size:1.2rem;">🆔 New Player Verification Request</h2>
+        <div style="background:#111;border:1px solid #2a2a2a;border-radius:8px;padding:16px 20px;margin-bottom:24px;">
+          <table style="width:100%;border-collapse:collapse;font-size:0.88rem;">
+            <tr><td style="color:#666;padding:4px 0;width:130px;">Player name</td><td style="color:#f5f3ee;font-weight:700;">${playerName}</td></tr>
+            <tr><td style="color:#666;padding:4px 0;">Email</td><td style="color:#f5f3ee;">${playerEmail}</td></tr>
+            <tr><td style="color:#666;padding:4px 0;">Submitted</td><td style="color:#f5f3ee;">${new Date().toLocaleString()}</td></tr>
+          </table>
+        </div>
+        <p style="color:#888;font-size:0.88rem;line-height:1.6;margin-bottom:20px;">
+          This player has submitted their passport and selfie for identity verification. Please review the documents in the admin panel.
+        </p>
+        <a href="${APP_URL}/admin"
+           style="display:block;text-align:center;background:#e8ff47;color:#000;font-weight:700;text-decoration:none;padding:12px 24px;border-radius:8px;font-size:0.9rem;text-transform:uppercase;letter-spacing:0.05em;">
+          Review in Admin Panel →
+        </a>
+        ${footer()}
+      </div>
+    `,
+  });
+}
+
 // ── Player: verified ─────────────────────────────────────────────
 
 export async function sendPlayerVerifiedEmail(to: string, playerName: string) {

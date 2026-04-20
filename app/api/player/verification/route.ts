@@ -5,6 +5,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { saveVerificationDoc, deleteLocalFile } from "@/lib/storage";
+import { sendAdminPlayerVerificationEmail } from "@/lib/email";
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -14,7 +15,15 @@ export async function POST(req: NextRequest) {
 
   const player = await prisma.player.findUnique({
     where: { userId: (session.user as any).id },
-    select: { id: true, verificationStatus: true, passportUrl: true, selfieUrl: true },
+    select: {
+      id: true,
+      verificationStatus: true,
+      passportUrl: true,
+      selfieUrl: true,
+      firstName: true,
+      lastName: true,
+      user: { select: { email: true } },
+    },
   });
   if (!player) return NextResponse.json({ error: "Player not found" }, { status: 404 });
 
@@ -66,6 +75,15 @@ export async function POST(req: NextRequest) {
       verificationNote: null, // clear previous rejection note
     },
   });
+
+  // Notify admin
+  const playerName = [player.firstName, player.lastName].filter(Boolean).join(" ") || "Unknown Player";
+  const playerEmail = player.user?.email ?? "";
+  try {
+    await sendAdminPlayerVerificationEmail(playerName, playerEmail);
+  } catch {
+    // Don't fail the request if email fails
+  }
 
   return NextResponse.json({ ok: true, status: "PENDING" });
 }

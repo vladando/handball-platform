@@ -255,6 +255,22 @@ input,textarea,select,button{max-width:100%}
   .league-logo-sep{height:22px}
 }
 
+/* ── Admin responsive helpers ───────────────────────────────── */
+.admin-2col{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.admin-doc-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px}
+.admin-btn-row{display:flex;gap:12px;flex-wrap:wrap}
+.admin-btn-row .btn{flex:1;min-width:120px;justify-content:center}
+@media(max-width:640px){
+  .admin-2col{grid-template-columns:1fr}
+  .admin-doc-grid{grid-template-columns:1fr 1fr} /* keep 2-col for docs, they're images */
+  .admin-btn-row{flex-direction:column}
+  .admin-btn-row .btn{width:100%;min-width:0}
+  .table{min-width:600px}
+}
+@media(max-width:400px){
+  .admin-doc-grid{grid-template-columns:1fr}
+}
+
 /* ── Terms / legal page ─────────────────────────────────────── */
 .card ul{margin:8px 0 0 18px;display:flex;flex-direction:column;gap:6px}
 .card ul li{font-size:0.88rem;color:rgba(245,243,238,0.8);line-height:1.75;list-style:disc}

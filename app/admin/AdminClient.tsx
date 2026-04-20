@@ -312,7 +312,7 @@ export default function AdminClient({ clubs, players, interactions, users, stats
                       {p.photoUrl && <img src={p.photoUrl} alt="profile" style={{ width: 56, height: 56, borderRadius: "50%", objectFit: "cover", border: "2px solid var(--border)", cursor: "zoom-in" }} onClick={() => setLightbox({ src: p.photoUrl, label: "Profile Photo" })} />}
                     </div>
 
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 20 }}>
+                    <div className="admin-doc-grid">
                       {[{ label: "Passport / ID", url: p.passportUrl }, { label: "Selfie with Passport", url: p.selfieUrl }].map(doc => (
                         <div key={doc.label}>
                           <div style={{ fontSize: "0.75rem", color: "var(--muted)", textTransform: "uppercase", marginBottom: 8 }}>{doc.label}</div>
@@ -331,9 +331,9 @@ export default function AdminClient({ clubs, players, interactions, users, stats
                       <label className="label">Rejection note (optional — shown to player)</label>
                       <input className="input" placeholder="e.g. Document is not readable. Please resubmit." value={rejectNote[p.id] ?? ""} onChange={e => setRejectNote(n => ({ ...n, [p.id]: e.target.value }))} />
                     </div>
-                    <div style={{ display: "flex", gap: 12 }}>
-                      <button className="btn btn-primary" style={{ minWidth: 140, justifyContent: "center" }} onClick={() => verifyPlayer(p.id, "VERIFIED")}>✓ Verify Player</button>
-                      <button className="btn btn-danger" style={{ minWidth: 140, justifyContent: "center" }} onClick={() => verifyPlayer(p.id, "REJECTED")}>✕ Reject</button>
+                    <div className="admin-btn-row">
+                      <button className="btn btn-primary" onClick={() => verifyPlayer(p.id, "VERIFIED")}>✓ Verify Player</button>
+                      <button className="btn btn-danger" onClick={() => verifyPlayer(p.id, "REJECTED")}>✕ Reject</button>
                     </div>
                   </div>
                 ))}
@@ -369,7 +369,7 @@ export default function AdminClient({ clubs, players, interactions, users, stats
                     </div>
 
                     {/* Club info grid */}
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20, padding: "16px", background: "var(--card2)", borderRadius: "var(--radius)", border: "1px solid var(--border)" }}>
+                    <div className="admin-2col" style={{ marginBottom: 20, padding: "16px", background: "var(--card2)", borderRadius: "var(--radius)", border: "1px solid var(--border)" }}>
                       {[
                         { label: "League", val: club.leagueName || "—" },
                         { label: "Founded", val: club.foundedYear || "—" },
@@ -410,9 +410,9 @@ export default function AdminClient({ clubs, players, interactions, users, stats
                       <input className="input" placeholder="e.g. Authorization letter is missing club stamp." value={rejectNote[club.id] ?? ""} onChange={e => setRejectNote(n => ({ ...n, [club.id]: e.target.value }))} />
                     </div>
 
-                    <div style={{ display: "flex", gap: 12 }}>
-                      <button className="btn btn-primary" style={{ minWidth: 140, justifyContent: "center" }} onClick={() => verifyClub(club.id, "VERIFIED")}>✓ Verify Club</button>
-                      <button className="btn btn-danger" style={{ minWidth: 140, justifyContent: "center" }} onClick={() => verifyClub(club.id, "REJECTED", rejectNote[club.id])}>✕ Reject</button>
+                    <div className="admin-btn-row">
+                      <button className="btn btn-primary" onClick={() => verifyClub(club.id, "VERIFIED")}>✓ Verify Club</button>
+                      <button className="btn btn-danger" onClick={() => verifyClub(club.id, "REJECTED", rejectNote[club.id])}>✕ Reject</button>
                     </div>
                   </div>
                 ))}
@@ -478,7 +478,7 @@ export default function AdminClient({ clubs, players, interactions, users, stats
                       </div>
                       <span className="badge badge-accent">⏳ Pending Payment</span>
                     </div>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16, padding: "14px 16px", background: "var(--card2)", borderRadius: "var(--radius)", border: "1px solid var(--border)", fontSize: "0.85rem" }}>
+                    <div className="admin-2col" style={{ marginBottom: 16, padding: "14px 16px", background: "var(--card2)", borderRadius: "var(--radius)", border: "1px solid var(--border)", fontSize: "0.85rem" }}>
                       {[
                         { label: "Contact Email", val: club.contactEmail || club.user?.email || "—" },
                         { label: "Contact Phone", val: club.contactPhone || "—" },
@@ -616,7 +616,7 @@ export default function AdminClient({ clubs, players, interactions, users, stats
               </div>
 
               {/* Info grid */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20, padding: "16px", background: "var(--card2)", borderRadius: "var(--radius)", border: "1px solid var(--border)" }}>
+              <div className="admin-2col" style={{ marginBottom: 20, padding: "16px", background: "var(--card2)", borderRadius: "var(--radius)", border: "1px solid var(--border)" }}>
                 {[
                   { label: "Email (login)", val: clubModal.user?.email },
                   { label: "Contact Email", val: clubModal.contactEmail || "—" },
@@ -739,9 +739,9 @@ export default function AdminClient({ clubs, players, interactions, users, stats
                     <label className="label">Rejection note (optional)</label>
                     <input className="input" placeholder="Reason for rejection..." value={rejectNote[clubModal.id] ?? ""} onChange={e => setRejectNote(n => ({ ...n, [clubModal.id]: e.target.value }))} />
                   </div>
-                  <div style={{ display: "flex", gap: 12 }}>
-                    <button className="btn btn-primary" style={{ flex: 1, justifyContent: "center" }} onClick={() => { setClubModal(null); verifyClub(clubModal.id, "VERIFIED"); }}>✓ Verify Club</button>
-                    <button className="btn btn-danger" style={{ flex: 1, justifyContent: "center" }} onClick={() => { setClubModal(null); verifyClub(clubModal.id, "REJECTED", rejectNote[clubModal.id]); }}>✕ Reject</button>
+                  <div className="admin-btn-row">
+                    <button className="btn btn-primary" onClick={() => { setClubModal(null); verifyClub(clubModal.id, "VERIFIED"); }}>✓ Verify Club</button>
+                    <button className="btn btn-danger" onClick={() => { setClubModal(null); verifyClub(clubModal.id, "REJECTED", rejectNote[clubModal.id]); }}>✕ Reject</button>
                   </div>
                 </div>
               )}
@@ -767,7 +767,7 @@ export default function AdminClient({ clubs, players, interactions, users, stats
                 <button onClick={() => setPlayerModal(null)} style={{ background: "none", border: "none", color: "var(--muted)", fontSize: "1.2rem", cursor: "pointer" }}>✕</button>
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20, padding: "16px", background: "var(--card2)", borderRadius: "var(--radius)", border: "1px solid var(--border)" }}>
+              <div className="admin-2col" style={{ marginBottom: 20, padding: "16px", background: "var(--card2)", borderRadius: "var(--radius)", border: "1px solid var(--border)" }}>
                 {[
                   { label: "Email", val: playerModal.user?.email },
                   { label: "Date of Birth", val: playerModal.dateOfBirth ? new Date(playerModal.dateOfBirth).toLocaleDateString() : "—" },

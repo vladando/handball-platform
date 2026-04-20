@@ -145,7 +145,7 @@ export default function Nav({ session, playerSlug, unreadCount: initialUnread = 
             ) : (
               <>
                 <Link href="/auth/login" className="btn btn-outline nav-signin" style={{ fontSize: "0.85rem", padding: "8px 16px" }}>Login</Link>
-                <Link href="/auth/register" className="btn btn-primary" style={{ fontSize: "0.85rem", padding: "8px 16px" }}>Join Free</Link>
+                <Link href="/auth/register" className="btn btn-primary nav-joinbtn" style={{ fontSize: "0.85rem", padding: "8px 16px" }}>Join Free</Link>
               </>
             )}
 

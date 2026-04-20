@@ -90,7 +90,8 @@ select.input option{background:#1a1a1a}
   .nav-links{display:none}
   .nav-user-email{display:none !important}
   .nav-signout{display:none !important}
-  .nav-signin{display:none !important}
+  .nav-signin{font-size:0.78rem !important;padding:6px 12px !important}
+  .nav-joinbtn{font-size:0.78rem !important;padding:6px 12px !important}
   .hamburger{display:flex}
 
   /* Sidebar layout → stack vertically */

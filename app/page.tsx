@@ -308,8 +308,11 @@ export default async function HomePage() {
               Ready to Find<br />
               <span style={{ color:"var(--accent)" }}>Your Club?</span>
             </h2>
-            <p style={{ color:"var(--muted)", maxWidth:400, margin:"0 auto 40px" }}>
-              Players join for free. Clubs get a 14-day trial. No credit card required.
+            <p style={{ color:"var(--muted)", maxWidth:480, margin:"0 auto 16px" }}>
+              Build your profile, skip the agent and make direct contact with top clubs.
+            </p>
+            <p style={{ color:"var(--muted)", fontSize:"0.85rem", maxWidth:400, margin:"0 auto 40px" }}>
+              ✅ Free for players. Always. &nbsp;·&nbsp; ✅ No commission fees. &nbsp;·&nbsp; ✅ No middleman.
             </p>
             <div style={{ display:"flex", gap:12, justifyContent:"center", flexWrap:"wrap" }}>
               <Link href="/auth/register?role=PLAYER" className="btn btn-primary" style={{ fontSize:"1rem", padding:"14px 32px" }}>I&apos;m a Player</Link>

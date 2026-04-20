@@ -1,7 +1,8 @@
 "use client";
 // app/players/[slug]/PlayerProfileClient.tsx
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import RevealContactButton from "@/components/RevealContactButton";
+import GalleryLightbox from "@/components/GalleryLightbox";
 
 const POS_LABELS: Record<string, string> = {
   GOALKEEPER: "Goalkeeper", LEFT_BACK: "Left Back", RIGHT_BACK: "Right Back",
@@ -31,10 +32,22 @@ export default function PlayerProfileClient({
   initialContact?: any | null;
 }) {
   const [tab, setTab] = useState<Tab>("overview");
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+
   const isLocked = isClub && !isVerifiedClub; // unverified club → locked/blurred
   const age = new Date().getFullYear() - new Date(player.dateOfBirth).getFullYear();
 
   const photoCount = (player.photoUrl ? 1 : 0) + (player.galleryImages?.length ?? 0);
+
+  // Flat list of all photos for lightbox navigation
+  const allImages = useMemo(() => {
+    const imgs: { url: string; caption?: string | null; label?: string }[] = [];
+    if (player.photoUrl) imgs.push({ url: player.photoUrl, label: "Profile Photo" });
+    for (const img of player.galleryImages ?? []) {
+      imgs.push({ url: img.url, caption: img.caption });
+    }
+    return imgs;
+  }, [player.photoUrl, player.galleryImages]);
 
   const tabs: { id: Tab; label: string }[] = [
     { id: "overview", label: "Overview" },
@@ -190,8 +203,8 @@ export default function PlayerProfileClient({
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))", gap: 8 }}>
                   {player.photoUrl && (
                     <div
-                      style={{ position: "relative", borderRadius: "var(--radius)", overflow: "hidden", aspectRatio: "1", border: "2px solid var(--accent)", cursor: "pointer" }}
-                      onClick={() => setTab("photos")}
+                      style={{ position: "relative", borderRadius: "var(--radius)", overflow: "hidden", aspectRatio: "1", border: "2px solid var(--accent)", cursor: "zoom-in" }}
+                      onClick={() => setLightboxIndex(0)}
                     >
                       <img
                         src={player.photoUrl}
@@ -203,11 +216,11 @@ export default function PlayerProfileClient({
                       </div>
                     </div>
                   )}
-                  {player.galleryImages?.slice(0, player.photoUrl ? 3 : 4).map((img: any) => (
+                  {player.galleryImages?.slice(0, player.photoUrl ? 3 : 4).map((img: any, i: number) => (
                     <div
                       key={img.id}
-                      style={{ borderRadius: "var(--radius)", overflow: "hidden", aspectRatio: "1", border: "1px solid var(--border)", cursor: "pointer" }}
-                      onClick={() => setTab("photos")}
+                      style={{ borderRadius: "var(--radius)", overflow: "hidden", aspectRatio: "1", border: "1px solid var(--border)", cursor: "zoom-in" }}
+                      onClick={() => setLightboxIndex(player.photoUrl ? i + 1 : i)}
                     >
                       <img src={img.url} alt={img.caption ?? ""} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                     </div>
@@ -414,7 +427,10 @@ export default function PlayerProfileClient({
           ) : (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 12 }}>
               {player.photoUrl && (
-                <div style={{ position: "relative", borderRadius: "var(--radius-lg)", overflow: "hidden", aspectRatio: "1", border: "2px solid var(--accent)" }}>
+                <div
+                  onClick={() => setLightboxIndex(0)}
+                  style={{ position: "relative", borderRadius: "var(--radius-lg)", overflow: "hidden", aspectRatio: "1", border: "2px solid var(--accent)", cursor: "zoom-in" }}
+                >
                   <img
                     src={player.photoUrl}
                     alt="Profile photo"
@@ -427,8 +443,12 @@ export default function PlayerProfileClient({
                   </div>
                 </div>
               )}
-              {player.galleryImages?.map((img: any) => (
-                <div key={img.id} style={{ position: "relative", borderRadius: "var(--radius-lg)", overflow: "hidden", aspectRatio: "1", border: "1px solid var(--border)" }}>
+              {player.galleryImages?.map((img: any, i: number) => (
+                <div
+                  key={img.id}
+                  onClick={() => setLightboxIndex(player.photoUrl ? i + 1 : i)}
+                  style={{ position: "relative", borderRadius: "var(--radius-lg)", overflow: "hidden", aspectRatio: "1", border: "1px solid var(--border)", cursor: "zoom-in" }}
+                >
                   <img src={img.url} alt={img.caption ?? ""} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                   {img.caption && (
                     <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: "linear-gradient(transparent, rgba(0,0,0,0.7))", padding: "20px 14px 10px" }}>
@@ -493,6 +513,16 @@ export default function PlayerProfileClient({
             </div>
           )}
         </div>
+      )}
+
+      {/* ── Gallery Lightbox ─────────────────────────────────────── */}
+      {lightboxIndex !== null && allImages.length > 0 && (
+        <GalleryLightbox
+          images={allImages}
+          startIndex={lightboxIndex}
+          onClose={() => setLightboxIndex(null)}
+          onNavigate={setLightboxIndex}
+        />
       )}
     </div>
   );

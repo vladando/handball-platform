@@ -54,6 +54,9 @@ export default function Nav({ session, playerSlug, unreadCount: initialUnread = 
   }, [path, role]);
 
   const profileHref = playerSlug ? `/players/${playerSlug}` : "/dashboard/player";
+  const settingsHref = role === "PLAYER" ? "/dashboard/player?tab=settings"
+    : role === "CLUB" ? "/dashboard/club?tab=settings"
+    : null;
 
   const navLinks = (
     <>
@@ -111,6 +114,14 @@ export default function Nav({ session, playerSlug, unreadCount: initialUnread = 
                   boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
                   zIndex: 1000, overflow: "hidden",
                 }}>
+                  {settingsHref && (
+                    <Link href={settingsHref} onClick={() => setDropdownOpen(false)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", fontSize: "0.88rem", color: "var(--white)", borderBottom: "1px solid var(--border)", transition: "background 0.15s" }}
+                      onMouseEnter={e => (e.currentTarget.style.background = "var(--card2)")}
+                      onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+                    >
+                      ⚙️ <span>Settings</span>
+                    </Link>
+                  )}
                   <Link href="/contact" onClick={() => setDropdownOpen(false)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", fontSize: "0.88rem", color: "var(--white)", borderBottom: "1px solid var(--border)", transition: "background 0.15s" }}
                     onMouseEnter={e => (e.currentTarget.style.background = "var(--card2)")}
                     onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
@@ -169,6 +180,9 @@ export default function Nav({ session, playerSlug, unreadCount: initialUnread = 
         <div className="mobile-menu" role="dialog" aria-label="Navigation menu">
           <ul>
             {navLinks}
+            {settingsHref && (
+              <li><Link href={settingsHref} className={path.includes("tab=settings") ? "active" : ""}>⚙️ Settings</Link></li>
+            )}
             <li><Link href="/contact" className={path === "/contact" ? "active" : ""}>✉️ Contact</Link></li>
             <li><Link href="/terms" className={path === "/terms" ? "active" : ""}>📄 Terms & Privacy</Link></li>
             <div className="mobile-menu-divider" />

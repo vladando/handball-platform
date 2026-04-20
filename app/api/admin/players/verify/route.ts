@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { sendPlayerVerifiedEmail, sendPlayerRejectedEmail } from "@/lib/email";
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -15,7 +16,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
   }
 
-  await prisma.player.update({
+  const player = await prisma.player.update({
     where: { id: playerId },
     data: {
       verificationStatus: status,
@@ -25,7 +26,27 @@ export async function POST(req: NextRequest) {
       // When verified, make player available by default
       isAvailable: status === "VERIFIED" ? true : undefined,
     },
+    select: {
+      firstName: true,
+      lastName: true,
+      user: { select: { email: true } },
+    },
   });
+
+  // Send email notification to the player
+  const email = player.user?.email;
+  const name = [player.firstName, player.lastName].filter(Boolean).join(" ") || "Player";
+  if (email) {
+    try {
+      if (status === "VERIFIED") {
+        await sendPlayerVerifiedEmail(email, name);
+      } else {
+        await sendPlayerRejectedEmail(email, name, note ?? undefined);
+      }
+    } catch {
+      // Don't fail the request if email fails
+    }
+  }
 
   return NextResponse.json({ ok: true });
 }

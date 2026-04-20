@@ -332,6 +332,80 @@ export async function sendSubscriptionActivatedEmail(to: string, clubName: strin
   });
 }
 
+// ── Player: verified ─────────────────────────────────────────────
+
+export async function sendPlayerVerifiedEmail(to: string, playerName: string) {
+  await transporter.sendMail({
+    from: `"HandballHub" <${ADMIN_EMAIL}>`,
+    to,
+    subject: "HandballHub — Your Profile Has Been Verified! ✅",
+    html: `
+      <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;background:#0d0d0d;color:#f5f3ee;padding:40px 32px;border-radius:12px;">
+        ${logo()}
+        <div style="text-align:center;margin-bottom:24px;">
+          <div style="font-size:3rem;margin-bottom:12px;">✅</div>
+          <h2 style="margin:0 0 8px;font-size:1.4rem;color:#00c864;">Profile Verified!</h2>
+          <p style="color:#888;margin:0;">${playerName}</p>
+        </div>
+        <p style="color:#888;line-height:1.7;margin:0 0 20px;text-align:center;">
+          Congratulations! Your player profile has been <strong style="color:#f5f3ee;">officially verified</strong> by the HandballHub team.
+          You now appear with a verified badge in club searches.
+        </p>
+        <div style="background:rgba(0,200,100,0.06);border:1px solid rgba(0,200,100,0.2);border-radius:8px;padding:16px 20px;margin-bottom:24px;">
+          <div style="font-weight:700;color:#00c864;margin-bottom:10px;text-transform:uppercase;font-size:0.85rem;">What this means</div>
+          <div style="color:#ccc;font-size:0.88rem;line-height:1.9;">
+            ✓ Verified badge visible on your profile<br/>
+            ✓ Higher ranking in club search results<br/>
+            ✓ Clubs can view your full contact details<br/>
+            ✓ Eligible to receive transfer interest requests
+          </div>
+        </div>
+        <a href="${APP_URL}/dashboard/player"
+           style="display:block;text-align:center;background:#00c864;color:#000;font-weight:700;text-decoration:none;padding:14px 24px;border-radius:8px;font-size:1rem;text-transform:uppercase;letter-spacing:0.05em;">
+          View Your Profile →
+        </a>
+        ${footer()}
+      </div>
+    `,
+  });
+}
+
+// ── Player: rejected ──────────────────────────────────────────────
+
+export async function sendPlayerRejectedEmail(to: string, playerName: string, note?: string) {
+  await transporter.sendMail({
+    from: `"HandballHub" <${ADMIN_EMAIL}>`,
+    to,
+    subject: "HandballHub — Profile Verification Update",
+    html: `
+      <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;background:#0d0d0d;color:#f5f3ee;padding:40px 32px;border-radius:12px;">
+        ${logo()}
+        <h2 style="margin:0 0 12px;font-size:1.3rem;">❌ Verification Update Required</h2>
+        <p style="color:#888;line-height:1.7;margin:0 0 20px;">
+          Hi <strong style="color:#f5f3ee;">${playerName}</strong>, we were unable to verify your profile with the documents provided.
+          Please review the information below and resubmit.
+        </p>
+        ${note ? `
+        <div style="background:rgba(255,59,59,0.08);border:1px solid rgba(255,59,59,0.25);border-radius:8px;padding:16px 20px;margin-bottom:24px;">
+          <div style="font-weight:700;color:#ff3b3b;margin-bottom:8px;text-transform:uppercase;font-size:0.82rem;">Admin note</div>
+          <div style="color:#ccc;font-size:0.88rem;line-height:1.7;">${note}</div>
+        </div>` : ""}
+        <div style="background:#111;border:1px solid #222;border-radius:8px;padding:16px 20px;margin-bottom:24px;font-size:0.88rem;color:#aaa;line-height:1.8;">
+          Please ensure you have submitted:<br/>
+          • A clear passport or national ID photo<br/>
+          • A recent selfie photo<br/>
+          • Complete and accurate profile information
+        </div>
+        <a href="${APP_URL}/dashboard/player?tab=settings"
+           style="display:block;text-align:center;background:#e8ff47;color:#000;font-weight:700;text-decoration:none;padding:14px 24px;border-radius:8px;font-size:1rem;text-transform:uppercase;letter-spacing:0.05em;">
+          Update Your Profile →
+        </a>
+        ${footer()}
+      </div>
+    `,
+  });
+}
+
 // ── Password reset ────────────────────────────────────────────────
 
 export async function sendPasswordResetEmail(to: string, resetUrl: string) {

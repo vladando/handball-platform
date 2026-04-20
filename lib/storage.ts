@@ -76,17 +76,51 @@ async function deleteFromCloudinary(url: string): Promise<void> {
 }
 
 // ── Local filesystem fallback ──────────────────────────────
-const LOCAL_PLAYER_DIR = path.join(process.cwd(), "public", "uploads", "players");
-const LOCAL_VERIFY_DIR = path.join(process.cwd(), "public", "uploads", "verification");
+// Strategy: write files to the project-root public/ directory (persistent across
+// deploys) AND to the standalone public/ directory (served immediately).
+// The deploy script copies project public/ → standalone public/, so on the next
+// deploy any already-uploaded files are naturally preserved.
+function getPublicBase(): string {
+  const cwd = process.cwd().replace(/\\/g, "/");
+  if (cwd.endsWith("/.next/standalone")) {
+    return path.resolve(process.cwd(), "../..", "public");
+  }
+  return path.join(process.cwd(), "public");
+}
+
+// Where we persist uploads long-term (project root public/).
+const PUBLIC_BASE      = getPublicBase();
+// Where Next.js serves static files from right now.
+const SERVE_BASE       = path.join(process.cwd(), "public");
+// Are we running inside the standalone build?
+const IS_STANDALONE    = PUBLIC_BASE !== SERVE_BASE;
+
+const LOCAL_PLAYER_DIR = path.join(PUBLIC_BASE, "uploads", "players");
+const LOCAL_VERIFY_DIR = path.join(PUBLIC_BASE, "uploads", "verification");
 
 async function uploadLocally(
   buffer: Buffer,
   dir: string,
   filename: string
 ): Promise<string> {
+  // Write to persistent location (project public/)
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(path.join(dir, filename), buffer);
-  const rel = path.relative(path.join(process.cwd(), "public"), path.join(dir, filename));
+
+  // URL is always relative to PUBLIC_BASE → /uploads/...
+  const rel = path.relative(PUBLIC_BASE, path.join(dir, filename));
+
+  // Also write to standalone public/ so the file is served immediately
+  if (IS_STANDALONE) {
+    try {
+      const serveDir = path.join(SERVE_BASE, path.dirname(rel));
+      fs.mkdirSync(serveDir, { recursive: true });
+      fs.writeFileSync(path.join(SERVE_BASE, rel), buffer);
+    } catch {
+      // best-effort — file will appear after next deploy even if this fails
+    }
+  }
+
   return "/" + rel.replace(/\\/g, "/");
 }
 
@@ -99,7 +133,7 @@ export async function savePlayerImage(
     return { error: "Only JPEG, PNG, WebP and GIF images are allowed." };
   }
   if (file.size > MAX_SIZE_BYTES) {
-    return { error: "File is too large. Maximum 5 MB." };
+    return { error: "File is too large. Maximum 15 MB." };
   }
 
   const bytes = await file.arrayBuffer();
@@ -134,7 +168,7 @@ export async function saveVerificationDoc(
     return { error: "Only JPEG, PNG, WebP or PDF files are allowed." };
   }
   if (file.size > MAX_SIZE_BYTES) {
-    return { error: "File is too large. Maximum 5 MB." };
+    return { error: "File is too large. Maximum 15 MB." };
   }
 
   const bytes = await file.arrayBuffer();
@@ -168,7 +202,7 @@ export async function saveVerificationDoc(
   }
 }
 
-const LOCAL_CLUB_DIR = path.join(process.cwd(), "public", "uploads", "clubs");
+const LOCAL_CLUB_DIR = path.join(PUBLIC_BASE, "uploads", "clubs");
 
 export async function saveClubLogo(
   clubId: string,
@@ -178,7 +212,7 @@ export async function saveClubLogo(
     return { error: "Only JPEG, PNG, WebP and GIF images are allowed." };
   }
   if (file.size > MAX_SIZE_BYTES) {
-    return { error: "File is too large. Maximum 5 MB." };
+    return { error: "File is too large. Maximum 15 MB." };
   }
 
   const bytes = await file.arrayBuffer();
@@ -210,11 +244,13 @@ export function deleteLocalFile(url: string) {
     deleteFromCloudinary(url).catch(() => {});
     return;
   }
-  try {
-    const rel = url.replace(/^\//, "");
-    const abs = path.join(process.cwd(), "public", rel);
-    if (fs.existsSync(abs)) fs.unlinkSync(abs);
-  } catch {
-    // best-effort
+  const rel = url.replace(/^\//, "");
+  for (const base of [PUBLIC_BASE, SERVE_BASE]) {
+    try {
+      const abs = path.join(base, rel);
+      if (fs.existsSync(abs)) fs.unlinkSync(abs);
+    } catch {
+      // best-effort
+    }
   }
 }

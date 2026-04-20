@@ -16,11 +16,13 @@ export default function VerificationBanner({ status, rejectionNote, onboardingCo
   const [showVerifiedToast, setShowVerifiedToast] = useState(false);
 
   // Show popup on every page navigation — but not during onboarding,
-  // not on the verification tab, and not before onboarding is done.
+  // not on the verification page/tab, and not before onboarding is done.
   useEffect(() => {
     if (status === "VERIFIED" || status === "PENDING") return;
     if (!onboardingCompleted) return;
     if (pathname.startsWith("/onboarding")) return;
+    // Suppress on the dedicated verify page
+    if (pathname.startsWith("/dashboard/player/verify")) return;
     // Suppress on verification tab (check URL directly — avoids Suspense issues)
     if (typeof window !== "undefined" && window.location.search.includes("tab=verification")) return;
     const t = setTimeout(() => setShowPopup(true), 700);

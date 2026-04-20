@@ -255,6 +255,7 @@ model CareerEntry {
   player        Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
   clubName      String
   country       String
+  city          String?
   startDate     DateTime
   endDate       DateTime?
   appearances   Int?

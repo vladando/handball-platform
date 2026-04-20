@@ -158,7 +158,7 @@ export default function PlayerDashboardClient({ player, revealCount }: { player:
   const [newVideo, setNewVideo] = useState({ title: "", youtubeUrl: "", description: "" });
   const [career, setCareer] = useState(player.careerEntries ?? []);
   const THIS_YEAR = new Date().getFullYear();
-  const [newCareer, setNewCareer] = useState({ clubName: "", country: "", startYear: "", endYear: "", isCurrentClub: false });
+  const [newCareer, setNewCareer] = useState({ clubName: "", country: "", city: "", startYear: "", endYear: "", isCurrentClub: false });
   const [careerMsg, setCareerMsg] = useState("");
   const [medical, setMedical] = useState(player.medicalRecords ?? []);
   const [newMedical, setNewMedical] = useState({
@@ -287,6 +287,7 @@ export default function PlayerDashboardClient({ player, revealCount }: { player:
     const payload = {
       clubName: newCareer.clubName,
       country: newCareer.country,
+      city: newCareer.city || undefined,
       startDate: `${newCareer.startYear}-01-01`,
       endDate: newCareer.endYear ? `${newCareer.endYear}-07-01` : undefined,
       isCurrentClub: newCareer.isCurrentClub,
@@ -297,7 +298,7 @@ export default function PlayerDashboardClient({ player, revealCount }: { player:
     if (res.ok) {
       const data = await res.json();
       setCareer((c: any[]) => [data.entry, ...c]);
-      setNewCareer({ clubName: "", country: "", startYear: "", endYear: "", isCurrentClub: false });
+      setNewCareer({ clubName: "", country: "", city: "", startYear: "", endYear: "", isCurrentClub: false });
       setCareerMsg("✓ Career entry saved.");
       setTimeout(() => setCareerMsg(""), 3000);
     } else {
@@ -613,7 +614,7 @@ export default function PlayerDashboardClient({ player, revealCount }: { player:
                       </div>
 
                       <div style={{ fontSize: "0.75rem", color: "var(--muted)", lineHeight: 1.6 }}>
-                        JPEG, PNG or WebP · max 5 MB<br />
+                        JPEG, PNG or WebP · max 15 MB<br />
                         {photoUrl && "Drag the photo in the circle to reposition it, then click Save Profile."}
                       </div>
                       {photoError && (
@@ -722,7 +723,7 @@ export default function PlayerDashboardClient({ player, revealCount }: { player:
                   )}
 
                   <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: 12 }}>
-                    {gallery.length}/12 photos used · JPEG, PNG or WebP · max 5 MB each
+                    {gallery.length}/12 photos used · JPEG, PNG or WebP · max 15 MB each
                   </div>
                 </div>
 
@@ -891,6 +892,7 @@ export default function PlayerDashboardClient({ player, revealCount }: { player:
                   <div className="grid-2">
                     <div className="form-group"><label className="label">Club Name *</label><input className="input" value={newCareer.clubName} onChange={e => setNewCareer(c => ({ ...c, clubName: e.target.value }))} placeholder="RK Zagreb" /></div>
                     <div className="form-group"><label className="label">Country *</label><input className="input" value={newCareer.country} onChange={e => setNewCareer(c => ({ ...c, country: e.target.value }))} placeholder="Croatia" /></div>
+                    <div className="form-group"><label className="label">City</label><input className="input" value={newCareer.city} onChange={e => setNewCareer(c => ({ ...c, city: e.target.value }))} placeholder="Zagreb" /></div>
                     <div className="form-group"><label className="label">Start Year *</label><input className="input" type="number" min={1960} max={THIS_YEAR} value={newCareer.startYear} onChange={e => setNewCareer(c => ({ ...c, startYear: e.target.value }))} placeholder="2020" /></div>
                     <div className="form-group"><label className="label">End Year <span style={{ fontWeight: 400, color: "var(--muted)" }}>(blank if current)</span></label><input className="input" type="number" min={1960} max={THIS_YEAR} value={newCareer.endYear} onChange={e => setNewCareer(c => ({ ...c, endYear: e.target.value }))} placeholder="2023" /></div>
                     <div className="form-group" style={{ display: "flex", alignItems: "center", gap: 10, paddingTop: 24 }}>
@@ -904,6 +906,9 @@ export default function PlayerDashboardClient({ player, revealCount }: { player:
                   </div>
                 </div>
 
+                {career.length > 0 && (
+                  <h4 style={{ textTransform: "uppercase", marginBottom: 16, fontSize: "0.9rem" }}>Career History</h4>
+                )}
                 {career.length === 0 ? (
                   <div style={{ textAlign: "center", padding: "40px 0", color: "var(--muted)" }}>No career entries yet.</div>
                 ) : (
@@ -916,7 +921,9 @@ export default function PlayerDashboardClient({ player, revealCount }: { player:
                               {entry.clubName}
                               {entry.isCurrentClub && <span className="badge badge-green" style={{ marginLeft: 8 }}>Current</span>}
                             </div>
-                            <div style={{ fontSize: "0.85rem", color: "var(--muted)" }}>{entry.country} · {new Date(entry.startDate).getFullYear()} — {entry.endDate ? new Date(entry.endDate).getFullYear() : "Present"}</div>
+                            <div style={{ fontSize: "0.85rem", color: "var(--muted)" }}>
+                              {entry.city ? `${entry.city}, ` : ""}{entry.country} · {new Date(entry.startDate).getFullYear()} — {entry.endDate ? new Date(entry.endDate).getFullYear() : "Present"}
+                            </div>
                           </div>
                           <button
                             onClick={() => deleteCareer(entry.id)}

@@ -21,7 +21,7 @@ const ALLOWED_DOC_TYPES: Record<string, string> = {
   "application/pdf": ".pdf",
 };
 
-const MAX_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
+const MAX_SIZE_BYTES = 15 * 1024 * 1024; // 15 MB
 
 const useCloudinary = !!(
   process.env.CLOUDINARY_CLOUD_NAME &&

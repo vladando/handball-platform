@@ -9,7 +9,7 @@ export async function POST(req: NextRequest) {
   if (!session || (session.user as any).role !== "PLAYER")
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { clubName, country, startDate, endDate, appearances, goals, assists, isCurrentClub } = await req.json();
+  const { clubName, country, city, startDate, endDate, appearances, goals, assists, isCurrentClub } = await req.json();
   if (!clubName || !country || !startDate)
     return NextResponse.json({ error: "Club name, country and start date are required." }, { status: 400 });
 
@@ -21,6 +21,7 @@ export async function POST(req: NextRequest) {
       playerId: player.id,
       clubName,
       country,
+      city: city?.trim() || null,
       startDate: new Date(startDate),
       endDate: endDate ? new Date(endDate) : null,
       appearances: appearances ? +appearances : null,

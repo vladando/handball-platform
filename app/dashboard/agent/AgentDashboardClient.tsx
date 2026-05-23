@@ -194,6 +194,63 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
 
+  // Players sub-tab: "roster" | "free" | "requests"
+  const [playersSubTab, setPlayersSubTab] = useState<"roster" | "free" | "requests">("roster");
+
+  // Free agents scouting
+  const [freeAgents, setFreeAgents] = useState<any[]>([]);
+  const [freeAgentsLoading, setFreeAgentsLoading] = useState(false);
+  const [freeAgentsLoaded, setFreeAgentsLoaded] = useState(false);
+  const [faSearch, setFaSearch] = useState("");
+  const [faFilterPos, setFaFilterPos] = useState("");
+  const [faRequestMsg, setFaRequestMsg] = useState<Record<string, string>>({});
+  const [faRequestInput, setFaRequestInput] = useState<Record<string, string>>({});
+  const [faRequestingId, setFaRequestingId] = useState<string | null>(null);
+  const [faShowMsgFor, setFaShowMsgFor] = useState<string | null>(null);
+
+  // Sent representation requests
+  const [repRequests, setRepRequests] = useState<any[]>([]);
+  const [repRequestsLoading, setRepRequestsLoading] = useState(false);
+  const [repRequestsLoaded, setRepRequestsLoaded] = useState(false);
+
+  useEffect(() => {
+    if (playersSubTab === "free" && !freeAgentsLoaded) {
+      setFreeAgentsLoading(true);
+      fetch("/api/agent/free-agents")
+        .then(r => r.json())
+        .then(d => { if (d.players) setFreeAgents(d.players); setFreeAgentsLoaded(true); })
+        .catch(() => {})
+        .finally(() => setFreeAgentsLoading(false));
+    }
+    if (playersSubTab === "requests" && !repRequestsLoaded) {
+      setRepRequestsLoading(true);
+      fetch("/api/agent/representation-requests")
+        .then(r => r.json())
+        .then(d => { if (d.requests) setRepRequests(d.requests); setRepRequestsLoaded(true); })
+        .catch(() => {})
+        .finally(() => setRepRequestsLoading(false));
+    }
+  }, [playersSubTab, freeAgentsLoaded, repRequestsLoaded]);
+
+  async function sendRepRequest(playerId: string) {
+    setFaRequestingId(playerId);
+    const msg = faRequestInput[playerId] ?? "";
+    const res = await fetch(`/api/agent/free-agents/${playerId}/request`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: msg }),
+    });
+    const data = await res.json();
+    setFaRequestingId(null);
+    setFaShowMsgFor(null);
+    if (res.ok) {
+      setFaRequestMsg(prev => ({ ...prev, [playerId]: "✓ Request sent!" }));
+      setFreeAgents(prev => prev.map(p => p.id === playerId ? { ...p, requestStatus: "PENDING", requestId: data.request?.id } : p));
+    } else {
+      setFaRequestMsg(prev => ({ ...prev, [playerId]: "✕ " + (data.error ?? "Failed") }));
+    }
+  }
+
   // Players filter/search
   const [playerSearch, setPlayerSearch] = useState("");
   const [filterPosition, setFilterPosition] = useState("");
@@ -1183,8 +1240,25 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
         {/* ══════════════════ PLAYERS ══════════════════ */}
         {tab === "players" && (
           <div className="tab-content">
-            {/* ── Header row ── */}
+            {/* ── Sub-tab toggle ── */}
             <div style={{ ...STICKY_HEADER }}>
+              <div style={{ display: "flex", gap: 0, border: "1px solid var(--border)", borderRadius: "var(--radius)", overflow: "hidden", marginBottom: 16, maxWidth: 480 }}>
+                {([
+                  { id: "roster", label: `👥 My Roster${players.length ? ` (${players.length})` : ""}` },
+                  { id: "free",   label: "🔍 Free Agents" },
+                  { id: "requests", label: `📨 My Requests${repRequests.filter(r => r.status === "ACCEPTED").length ? ` ✓${repRequests.filter(r => r.status === "ACCEPTED").length}` : ""}` },
+                ] as const).map(st => (
+                  <button key={st.id} onClick={() => setPlayersSubTab(st.id)} style={{
+                    flex: 1, padding: "8px 12px", background: playersSubTab === st.id ? "var(--accent)" : "transparent",
+                    color: playersSubTab === st.id ? "var(--black)" : "var(--muted)", border: "none", cursor: "pointer",
+                    fontFamily: "var(--font-display)", fontSize: "0.65rem", fontWeight: 700, textTransform: "uppercase",
+                    letterSpacing: "0.06em", transition: "background 0.15s",
+                  }}>{st.label}</button>
+                ))}
+              </div>
+
+            {/* ── My Roster header ── */}
+            {playersSubTab === "roster" && (<>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 10 }}>
                 <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.62rem", color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.18em" }}>
                   Players <span style={{ color: "var(--muted)", fontWeight: 400 }}>({filteredPlayers.length}{filteredPlayers.length !== players.length ? `/${players.length}` : ""})</span>
@@ -1240,9 +1314,10 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
                   </button>
                 )}
               </div>
+            </>)}
             </div>
 
-            {players.length === 0 ? (
+            {playersSubTab === "roster" && (players.length === 0 ? (
               <div className="card" style={{ textAlign: "center", padding: "60px 24px" }}>
                 <div style={{ fontSize: "3rem", marginBottom: 16 }}>👥</div>
                 <h4 style={{ marginBottom: 8 }}>No Players Yet</h4>
@@ -1417,7 +1492,204 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
                   );
                 })}
               </div>
-            )}
+            ))}
+
+            {/* ══ Free Agents sub-tab ══ */}
+            {playersSubTab === "free" && (() => {
+              const filtered = freeAgents.filter(p => {
+                if (faSearch && !`${p.firstName} ${p.lastName}`.toLowerCase().includes(faSearch.toLowerCase())) return false;
+                if (faFilterPos && p.position !== faFilterPos) return false;
+                return true;
+              });
+              return (
+                <div>
+                  {/* Filter bar */}
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 16 }}>
+                    <input value={faSearch} onChange={e => setFaSearch(e.target.value)} placeholder="Search by name…"
+                      style={{ flex: "1 1 160px", minWidth: 130, background: "var(--card2)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "6px 10px", fontSize: "0.78rem", color: "var(--white)", outline: "none", fontFamily: "var(--font-mono)" }} />
+                    <select value={faFilterPos} onChange={e => setFaFilterPos(e.target.value)}
+                      style={{ flex: "0 0 auto", background: "var(--card2)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "6px 10px", fontSize: "0.78rem", color: faFilterPos ? "var(--white)" : "var(--muted)", outline: "none", cursor: "pointer" }}>
+                      <option value="">All Positions</option>
+                      {POSITIONS.map(pos => <option key={pos} value={pos}>{posLabel(pos)}</option>)}
+                    </select>
+                    {(faSearch || faFilterPos) && (
+                      <button onClick={() => { setFaSearch(""); setFaFilterPos(""); }}
+                        style={{ background: "none", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "5px 10px", fontSize: "0.7rem", color: "var(--muted)", cursor: "pointer" }}>✕ Clear</button>
+                    )}
+                    <button onClick={() => { setFreeAgentsLoaded(false); }} style={{ background: "none", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "5px 10px", fontSize: "0.7rem", color: "var(--muted)", cursor: "pointer" }}>↺ Refresh</button>
+                    <span style={{ fontSize: "0.68rem", color: "var(--muted)", fontFamily: "var(--font-mono)" }}>{filtered.length} player{filtered.length !== 1 ? "s" : ""}</span>
+                  </div>
+
+                  {freeAgentsLoading ? (
+                    <div style={{ textAlign: "center", padding: "60px 0", color: "var(--muted)", fontSize: "0.88rem" }}>Loading free agents…</div>
+                  ) : filtered.length === 0 ? (
+                    <div className="card" style={{ textAlign: "center", padding: "60px 24px" }}>
+                      <div style={{ fontSize: "3rem", marginBottom: 16 }}>🔍</div>
+                      <h4 style={{ marginBottom: 8 }}>No Free Agents Found</h4>
+                      <p style={{ color: "var(--muted)" }}>All available players are currently represented or no players match your filters.</p>
+                    </div>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                      {filtered.map((p: any) => (
+                        <div key={p.id} className="card" style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", cursor: "pointer", transition: "border-color 0.15s" }}
+                          onClick={e => { if ((e.target as HTMLElement).closest("button,input,textarea")) return; if (p.slug) window.open(`/players/${p.slug}`, "_blank"); }}
+                          onMouseEnter={e => { e.currentTarget.style.borderColor = "rgba(232,255,71,0.3)"; }}
+                          onMouseLeave={e => { e.currentTarget.style.borderColor = ""; }}
+                        >
+                          <div style={{ width: 48, height: 48, borderRadius: "50%", background: "var(--card2)", border: "2px solid var(--border)", overflow: "hidden", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.2rem" }}>
+                            {p.photoUrl ? <img src={p.photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : "👤"}
+                          </div>
+                          <div style={{ flex: 1, minWidth: 160 }}>
+                            <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: "1rem", textTransform: "uppercase" }}>{p.firstName} {p.lastName}</div>
+                            <div style={{ fontSize: "0.78rem", color: "var(--muted)", marginTop: 2 }}>
+                              {posLabel(p.position)} · {p.nationality ?? "—"}
+                              {p.heightCm && ` · ${p.heightCm}cm`}
+                              {p.currentClub && ` · ${p.currentClub}`}
+                            </div>
+                            {(p.expectedSalaryMin || p.expectedSalaryMax) && (
+                              <div style={{ fontSize: "0.72rem", color: "var(--accent)", fontFamily: "var(--font-mono)", marginTop: 2 }}>
+                                {p.expectedSalaryMin && p.expectedSalaryMax
+                                  ? `€${Math.round(p.expectedSalaryMin/100).toLocaleString()} – €${Math.round(p.expectedSalaryMax/100).toLocaleString()}/yr`
+                                  : p.expectedSalaryMin ? `from €${Math.round(p.expectedSalaryMin/100).toLocaleString()}/yr`
+                                  : `up to €${Math.round(p.expectedSalaryMax/100).toLocaleString()}/yr`}
+                              </div>
+                            )}
+                          </div>
+                          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                            <span className={`badge ${p.isAvailable ? "badge-green" : "badge-muted"}`}>{p.isAvailable ? "Available" : "N/A"}</span>
+                            {p.verificationStatus === "VERIFIED" && <span className="badge badge-green">✅ Verified</span>}
+                          </div>
+
+                          {/* Request area */}
+                          <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }} onClick={e => e.stopPropagation()}>
+                            {p.requestStatus === "ACCEPTED" ? (
+                              <span className="badge badge-green">✓ Accepted</span>
+                            ) : p.requestStatus === "PENDING" ? (
+                              <span className="badge badge-accent">⏳ Pending</span>
+                            ) : p.requestStatus === "REJECTED" ? (
+                              <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-end" }}>
+                                <span className="badge badge-muted">✕ Declined</span>
+                                <button className="btn btn-outline" style={{ fontSize: "0.68rem", padding: "4px 10px" }}
+                                  onClick={() => setFaShowMsgFor(faShowMsgFor === p.id ? null : p.id)}>↺ Re-send</button>
+                              </div>
+                            ) : (
+                              faShowMsgFor === p.id ? (
+                                <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 220 }}>
+                                  <textarea
+                                    value={faRequestInput[p.id] ?? ""}
+                                    onChange={e => setFaRequestInput(prev => ({ ...prev, [p.id]: e.target.value }))}
+                                    placeholder="Optional message to player…"
+                                    rows={2}
+                                    style={{ background: "var(--card2)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "8px 10px", fontSize: "0.78rem", color: "var(--white)", resize: "vertical", fontFamily: "var(--font-mono)", outline: "none" }}
+                                  />
+                                  <div style={{ display: "flex", gap: 6 }}>
+                                    <button className="btn btn-primary" style={{ flex: 1, justifyContent: "center", fontSize: "0.72rem", padding: "5px 10px" }}
+                                      disabled={faRequestingId === p.id}
+                                      onClick={() => sendRepRequest(p.id)}>
+                                      {faRequestingId === p.id ? <><span className="spinner" /> Sending…</> : "📨 Send Request"}
+                                    </button>
+                                    <button className="btn btn-outline" style={{ fontSize: "0.72rem", padding: "5px 8px" }} onClick={() => setFaShowMsgFor(null)}>✕</button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <button className="btn btn-primary" style={{ fontSize: "0.72rem", padding: "5px 12px" }}
+                                  onClick={() => setFaShowMsgFor(p.id)}>
+                                  🤝 Request Representation
+                                </button>
+                              )
+                            )}
+                            {faRequestMsg[p.id] && (
+                              <div style={{ fontSize: "0.72rem", color: faRequestMsg[p.id].startsWith("✓") ? "#00c864" : "var(--red)" }}>{faRequestMsg[p.id]}</div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* ══ My Requests sub-tab ══ */}
+            {playersSubTab === "requests" && (() => {
+              const pending = repRequests.filter((r: any) => r.status === "PENDING");
+              const accepted = repRequests.filter((r: any) => r.status === "ACCEPTED");
+              const rejected = repRequests.filter((r: any) => r.status === "REJECTED");
+              return (
+                <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+                  {repRequestsLoading ? (
+                    <div style={{ textAlign: "center", padding: "60px 0", color: "var(--muted)", fontSize: "0.88rem" }}>Loading…</div>
+                  ) : repRequests.length === 0 ? (
+                    <div className="card" style={{ textAlign: "center", padding: "60px 24px" }}>
+                      <div style={{ fontSize: "3rem", marginBottom: 16 }}>📨</div>
+                      <h4 style={{ marginBottom: 8 }}>No Requests Sent</h4>
+                      <p style={{ color: "var(--muted)", marginBottom: 20 }}>Go to the Free Agents tab to discover players and send representation requests.</p>
+                      <button className="btn btn-primary" onClick={() => setPlayersSubTab("free")}>🔍 Browse Free Agents</button>
+                    </div>
+                  ) : (<>
+                    {accepted.length > 0 && (
+                      <div>
+                        <div style={{ fontSize: "0.62rem", color: "#00c864", textTransform: "uppercase", letterSpacing: "0.14em", fontFamily: "var(--font-mono)", marginBottom: 10 }}>Accepted ({accepted.length})</div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                          {accepted.map((r: any) => (
+                            <div key={r.id} className="card" style={{ display: "flex", alignItems: "center", gap: 12, borderColor: "rgba(0,200,100,0.3)" }}>
+                              <div style={{ width: 44, height: 44, borderRadius: "50%", background: "var(--card2)", border: "2px solid #00c864", overflow: "hidden", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.1rem" }}>
+                                {r.player?.photoUrl ? <img src={r.player.photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : "👤"}
+                              </div>
+                              <div style={{ flex: 1 }}>
+                                <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: "0.95rem", textTransform: "uppercase" }}>{r.player?.firstName} {r.player?.lastName}</div>
+                                <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>{posLabel(r.player?.position)} · {r.player?.nationality ?? "—"}</div>
+                              </div>
+                              <span className="badge badge-green">✓ Accepted</span>
+                              {r.player?.slug && <a href={`/players/${r.player.slug}`} target="_blank" rel="noopener noreferrer" className="btn btn-outline" style={{ fontSize: "0.68rem", padding: "4px 10px" }}>View ↗</a>}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {pending.length > 0 && (
+                      <div>
+                        <div style={{ fontSize: "0.62rem", color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.14em", fontFamily: "var(--font-mono)", marginBottom: 10 }}>Awaiting Response ({pending.length})</div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                          {pending.map((r: any) => (
+                            <div key={r.id} className="card" style={{ display: "flex", alignItems: "center", gap: 12, borderColor: "rgba(232,255,71,0.2)" }}>
+                              <div style={{ width: 44, height: 44, borderRadius: "50%", background: "var(--card2)", border: "2px solid var(--border)", overflow: "hidden", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.1rem" }}>
+                                {r.player?.photoUrl ? <img src={r.player.photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : "👤"}
+                              </div>
+                              <div style={{ flex: 1 }}>
+                                <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: "0.95rem", textTransform: "uppercase" }}>{r.player?.firstName} {r.player?.lastName}</div>
+                                <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>{posLabel(r.player?.position)} · {r.player?.nationality ?? "—"}</div>
+                                {r.message && <div style={{ fontSize: "0.72rem", color: "rgba(245,243,238,0.5)", marginTop: 4, fontStyle: "italic" }}>"{r.message}"</div>}
+                              </div>
+                              <span className="badge badge-accent">⏳ Pending</span>
+                              <div style={{ fontSize: "0.68rem", color: "var(--muted)", whiteSpace: "nowrap" }}>{new Date(r.createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short" })}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {rejected.length > 0 && (
+                      <div>
+                        <div style={{ fontSize: "0.62rem", color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.14em", fontFamily: "var(--font-mono)", marginBottom: 10 }}>Declined ({rejected.length})</div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 8, opacity: 0.6 }}>
+                          {rejected.map((r: any) => (
+                            <div key={r.id} className="card" style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 16px" }}>
+                              <div style={{ width: 36, height: 36, borderRadius: "50%", background: "var(--card2)", border: "1px solid var(--border)", overflow: "hidden", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.9rem" }}>
+                                {r.player?.photoUrl ? <img src={r.player.photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : "👤"}
+                              </div>
+                              <div style={{ flex: 1 }}>
+                                <div style={{ fontFamily: "var(--font-display)", fontSize: "0.88rem", textTransform: "uppercase" }}>{r.player?.firstName} {r.player?.lastName}</div>
+                              </div>
+                              <span className="badge badge-muted">✕ Declined</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </>)}
+                </div>
+              );
+            })()}
           </div>
         )}
 

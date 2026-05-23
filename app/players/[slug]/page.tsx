@@ -60,12 +60,27 @@ export default async function PlayerProfilePage({
         alreadyRevealed = true;
         existingInteractionId = existing.id;
         // Pre-load contact so it shows immediately without another reveal click
+        // If player has an agent on the platform, use agent record contact
+        let agentName = player.agentName ?? null;
+        let agentPhone = player.agentPhone ?? null;
+        let agentEmail: string | null = player.agentEmail ?? null;
+        if ((player as any).agentId) {
+          const agentRec = await prisma.agent.findUnique({
+            where: { id: (player as any).agentId },
+            select: { firstName: true, lastName: true, phone: true, user: { select: { email: true } } },
+          }).catch(() => null);
+          if (agentRec) {
+            agentName = `${agentRec.firstName} ${agentRec.lastName}`;
+            agentPhone = agentRec.phone ?? null;
+            agentEmail = agentRec.user?.email ?? null;
+          }
+        }
         existingContact = {
           email: (player as any).user?.email ?? null,
           phone: player.phone ?? null,
-          agentName: player.agentName ?? null,
-          agentPhone: player.agentPhone ?? null,
-          agentEmail: player.agentEmail ?? null,
+          agentName,
+          agentPhone,
+          agentEmail,
         };
       }
     }

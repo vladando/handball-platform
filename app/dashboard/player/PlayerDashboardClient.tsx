@@ -27,6 +27,7 @@ const NAV_ITEMS = [
   { id: "medical",       label: "Medical Records", icon: "⚕" },
   { id: "verification",  label: "Verification",    icon: "🔐" },
   { id: "visibility",    label: "Visibility",      icon: "👁" },
+  { id: "agent",         label: "My Agent",        icon: "🤝" },
   { id: "messages",      label: "Messages",        icon: "💬" },
   { id: "premium",       label: "Premium",         icon: "⭐" },
   { id: "settings",      label: "Settings",        icon: "⚙" },
@@ -333,6 +334,43 @@ export default function PlayerDashboardClient({ player, revealCount }: { player:
   const [language, setLanguage] = useState(() => typeof window !== "undefined" ? (localStorage.getItem("hhLang") ?? "en") : "en");
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+  // ── Agent / Representation requests ──────────────────────────
+  const [repRequests, setRepRequests] = useState<any[]>([]);
+  const [repLoading, setRepLoading] = useState(false);
+  const [repMsg, setRepMsg] = useState("");
+  const [repRespondingId, setRepRespondingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (tab === "agent") {
+      setRepLoading(true);
+      fetch("/api/player/representation-requests")
+        .then(r => r.json())
+        .then(d => { if (d.requests) setRepRequests(d.requests); })
+        .catch(() => {})
+        .finally(() => setRepLoading(false));
+    }
+  }, [tab]);
+
+  async function respondToRequest(id: string, action: "accept" | "reject") {
+    setRepRespondingId(id);
+    setRepMsg("");
+    const res = await fetch(`/api/player/representation-requests/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action }),
+    });
+    const data = await res.json();
+    setRepRespondingId(null);
+    if (res.ok) {
+      setRepRequests(prev => prev.map(r => r.id === id ? { ...r, status: data.status, respondedAt: new Date().toISOString() } : r.status === "PENDING" && action === "accept" ? { ...r, status: "REJECTED" } : r));
+      setRepMsg(action === "accept" ? "✓ Agent accepted! Their contact will now appear on your profile." : "Request declined.");
+      // Reload page after accept so agentId shows in context
+      if (action === "accept") setTimeout(() => window.location.reload(), 1500);
+    } else {
+      setRepMsg("✕ " + (data.error ?? "Something went wrong."));
+    }
+  }
 
   function handleLanguageChange(code: string) {
     setLanguage(code);
@@ -1278,6 +1316,162 @@ export default function PlayerDashboardClient({ player, revealCount }: { player:
                 </div>
               </div>
             )}
+
+            {/* ── Agent / Representation Requests ───────────────────── */}
+            {tab === "agent" && (() => {
+              const currentAgentId = (player as any).agentId;
+              const pending = repRequests.filter((r: any) => r.status === "PENDING");
+              const past = repRequests.filter((r: any) => r.status !== "PENDING");
+              return (
+                <div style={{ maxWidth: 640, display: "flex", flexDirection: "column", gap: 20 }}>
+                  {/* Current agent status */}
+                  {currentAgentId ? (
+                    <div className="card" style={{ borderColor: "rgba(0,200,100,0.3)" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+                        {(() => {
+                          const accepted = repRequests.find((r: any) => r.status === "ACCEPTED");
+                          const ag = accepted?.agent;
+                          return ag ? (
+                            <>
+                              <div style={{ width: 56, height: 56, borderRadius: "50%", background: "var(--card2)", border: "2px solid #00c864", overflow: "hidden", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.4rem" }}>
+                                {ag.photoUrl ? <img src={ag.photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : "🤝"}
+                              </div>
+                              <div style={{ flex: 1, minWidth: 160 }}>
+                                <div style={{ fontSize: "0.62rem", color: "#00c864", textTransform: "uppercase", letterSpacing: "0.14em", fontFamily: "var(--font-mono)", marginBottom: 4 }}>Your Agent</div>
+                                <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: "1.1rem", textTransform: "uppercase" }}>{ag.firstName} {ag.lastName}</div>
+                                <div style={{ fontSize: "0.8rem", color: "var(--muted)", marginTop: 2 }}>
+                                  {ag.country && <span>{ag.country}</span>}
+                                  {ag.licenseNumber && <span> · License #{ag.licenseNumber}</span>}
+                                </div>
+                              </div>
+                              <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: "0.8rem", color: "var(--muted)" }}>
+                                {ag.phone && <span>📞 {ag.phone}</span>}
+                                {ag.website && <a href={ag.website.startsWith("http") ? ag.website : `https://${ag.website}`} target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent)", textDecoration: "none" }}>🌐 Website</a>}
+                                {ag.players?.length > 0 && <span>👥 {ag.players.length} players managed</span>}
+                              </div>
+                            </>
+                          ) : (
+                            <div style={{ color: "var(--muted)", fontSize: "0.9rem" }}>🤝 You are currently represented by an agent.</div>
+                          );
+                        })()}
+                      </div>
+                      {(() => {
+                        const accepted = repRequests.find((r: any) => r.status === "ACCEPTED");
+                        const ag = accepted?.agent;
+                        return ag?.bio ? (
+                          <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--border)", fontSize: "0.85rem", color: "var(--muted)", lineHeight: 1.7 }}>{ag.bio}</div>
+                        ) : null;
+                      })()}
+                      <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--border)", fontSize: "0.8rem", color: "var(--muted)", lineHeight: 1.6 }}>
+                        Your agent&apos;s contact details are automatically shown on your player profile when clubs unlock your contact. You retain full control of your profile at all times.
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="card" style={{ textAlign: "center", padding: "32px 24px" }}>
+                      <div style={{ fontSize: "2.5rem", marginBottom: 12 }}>🤝</div>
+                      <h4 style={{ marginBottom: 8 }}>No Agent</h4>
+                      <p style={{ color: "var(--muted)", fontSize: "0.88rem", lineHeight: 1.7 }}>
+                        You&apos;re currently unrepresented. Agents on HandballHub can send you representation requests — review them below and accept to be added to their roster.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Pending requests */}
+                  {repLoading ? (
+                    <div style={{ textAlign: "center", color: "var(--muted)", padding: "20px 0", fontSize: "0.85rem" }}>Loading requests…</div>
+                  ) : pending.length > 0 && (
+                    <div>
+                      <div style={{ fontSize: "0.62rem", color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.14em", fontFamily: "var(--font-mono)", marginBottom: 12 }}>
+                        Pending Requests ({pending.length})
+                      </div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                        {pending.map((r: any) => (
+                          <div key={r.id} className="card" style={{ borderColor: "rgba(232,255,71,0.25)" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: r.message ? 14 : 16 }}>
+                              <div style={{ width: 44, height: 44, borderRadius: "50%", background: "var(--card2)", border: "2px solid var(--border)", overflow: "hidden", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.1rem" }}>
+                                {r.agent?.photoUrl ? <img src={r.agent.photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : "🤝"}
+                              </div>
+                              <div style={{ flex: 1, minWidth: 140 }}>
+                                <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: "0.95rem", textTransform: "uppercase" }}>{r.agent?.firstName} {r.agent?.lastName}</div>
+                                <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: 2 }}>
+                                  {r.agent?.country && <span>{r.agent.country}</span>}
+                                  {r.agent?.licenseNumber && <span> · License #{r.agent.licenseNumber}</span>}
+                                  {r.agent?.players?.length > 0 && <span> · {r.agent.players.length} players</span>}
+                                </div>
+                              </div>
+                              <div style={{ fontSize: "0.72rem", color: "var(--muted)", whiteSpace: "nowrap" }}>
+                                {new Date(r.createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short" })}
+                              </div>
+                            </div>
+                            {r.message && (
+                              <div style={{ background: "var(--card2)", borderRadius: "var(--radius)", padding: "12px 14px", fontSize: "0.84rem", color: "rgba(245,243,238,0.8)", lineHeight: 1.6, marginBottom: 14, fontStyle: "italic" }}>
+                                &ldquo;{r.message}&rdquo;
+                              </div>
+                            )}
+                            {currentAgentId ? (
+                              <div style={{ fontSize: "0.8rem", color: "var(--muted)", padding: "8px 0" }}>
+                                You already have an agent. Dismiss pending requests if you wish.
+                              </div>
+                            ) : (
+                              <div style={{ display: "flex", gap: 10 }}>
+                                <button
+                                  className="btn btn-primary"
+                                  style={{ flex: 1, justifyContent: "center", fontSize: "0.8rem" }}
+                                  disabled={repRespondingId === r.id}
+                                  onClick={() => respondToRequest(r.id, "accept")}
+                                >
+                                  {repRespondingId === r.id ? <><span className="spinner" /> Working…</> : "✓ Accept Representation"}
+                                </button>
+                                <button
+                                  className="btn btn-outline"
+                                  style={{ fontSize: "0.8rem", padding: "8px 14px" }}
+                                  disabled={repRespondingId === r.id}
+                                  onClick={() => respondToRequest(r.id, "reject")}
+                                >
+                                  ✕ Decline
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {repMsg && (
+                    <div style={{ padding: "12px 16px", borderRadius: "var(--radius)", background: repMsg.startsWith("✓") ? "rgba(0,200,100,0.08)" : "rgba(255,59,59,0.08)", border: `1px solid ${repMsg.startsWith("✓") ? "rgba(0,200,100,0.3)" : "rgba(255,59,59,0.3)"}`, fontSize: "0.85rem", color: repMsg.startsWith("✓") ? "#00c864" : "var(--red)" }}>
+                      {repMsg}
+                    </div>
+                  )}
+
+                  {/* Past requests */}
+                  {past.length > 0 && (
+                    <div>
+                      <div style={{ fontSize: "0.62rem", color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.14em", fontFamily: "var(--font-mono)", marginBottom: 12 }}>Request History</div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                        {past.map((r: any) => (
+                          <div key={r.id} className="card" style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", opacity: 0.75 }}>
+                            <div style={{ width: 36, height: 36, borderRadius: "50%", background: "var(--card2)", border: "1px solid var(--border)", overflow: "hidden", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.9rem" }}>
+                              {r.agent?.photoUrl ? <img src={r.agent.photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : "🤝"}
+                            </div>
+                            <div style={{ flex: 1 }}>
+                              <span style={{ fontFamily: "var(--font-display)", fontSize: "0.88rem", textTransform: "uppercase" }}>{r.agent?.firstName} {r.agent?.lastName}</span>
+                            </div>
+                            <span className={`badge ${r.status === "ACCEPTED" ? "badge-green" : "badge-muted"}`} style={{ fontSize: "0.62rem" }}>{r.status}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {!repLoading && repRequests.length === 0 && !currentAgentId && (
+                    <div style={{ fontSize: "0.85rem", color: "var(--muted)", textAlign: "center", padding: "12px 0" }}>
+                      No representation requests yet. Agents can discover and contact you through the platform.
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* ── Messages ──────────────────────────────────────────── */}
             {tab === "messages" && (

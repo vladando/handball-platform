@@ -56,6 +56,7 @@ export default function Nav({ session, playerSlug, unreadCount: initialUnread = 
   const profileHref = playerSlug ? `/players/${playerSlug}` : "/dashboard/player";
   const settingsHref = role === "PLAYER" ? "/dashboard/player?tab=settings"
     : role === "CLUB" ? "/dashboard/club?tab=settings"
+    : role === "AGENT" ? "/dashboard/agent?tab=settings"
     : null;
 
   const navLinks = (
@@ -71,6 +72,7 @@ export default function Nav({ session, playerSlug, unreadCount: initialUnread = 
           </Link>
         </li>
       )}
+      {role === "AGENT" && <li><Link href="/dashboard/agent" className={path.startsWith("/dashboard/agent") ? "active" : ""}>🤝 My Players</Link></li>}
       {role === "ADMIN" && <li><Link href="/admin" className={path.startsWith("/admin") ? "active" : ""}>⚙️ Admin</Link></li>}
     </>
   );

@@ -18,7 +18,7 @@ function getClientIp(req: NextRequest): string {
 export async function POST(req: NextRequest) {
   const { email, password, name, role, gender } = await req.json();
   if (!email || !password || !name || !role) return NextResponse.json({ error: "Missing fields." }, { status: 400 });
-  if (!["PLAYER", "CLUB"].includes(role)) return NextResponse.json({ error: "Invalid role." }, { status: 400 });
+  if (!["PLAYER", "CLUB", "AGENT"].includes(role)) return NextResponse.json({ error: "Invalid role." }, { status: 400 });
 
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) return NextResponse.json({ error: "Email already registered." }, { status: 409 });
@@ -45,6 +45,16 @@ export async function POST(req: NextRequest) {
           isAvailable: true, // visible once verified
         },
       });
+    } else if (role === "AGENT") {
+      const [firstName, ...rest] = name.split(" ");
+      await tx.agent.create({
+        data: {
+          userId: user.id,
+          firstName: firstName || name,
+          lastName: rest.join(" ") || "—",
+          slug: makeSlug(name),
+        },
+      });
     } else {
       await tx.club.create({
         data: {
@@ -63,9 +73,11 @@ export async function POST(req: NextRequest) {
   });
 
   // Send welcome email (non-blocking)
-  sendWelcomeEmail(email, name, role as "PLAYER" | "CLUB").catch(err =>
-    console.error("[register] welcome email failed:", err)
-  );
+  if (role !== "AGENT") {
+    sendWelcomeEmail(email, name, role as "PLAYER" | "CLUB").catch(err =>
+      console.error("[register] welcome email failed:", err)
+    );
+  }
 
   // Notify admin when a new club registers
   if (role === "CLUB") {

@@ -38,6 +38,10 @@ export const authOptions: NextAuthOptions = {
           const club = await prisma.club.findUnique({ where: { userId: user.id }, select: { id: true } });
           token.clubId = club?.id;
         }
+        if ((user as any).role === "AGENT") {
+          const agent = await prisma.agent.findUnique({ where: { userId: user.id }, select: { id: true } });
+          token.agentId = agent?.id;
+        }
       }
       return token;
     },
@@ -47,6 +51,7 @@ export const authOptions: NextAuthOptions = {
         (session.user as any).role = token.role;
         (session.user as any).playerId = token.playerId;
         (session.user as any).clubId = token.clubId;
+        (session.user as any).agentId = token.agentId;
       }
       return session;
     },

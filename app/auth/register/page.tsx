@@ -6,8 +6,8 @@ import Link from "next/link";
 export default function RegisterPage() {
   const router = useRouter();
   const params = useSearchParams();
-  const defaultRole = (params.get("role") ?? "PLAYER") as "PLAYER" | "CLUB";
-  const [role, setRole] = useState<"PLAYER" | "CLUB">(defaultRole);
+  const defaultRole = (params.get("role") ?? "PLAYER") as "PLAYER" | "CLUB" | "AGENT";
+  const [role, setRole] = useState<"PLAYER" | "CLUB" | "AGENT">(defaultRole);
   const [form, setForm] = useState({ email:"", password:"", name:"", confirmPassword:"" });
   const [gender, setGender] = useState<"MALE"|"FEMALE">("MALE");
   const [error, setError] = useState("");
@@ -42,17 +42,21 @@ export default function RegisterPage() {
         </div>
 
         {/* Role selector */}
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:24 }}>
-          {(["PLAYER","CLUB"] as const).map(r => (
-            <button key={r} type="button" onClick={() => setRole(r)} style={{
-              padding:"14px", borderRadius:"var(--radius)", fontFamily:"var(--font-display)",
-              fontWeight:700, fontSize:"0.9rem", letterSpacing:"0.05em", textTransform:"uppercase",
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8, marginBottom:24 }}>
+          {([
+            { id: "PLAYER", label: "👤 Player" },
+            { id: "CLUB",   label: "🏟 Club" },
+            { id: "AGENT",  label: "🤝 Agent" },
+          ] as const).map(r => (
+            <button key={r.id} type="button" onClick={() => setRole(r.id)} style={{
+              padding:"14px 8px", borderRadius:"var(--radius)", fontFamily:"var(--font-display)",
+              fontWeight:700, fontSize:"0.82rem", letterSpacing:"0.04em", textTransform:"uppercase",
               cursor:"pointer", transition:"all 0.15s",
-              background: role === r ? "var(--accent)" : "var(--card)",
-              color: role === r ? "var(--black)" : "var(--muted)",
-              border: role === r ? "none" : "1px solid var(--border)",
+              background: role === r.id ? "var(--accent)" : "var(--card)",
+              color: role === r.id ? "var(--black)" : "var(--muted)",
+              border: role === r.id ? "none" : "1px solid var(--border)",
             }}>
-              {r === "PLAYER" ? "👤 Player" : "🏟 Club"}
+              {r.label}
             </button>
           ))}
         </div>
@@ -60,9 +64,9 @@ export default function RegisterPage() {
         <div className="card">
           <form onSubmit={handleSubmit}>
             <div className="form-group">
-              <label className="label">{role === "PLAYER" ? "Full Name" : "Club Name"}</label>
+              <label className="label">{role === "PLAYER" ? "Full Name" : role === "AGENT" ? "Full Name" : "Club Name"}</label>
               <input className="input" value={form.name} onChange={e => set("name", e.target.value)}
-                placeholder={role === "PLAYER" ? "Ivan Petrović" : "RK Zagreb"} required />
+                placeholder={role === "PLAYER" ? "Ivan Petrović" : role === "AGENT" ? "Marko Nikolić" : "RK Zagreb"} required />
             </div>
 
             {/* Gender selector — clubs only */}
@@ -103,13 +107,18 @@ export default function RegisterPage() {
                 ℹ Club accounts require admin verification before accessing the player database.
               </div>
             )}
+            {role === "AGENT" && (
+              <div style={{ background:"rgba(232,255,71,0.05)", border:"1px solid rgba(232,255,71,0.15)", borderRadius:"var(--radius)", padding:"12px 16px", fontSize:"0.82rem", color:"rgba(245,243,238,0.6)", marginBottom:20 }}>
+                🤝 As an agent you can create and manage multiple player profiles from one account.
+              </div>
+            )}
             {error && (
               <div style={{ background:"rgba(255,59,59,0.1)", border:"1px solid rgba(255,59,59,0.3)", borderRadius:"var(--radius)", padding:"10px 14px", fontSize:"0.85rem", color:"var(--red)", marginBottom:16 }}>
                 {error}
               </div>
             )}
             <button type="submit" className="btn btn-primary" style={{ width:"100%", justifyContent:"center" }} disabled={loading}>
-              {loading ? <><span className="spinner" /> Creating…</> : `Create ${role === "PLAYER" ? "Player" : "Club"} Account`}
+              {loading ? <><span className="spinner" /> Creating…</> : `Create ${role === "PLAYER" ? "Player" : role === "AGENT" ? "Agent" : "Club"} Account`}
             </button>
           </form>
         </div>

@@ -15,6 +15,7 @@ enum Role {
   PLAYER
   CLUB
   ADMIN
+  AGENT
 }
 
 enum SubscriptionStatus {
@@ -89,6 +90,7 @@ model User {
   player        Player?
   club          Club?
   adminProfile  AdminProfile?
+  agent         Agent?
 
   @@map("users")
 }
@@ -204,6 +206,10 @@ model Player {
 
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
+
+  // Agent relation (set when player is created/managed by an agent)
+  agentId         String?
+  agent           Agent?    @relation(fields: [agentId], references: [id])
 
   videos          VideoVault[]
   careerEntries   CareerEntry[]
@@ -448,6 +454,33 @@ model Message {
   @@index([interactionId])
   @@index([receiverId, isRead])
   @@map("messages")
+}
+
+// ── Agent ─────────────────────────────────────────────────────────
+
+model Agent {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  firstName     String
+  lastName      String
+  bio           String?  @db.Text
+  photoUrl      String?
+  phone         String?
+  website       String?
+  country       String?
+  licenseNumber String?
+
+  slug          String   @unique
+  onboardingCompleted Boolean @default(false)
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  players       Player[]
+
+  @@map("agents")
 }
 
 // ── Admin ─────────────────────────────────────────────────────────

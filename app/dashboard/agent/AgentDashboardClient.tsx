@@ -1,7 +1,7 @@
 "use client";
 import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 
 const POSITIONS = [
   "GOALKEEPER","LEFT_BACK","RIGHT_BACK","LEFT_WING","RIGHT_WING","CENTRE_BACK","PIVOT","CENTRE_FORWARD"
@@ -79,15 +79,13 @@ const STICKY_HEADER: React.CSSProperties = {
 
 export default function AgentDashboardClient({ agent }: { agent: any }) {
   const searchParams = useSearchParams();
-  const router = useRouter();
 
-  // Extract string early — stable primitive dep avoids infinite-loop from unstable searchParams reference
-  const tabParam = searchParams.get("tab");
-
-  const [tab, setTab] = useState<Tab>(() => {
-    if (tabParam && NAV_ITEMS.some(n => n.id === tabParam)) return tabParam as Tab;
-    return "overview";
-  });
+  const [tab, setTab] = useState<Tab>(
+    (searchParams.get("tab") as Tab | null) &&
+    NAV_ITEMS.some(n => n.id === searchParams.get("tab"))
+      ? (searchParams.get("tab") as Tab)
+      : "overview"
+  );
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [players, setPlayers] = useState<any[]>(agent.players ?? []);
   const [contracts, setContracts] = useState<any[]>(agent.contracts ?? []);
@@ -96,15 +94,19 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
   const [pitchDecks, setPitchDecks] = useState<any[]>(agent.pitchDecks ?? []);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
 
-  // Sync tab whenever the URL ?tab= param changes (e.g. nav-bar Settings link)
+  // Sync tab when URL changes (nav-bar links like ?tab=settings)
   useEffect(() => {
-    if (tabParam && NAV_ITEMS.some(n => n.id === tabParam)) setTab(tabParam as Tab);
-  }, [tabParam]); // string dep — stable, no infinite loop
+    const t = searchParams.get("tab");
+    if (t && NAV_ITEMS.some(n => n.id === t)) setTab(t as Tab);
+  }, [searchParams]);
 
   function switchTab(id: Tab) {
     setTab(id);
     setSidebarOpen(false);
-    router.replace(`?tab=${id}`, { scroll: false });
+    // Use history API directly — no React navigation triggered, no state reset
+    if (typeof window !== "undefined") {
+      window.history.replaceState(null, "", `?tab=${id}`);
+    }
   }
 
   // Add Player modal

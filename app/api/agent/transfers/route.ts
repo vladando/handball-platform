@@ -39,15 +39,16 @@ export async function POST(req: NextRequest) {
     fromClub,
     toClub,
     transferDate,
-    transferFeeCents,
     salaryCents,
-    contractMonths,
+    contractStartDate,
+    contractEndDate,
     notes,
-    contractFileUrl,
-    // Commission auto-create fields
+    // Commission auto-create
     commissionAmountCents,
     commissionDueDate,
     commissionDescription,
+    // Contract (add/update)
+    contractFileUrl,
   } = await req.json();
 
   if (!playerId || !toClub?.trim() || !transferDate)
@@ -58,6 +59,13 @@ export async function POST(req: NextRequest) {
     select: { id: true, currentClub: true },
   });
   if (!player) return NextResponse.json({ error: "Player not found" }, { status: 404 });
+
+  // Calculate contractMonths from start/end dates
+  let contractMonths: number | null = null;
+  if (contractStartDate && contractEndDate) {
+    const ms = new Date(contractEndDate).getTime() - new Date(contractStartDate).getTime();
+    contractMonths = Math.round(ms / (1000 * 60 * 60 * 24 * 30.44));
+  }
 
   // Auto-create commission if amount provided
   let commission: any = null;
@@ -75,7 +83,24 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  // Create the transfer record, linking the commission if created
+  // Auto-create contract record
+  let contractRecord: any = null;
+  if (contractStartDate && contractEndDate) {
+    contractRecord = await (prisma as any).agentContract.create({
+      data: {
+        agentId: agent.id,
+        playerId,
+        clubName: toClub.trim(),
+        startDate: new Date(contractStartDate),
+        endDate: new Date(contractEndDate),
+        salary: salaryCents ? parseInt(salaryCents) : null,
+        contractFileUrl: contractFileUrl ?? null,
+        isActive: true,
+      },
+    }).catch(() => null); // contract might not exist yet, skip gracefully
+  }
+
+  // Create the transfer record (no contractFileUrl field in schema)
   const transfer = await (prisma as any).transferRecord.create({
     data: {
       agentId: agent.id,
@@ -83,41 +108,39 @@ export async function POST(req: NextRequest) {
       fromClub: fromClub?.trim() ?? null,
       toClub: toClub.trim(),
       transferDate: new Date(transferDate),
-      transferFeeCents: transferFeeCents ? parseInt(transferFeeCents) : null,
       salaryCents: salaryCents ? parseInt(salaryCents) : null,
-      contractMonths: contractMonths ? parseInt(contractMonths) : null,
+      contractMonths,
+      contractStartDate: contractStartDate ? new Date(contractStartDate) : null,
+      contractEndDate: contractEndDate ? new Date(contractEndDate) : null,
       linkedCommissionId: commission?.id ?? null,
       notes: notes?.trim() ?? null,
-      contractFileUrl: contractFileUrl ?? null,
     },
     include: { player: { select: { id: true, firstName: true, lastName: true } } },
   });
 
-  // Auto-create / update player career history
-  // Mark all existing career entries for this player as not current
+  // Auto-update player career history
+  // Mark old current entries as ended
   await prisma.careerEntry.updateMany({
     where: { playerId, isCurrentClub: true },
-    data: { isCurrentClub: false, endDate: new Date(transferDate) },
+    data: {
+      isCurrentClub: false,
+      endDate: contractStartDate ? new Date(contractStartDate) : new Date(transferDate),
+    },
   });
 
-  // Calculate end date from contractMonths if provided
-  const startDate = new Date(transferDate);
-  const endDate = contractMonths
-    ? new Date(new Date(transferDate).setMonth(new Date(transferDate).getMonth() + parseInt(contractMonths)))
-    : null;
-
+  // Add new career entry
   await prisma.careerEntry.create({
     data: {
       playerId,
       clubName: toClub.trim(),
-      country: "", // country not collected in transfer form; agent can edit later
-      startDate,
-      endDate,
+      country: "",
+      startDate: contractStartDate ? new Date(contractStartDate) : new Date(transferDate),
+      endDate: contractEndDate ? new Date(contractEndDate) : null,
       isCurrentClub: true,
     },
   });
 
-  // Also update player's currentClub field
+  // Update player's currentClub field
   await prisma.player.update({
     where: { id: playerId },
     data: { currentClub: toClub.trim() },

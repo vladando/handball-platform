@@ -96,6 +96,7 @@ export default function PlayerProfileClient({
   agentAlreadyRevealed,
   agentInitialContact,
   playerId,
+  isOwnProfile,
 }: {
   player: any;
   isClub: boolean;
@@ -109,6 +110,7 @@ export default function PlayerProfileClient({
   agentAlreadyRevealed?: boolean;
   agentInitialContact?: any | null;
   playerId?: string;
+  isOwnProfile?: boolean;
 }) {
   const [tab, setTab] = useState<Tab>("overview");
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
@@ -404,7 +406,19 @@ export default function PlayerProfileClient({
               </div>
             </div>
 
-            {isClub && isVerifiedClub ? (
+            {isOwnProfile ? (
+              <div style={{ background: "rgba(0,200,100,0.06)", border: "1px solid rgba(0,200,100,0.25)", borderRadius: "var(--radius-lg)", padding: "20px" }}>
+                <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: "0.9rem", textTransform: "uppercase", color: "#00c864", marginBottom: 10 }}>
+                  👤 My Profile
+                </div>
+                <p style={{ fontSize: "0.82rem", color: "var(--muted)", lineHeight: 1.6, marginBottom: 14 }}>
+                  You are viewing your own profile. Clubs and agents see this page when they search for you.
+                </p>
+                <a href="/dashboard/player" className="btn btn-outline" style={{ width: "100%", justifyContent: "center", fontSize: "0.85rem" }}>
+                  Edit My Profile →
+                </a>
+              </div>
+            ) : isClub && isVerifiedClub ? (
               <RevealContactButton
                 playerId={player.id}
                 playerName={`${player.firstName} ${player.lastName}`}

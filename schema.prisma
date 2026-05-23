@@ -564,6 +564,8 @@ model TransferRecord {
   transferFeeCents     Int?
   salaryCents          Int?
   contractMonths       Int?
+  contractStartDate    DateTime?
+  contractEndDate      DateTime?
   linkedCommissionId   String?
   notes                String?  @db.Text
   createdAt            DateTime @default(now())

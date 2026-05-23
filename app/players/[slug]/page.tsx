@@ -36,6 +36,9 @@ export default async function PlayerProfilePage({
   const role = (session?.user as any)?.role;
   const isClub = role === "CLUB";
   const isAdmin = role === "ADMIN";
+  const isPlayerRole = role === "PLAYER";
+  // Allow player to view their own profile
+  const isOwnProfile = isPlayerRole && (session?.user as any)?.id === (player as any).userId;
 
   // Fetch club + check verification + load existing interaction
   let isVerifiedClub = false;
@@ -141,7 +144,7 @@ export default async function PlayerProfilePage({
     }
   }
 
-  const requiresClubLogin = isAgentPlayer && !isClub && !isAdmin && !isOwnerAgent && !isAgent;
+  const requiresClubLogin = isAgentPlayer && !isClub && !isAdmin && !isOwnerAgent && !isAgent && !isOwnProfile;
 
   const age = new Date().getFullYear() - new Date(player.dateOfBirth).getFullYear();
 
@@ -245,6 +248,7 @@ export default async function PlayerProfilePage({
           agentAlreadyRevealed={agentAlreadyRevealed}
           agentInitialContact={agentInitialContact}
           playerId={player.id}
+          isOwnProfile={isOwnProfile}
         />
       </div>
     </main>

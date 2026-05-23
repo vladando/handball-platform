@@ -31,6 +31,8 @@ const THIS_YEAR = new Date().getFullYear();
 const TOTAL = 10;
 
 export default function PlayerOnboardingClient({ player, agentPlayerId }: { player: any; agentPlayerId?: string }) {
+  const isAgent = !!agentPlayerId;
+
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -254,16 +256,16 @@ export default function PlayerOnboardingClient({ player, agentPlayerId }: { play
   // ── Navigation ────────────────────────────────────────────────
   function next() {
     if (step === 1 && (!form.firstName.trim() || !form.lastName.trim())) {
-      setError("Please enter your first and last name."); return;
+      setError(isAgent ? "Please enter the player's first and last name." : "Please enter your first and last name."); return;
     }
     if (step === 2 && (!dobDay || !dobMonth || !dobYear || !form.nationality.trim())) {
-      setError("Please fill in date of birth and nationality."); return;
+      setError(isAgent ? "Please fill in the player's date of birth and nationality." : "Please fill in date of birth and nationality."); return;
     }
     if (step === 4 && (!form.heightCm || !form.weightKg)) {
-      setError("Please enter your height and weight."); return;
+      setError(isAgent ? "Please enter the player's height and weight." : "Please enter your height and weight."); return;
     }
     if (step === 5 && !form.phone.trim()) {
-      setError("Phone number is required."); return;
+      setError(isAgent ? "Player's phone number is required." : "Phone number is required."); return;
     }
     setError(""); setStep(s => s + 1);
   }
@@ -314,7 +316,7 @@ export default function PlayerOnboardingClient({ player, agentPlayerId }: { play
     );
   }
 
-  function ContinueBtn({ onClick, label = "Continue \u2192", disabled = false }: { onClick: () => void; label?: string; disabled?: boolean }) {
+  function ContinueBtn({ onClick, label = "Continue →", disabled = false }: { onClick: () => void; label?: string; disabled?: boolean }) {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         <button className="btn btn-primary" style={{ width: "100%", justifyContent: "center", padding: "13px" }} onClick={onClick} disabled={disabled}>
@@ -379,20 +381,20 @@ export default function PlayerOnboardingClient({ player, agentPlayerId }: { play
           <div style={{ ...card, textAlign: "center", padding: "44px 32px" }}>
             <div style={{ fontSize: "3rem", marginBottom: 16 }}>&#128075;</div>
             <h2 style={{ fontSize: "1.8rem", marginBottom: 12 }}>
-              {agentPlayerId
+              {isAgent
                 ? <>Set Up <span style={{ color: "var(--accent)" }}>Player Profile</span></>
                 : <>Welcome to <span style={{ color: "var(--accent)" }}>HandballHub!</span></>
               }
             </h2>
             <p style={{ color: "var(--muted)", lineHeight: 1.7, marginBottom: 8 }}>
-              {agentPlayerId
-                ? <>Let&apos;s complete this player&apos;s profile in <strong style={{ color: "var(--white)" }}>10 steps</strong>.</>
+              {isAgent
+                ? <>Complete your player&apos;s profile in <strong style={{ color: "var(--white)" }}>10 steps</strong>. You&apos;re filling this out on behalf of the player.</>
                 : <>Let&apos;s build your player profile in <strong style={{ color: "var(--white)" }}>10 steps</strong>.</>
               }
             </p>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, margin: "20px 0 28px", textAlign: "left" }}>
               {[
-                ["1–6", "Personal & contact info"],
+                ["1–6", isAgent ? "Player personal & contact info" : "Personal & contact info"],
                 ["7", "Career history"],
                 ["8", "Medical records"],
                 ["9", "Highlight videos"],
@@ -413,7 +415,11 @@ export default function PlayerOnboardingClient({ player, agentPlayerId }: { play
         {/* ── Step 1: Name ── */}
         {step === 1 && (
           <div style={card}>
-            <StepLabel n={1} title="What's your name?" sub="This appears on your public profile visible to clubs." />
+            <StepLabel
+              n={1}
+              title={isAgent ? "Player's Name" : "What's your name?"}
+              sub={isAgent ? "This appears on the player's public profile visible to clubs." : "This appears on your public profile visible to clubs."}
+            />
             <div className="form-group">
               <label className="label">First Name</label>
               <input className="input" style={{ fontSize: "1.1rem", padding: "13px 16px" }} value={form.firstName} onChange={e => setF("firstName", e.target.value)} placeholder="Ivan" autoFocus />
@@ -430,7 +436,11 @@ export default function PlayerOnboardingClient({ player, agentPlayerId }: { play
         {/* ── Step 2: DOB + Nationality ── */}
         {step === 2 && (
           <div style={card}>
-            <StepLabel n={2} title="Tell us about yourself" sub="Your age and nationality help clubs find the right player." />
+            <StepLabel
+              n={2}
+              title={isAgent ? "Player's Background" : "Tell us about yourself"}
+              sub={isAgent ? "The player's age and nationality help clubs find the right match." : "Your age and nationality help clubs find the right player."}
+            />
             <div className="form-group">
               <label className="label">Date of Birth</label>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1.6fr", gap: 8 }}>
@@ -457,7 +467,11 @@ export default function PlayerOnboardingClient({ player, agentPlayerId }: { play
         {/* ── Step 3: Position + Hand ── */}
         {step === 3 && (
           <div style={card}>
-            <StepLabel n={3} title="Your position on court" sub="Select your primary playing position and dominant hand." />
+            <StepLabel
+              n={3}
+              title={isAgent ? "Player's Position on Court" : "Your position on court"}
+              sub={isAgent ? "Select the player's primary playing position and dominant hand." : "Select your primary playing position and dominant hand."}
+            />
             <div className="form-group">
               <label className="label">Position</label>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7, marginTop: 6 }}>
@@ -503,7 +517,11 @@ export default function PlayerOnboardingClient({ player, agentPlayerId }: { play
         {/* ── Step 4: Height + Weight ── */}
         {step === 4 && (
           <div style={card}>
-            <StepLabel n={4} title="Your physical profile" sub="Clubs need this for player matching. You can update it later." />
+            <StepLabel
+              n={4}
+              title={isAgent ? "Player's Physical Profile" : "Your physical profile"}
+              sub={isAgent ? "Clubs need this for player matching. You can update it later." : "Clubs need this for player matching. You can update it later."}
+            />
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 20 }}>
               <div className="form-group" style={{ margin: 0 }}>
                 <label className="label" style={{ textAlign: "center", display: "block" }}>Height (cm)</label>
@@ -522,7 +540,13 @@ export default function PlayerOnboardingClient({ player, agentPlayerId }: { play
         {/* ── Step 5: Contact ── */}
         {step === 5 && (
           <div style={card}>
-            <StepLabel n={5} title="How can clubs reach you?" sub="Your contact details are hidden from the public. Clubs receive them only after formally expressing interest and accepting our Terms of Service." />
+            <StepLabel
+              n={5}
+              title={isAgent ? "Player's Contact Information" : "How can clubs reach you?"}
+              sub={isAgent
+                ? "The player's contact details are hidden from the public. Clubs receive them only after formally expressing interest and accepting our Terms of Service."
+                : "Your contact details are hidden from the public. Clubs receive them only after formally expressing interest and accepting our Terms of Service."}
+            />
             <div className="form-group" style={{ marginBottom: 8 }}>
               <label className="label">Phone Number <span style={{ color: "var(--accent)" }}>*</span></label>
               <input className="input" style={{ fontSize: "1.1rem", padding: "14px 16px" }} type="tel" value={form.phone} onChange={e => setF("phone", e.target.value)} placeholder="+385 91 234 5678" autoFocus />
@@ -533,7 +557,10 @@ export default function PlayerOnboardingClient({ player, agentPlayerId }: { play
 
             <div style={{ borderTop: "1px solid var(--border)", paddingTop: 16, marginBottom: 20 }}>
               <div style={{ fontSize: "0.78rem", color: "var(--muted)", marginBottom: 12 }}>
-                Agent contact <span style={{ fontStyle: "italic" }}>(optional — fill only if you have an agent)</span>
+                {isAgent
+                  ? "Your agent contact details (pre-filled as the managing agent)"
+                  : <>Agent contact <span style={{ fontStyle: "italic" }}>(optional — fill only if you have an agent)</span></>
+                }
               </div>
               <div className="form-group">
                 <label className="label">Agent Name</label>
@@ -557,7 +584,11 @@ export default function PlayerOnboardingClient({ player, agentPlayerId }: { play
         {/* ── Step 6: Availability + Salary ── */}
         {step === 6 && (
           <div style={card}>
-            <StepLabel n={6} title="Your availability" sub="Tell clubs whether you're open to offers right now." />
+            <StepLabel
+              n={6}
+              title={isAgent ? "Player's Availability" : "Your availability"}
+              sub={isAgent ? "Tell clubs whether the player is open to offers right now." : "Tell clubs whether you're open to offers right now."}
+            />
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 16 }}>
               {[
                 { value: true,  label: "Available",    sub: "Open to offers" },
@@ -582,20 +613,27 @@ export default function PlayerOnboardingClient({ player, agentPlayerId }: { play
               </div>
             </div>
             {error && <div style={{ color: "var(--red)", fontSize: "0.85rem", marginBottom: 14 }}>{error}</div>}
-            <ContinueBtn onClick={finishBasic} label={saving ? "Saving..." : "Save & Continue \u2192"} disabled={saving} />
+            <ContinueBtn onClick={finishBasic} label={saving ? "Saving..." : "Save & Continue →"} disabled={saving} />
           </div>
         )}
 
         {/* ── Step 7: Career History ── */}
         {step === 7 && (
           <div style={card}>
-            <StepLabel n={7} title="Career &amp; About You" sub="Add your clubs, trophies and tell clubs something about yourself." />
+            <StepLabel
+              n={7}
+              title={isAgent ? "Career & Player Bio" : "Career &amp; About You"}
+              sub={isAgent ? "Add the player's clubs, trophies and a short bio for their profile." : "Add your clubs, trophies and tell clubs something about yourself."}
+            />
 
             {/* Trophies & Achievements */}
             <div style={{ background: "var(--card2)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "16px", marginBottom: 16 }}>
               <div style={{ fontSize: "0.78rem", color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 12, fontFamily: "var(--font-mono)" }}>&#127942; Trophies &amp; Achievements</div>
               <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="label" style={{ fontSize: "0.72rem" }}>List your trophies, titles and achievements <span style={{ color: "var(--muted)", fontWeight: 400 }}>(optional)</span></label>
+                <label className="label" style={{ fontSize: "0.72rem" }}>
+                  {isAgent ? "List the player's trophies, titles and achievements" : "List your trophies, titles and achievements"}{" "}
+                  <span style={{ color: "var(--muted)", fontWeight: 400 }}>(optional)</span>
+                </label>
                 <textarea className="input" rows={4} value={form.achievements} onChange={e => setF("achievements", e.target.value)} placeholder="EHF Champions League winner 2022, Croatian national champion 2021..." style={{ resize: "none", lineHeight: 1.5 }} />
               </div>
             </div>
@@ -622,7 +660,9 @@ export default function PlayerOnboardingClient({ player, agentPlayerId }: { play
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
                 <input type="checkbox" id="isCurrent" checked={newCareer.isCurrentClub} onChange={e => setNewCareer(c => ({ ...c, isCurrentClub: e.target.checked }))} style={{ accentColor: "var(--accent)", width: 15, height: 15 }} />
-                <label htmlFor="isCurrent" className="label" style={{ margin: 0, fontSize: "0.78rem" }}>This is my current club</label>
+                <label htmlFor="isCurrent" className="label" style={{ margin: 0, fontSize: "0.78rem" }}>
+                  {isAgent ? "This is the player's current club" : "This is my current club"}
+                </label>
               </div>
               <Msg text={careerMsg} />
               <button className="btn btn-primary" style={{ width: "100%", justifyContent: "center", padding: "10px", fontSize: "0.88rem" }} onClick={addCareer} disabled={careerSaving}>
@@ -654,7 +694,13 @@ export default function PlayerOnboardingClient({ player, agentPlayerId }: { play
         {/* ── Step 8: Medical Records ── */}
         {step === 8 && (
           <div style={card}>
-            <StepLabel n={8} title="Medical Records" sub="Add physical test results or injury history. Clubs use this to assess your fitness. Optional." />
+            <StepLabel
+              n={8}
+              title="Medical Records"
+              sub={isAgent
+                ? "Add the player's physical test results or injury history. Clubs use this to assess fitness. Optional."
+                : "Add physical test results or injury history. Clubs use this to assess your fitness. Optional."}
+            />
 
             <div style={{ background: "var(--card2)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "16px", marginBottom: 16 }}>
               {/* Record type tabs */}
@@ -743,7 +789,13 @@ export default function PlayerOnboardingClient({ player, agentPlayerId }: { play
         {/* ── Step 9: Videos ── */}
         {step === 9 && (
           <div style={card}>
-            <StepLabel n={9} title="Highlight Videos" sub="Add YouTube links to your best match highlights. Clubs love video proof of your skills." />
+            <StepLabel
+              n={9}
+              title="Highlight Videos"
+              sub={isAgent
+                ? "Add YouTube links to the player's best match highlights. Clubs love video proof of skills."
+                : "Add YouTube links to your best match highlights. Clubs love video proof of your skills."}
+            />
 
             <div style={{ background: "var(--card2)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "16px", marginBottom: 16 }}>
               <div className="form-group" style={{ marginBottom: 10 }}>
@@ -786,7 +838,13 @@ export default function PlayerOnboardingClient({ player, agentPlayerId }: { play
         {/* ── Step 10: Profile Photo + Gallery ── */}
         {step === 10 && (
           <div style={card}>
-            <StepLabel n={10} title="Profile Photo & Gallery" sub="A professional photo makes your profile stand out. You can also add action shots to your gallery." />
+            <StepLabel
+              n={10}
+              title="Profile Photo & Gallery"
+              sub={isAgent
+                ? "A professional photo makes the player's profile stand out. You can also add action shots to the gallery."
+                : "A professional photo makes your profile stand out. You can also add action shots to your gallery."}
+            />
 
             {/* Profile photo */}
             <div style={{ background: "var(--card2)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "20px", marginBottom: 20 }}>
@@ -848,7 +906,7 @@ export default function PlayerOnboardingClient({ player, agentPlayerId }: { play
               )}
             </div>
 
-            <ContinueBtn onClick={() => setStep(11)} label={photoUrl ? "Finish \u2192" : "Finish Without Photo \u2192"} />
+            <ContinueBtn onClick={() => setStep(11)} label={photoUrl ? "Finish →" : "Finish Without Photo →"} />
           </div>
         )}
 
@@ -856,9 +914,13 @@ export default function PlayerOnboardingClient({ player, agentPlayerId }: { play
         {step === 11 && (
           <div style={{ ...card, textAlign: "center", padding: "48px 32px" }}>
             <div style={{ fontSize: "3.5rem", marginBottom: 16 }}>&#127881;</div>
-            <h2 style={{ fontSize: "1.8rem", marginBottom: 12 }}>Profile Complete!</h2>
+            <h2 style={{ fontSize: "1.8rem", marginBottom: 12 }}>
+              {isAgent ? "Player Profile Complete!" : "Profile Complete!"}
+            </h2>
             <p style={{ color: "var(--muted)", lineHeight: 1.7, marginBottom: 8 }}>
-              {agentPlayerId ? "The player profile has been fully set up." : "Your player profile is fully set up."}
+              {isAgent
+                ? `${form.firstName} ${form.lastName}'s profile has been fully set up and is ready for review.`
+                : "Your player profile is fully set up."}
             </p>
             <div style={{ display: "flex", flexDirection: "column", gap: 6, margin: "16px 0 28px", textAlign: "left" }}>
               {[
@@ -871,21 +933,26 @@ export default function PlayerOnboardingClient({ player, agentPlayerId }: { play
                 <div key={i} style={{ fontSize: "0.85rem", color: "#00c864" }} dangerouslySetInnerHTML={{ __html: item as string }} />
               ))}
             </div>
-            {!agentPlayerId && (
+            {!isAgent && (
               <p style={{ color: "var(--muted)", fontSize: "0.82rem", marginBottom: 28, lineHeight: 1.6 }}>
                 Once an admin verifies your identity, your profile becomes visible in the player directory and clubs can contact you.
               </p>
             )}
-            <button className="btn btn-primary" style={{ width: "100%", justifyContent: "center", padding: "15px", fontSize: "1rem", marginTop: agentPlayerId ? 28 : 0 }}
+            {isAgent && (
+              <p style={{ color: "var(--muted)", fontSize: "0.82rem", marginBottom: 28, lineHeight: 1.6 }}>
+                You can now submit this player for verification from your dashboard to make the profile visible to clubs.
+              </p>
+            )}
+            <button className="btn btn-primary" style={{ width: "100%", justifyContent: "center", padding: "15px", fontSize: "1rem" }}
               onClick={() => {
-                if (agentPlayerId) {
+                if (isAgent) {
                   window.location.href = "/dashboard/agent";
                 } else {
                   window.location.href = player.slug ? `/players/${player.slug}` : "/dashboard/player";
                 }
               }}
             >
-              {agentPlayerId ? "Back to My Players →" : "Go to My Profile →"}
+              {isAgent ? "Back to My Players →" : "Go to My Profile →"}
             </button>
           </div>
         )}

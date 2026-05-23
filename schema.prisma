@@ -561,11 +561,12 @@ model TransferRecord {
   fromClub         String?
   toClub           String
   transferDate     DateTime
-  transferFeeCents Int?
-  salaryCents      Int?
-  contractYears    Int?
-  notes            String?  @db.Text
-  createdAt        DateTime @default(now())
+  transferFeeCents     Int?
+  salaryCents          Int?
+  contractMonths       Int?
+  linkedCommissionId   String?
+  notes                String?  @db.Text
+  createdAt            DateTime @default(now())
   @@index([agentId])
   @@map("transfer_records")
 }

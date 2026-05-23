@@ -297,7 +297,7 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
 
   // Transfer modal
   const [showTransferModal, setShowTransferModal] = useState(false);
-  const [transferForm, setTransferForm] = useState({ playerId: "", fromClub: "", toClub: "", transferDate: "", transferFeeEur: "", salaryEur: "", contractYears: "", notes: "" });
+  const [transferForm, setTransferForm] = useState({ playerId: "", fromClub: "", toClub: "", transferDate: "", transferFeeEur: "", salaryEur: "", contractMonths: "", commissionEur: "", commissionDueDate: "", commissionDescription: "", notes: "" });
   const [transferDocFile, setTransferDocFile] = useState<File | null>(null);
   const transferDocRef = useRef<HTMLInputElement>(null);
   const [transferSaving, setTransferSaving] = useState(false);
@@ -583,7 +583,10 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
         transferDate: transferForm.transferDate,
         transferFeeCents: transferForm.transferFeeEur ? Math.round(parseFloat(transferForm.transferFeeEur) * 100) : null,
         salaryCents: transferForm.salaryEur ? Math.round(parseFloat(transferForm.salaryEur) * 100) : null,
-        contractYears: transferForm.contractYears ? parseInt(transferForm.contractYears) : null,
+        contractMonths: transferForm.contractMonths ? parseInt(transferForm.contractMonths) : null,
+        commissionAmountCents: transferForm.commissionEur ? Math.round(parseFloat(transferForm.commissionEur) * 100) : null,
+        commissionDueDate: transferForm.commissionDueDate || null,
+        commissionDescription: transferForm.commissionDescription || null,
         notes: transferForm.notes,
         contractFileUrl,
       }),
@@ -592,8 +595,10 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
     setTransferSaving(false);
     if (!res.ok) { setTransferError(data.error ?? "Failed to save."); return; }
     setTransfers(ts => [data.transfer, ...ts]);
+    // Auto-append linked commission to commissions list
+    if (data.commission) setCommissions(cs => [data.commission, ...cs]);
     setShowTransferModal(false);
-    setTransferForm({ playerId: "", fromClub: "", toClub: "", transferDate: "", transferFeeEur: "", salaryEur: "", contractYears: "", notes: "" });
+    setTransferForm({ playerId: "", fromClub: "", toClub: "", transferDate: "", transferFeeEur: "", salaryEur: "", contractMonths: "", commissionEur: "", commissionDueDate: "", commissionDescription: "", notes: "" });
     setTransferDocFile(null);
   }
 
@@ -1091,7 +1096,7 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
                 <div style={{ display: "flex", gap: 6 }}>
                   <button className="btn btn-outline" style={{ fontSize: "0.7rem", padding: "4px 8px" }} onClick={() => switchTab("transfers")}>All →</button>
                   <button className="btn btn-primary" style={{ fontSize: "0.7rem", padding: "4px 8px" }}
-                    onClick={() => { setTransferForm({ playerId: "", fromClub: "", toClub: "", transferDate: "", transferFeeEur: "", salaryEur: "", contractYears: "", notes: "" }); setTransferDocFile(null); setTransferError(""); setShowTransferModal(true); }}>+ Add</button>
+                    onClick={() => { setTransferForm({ playerId: "", fromClub: "", toClub: "", transferDate: "", transferFeeEur: "", salaryEur: "", contractMonths: "", commissionEur: "", commissionDueDate: "", commissionDescription: "", notes: "" }); setTransferDocFile(null); setTransferError(""); setShowTransferModal(true); }}>+ Add</button>
                 </div>
               </div>
               {transfers.length === 0 ? (
@@ -1850,7 +1855,7 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
               <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.62rem", color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.18em" }}>
                 Transfers <span style={{ color: "var(--muted)", fontWeight: 400 }}>({transfers.length})</span>
               </span>
-              <button className="btn btn-primary" style={{ fontSize: "0.75rem", padding: "6px 14px" }} onClick={() => { setTransferForm({ playerId: "", fromClub: "", toClub: "", transferDate: "", transferFeeEur: "", salaryEur: "", contractYears: "", notes: "" }); setTransferDocFile(null); setTransferError(""); setShowTransferModal(true); }}>+ Add Transfer</button>
+              <button className="btn btn-primary" style={{ fontSize: "0.75rem", padding: "6px 14px" }} onClick={() => { setTransferForm({ playerId: "", fromClub: "", toClub: "", transferDate: "", transferFeeEur: "", salaryEur: "", contractMonths: "", commissionEur: "", commissionDueDate: "", commissionDescription: "", notes: "" }); setTransferDocFile(null); setTransferError(""); setShowTransferModal(true); }}>+ Add Transfer</button>
             </div>
 
             {transfers.length > 0 && (() => {
@@ -1882,7 +1887,7 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
                 <div style={{ fontSize: "3rem", marginBottom: 16 }}>🔄</div>
                 <h4 style={{ marginBottom: 8 }}>No Transfers Yet</h4>
                 <p style={{ color: "var(--muted)", fontSize: "0.88rem", marginBottom: 24 }}>Record every move — fees, salaries, and contract length all in one place.</p>
-                <button className="btn btn-primary" onClick={() => { setTransferForm({ playerId: "", fromClub: "", toClub: "", transferDate: "", transferFeeEur: "", salaryEur: "", contractYears: "", notes: "" }); setTransferDocFile(null); setTransferError(""); setShowTransferModal(true); }}>+ Add First Transfer</button>
+                <button className="btn btn-primary" onClick={() => { setTransferForm({ playerId: "", fromClub: "", toClub: "", transferDate: "", transferFeeEur: "", salaryEur: "", contractMonths: "", commissionEur: "", commissionDueDate: "", commissionDescription: "", notes: "" }); setTransferDocFile(null); setTransferError(""); setShowTransferModal(true); }}>+ Add First Transfer</button>
               </div>
             ) : (
               <div className="table-wrap">
@@ -1895,7 +1900,7 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
                       <th style={{ cursor: "pointer" }} onClick={() => setTransferSort(s => ({ key: "transferDate", dir: s.key === "transferDate" && s.dir === "asc" ? "desc" : "asc" }))}>Date <SortIcon current={transferSort} k="transferDate" /></th>
                       <th style={{ cursor: "pointer" }} onClick={() => setTransferSort(s => ({ key: "transferFeeCents", dir: s.key === "transferFeeCents" && s.dir === "asc" ? "desc" : "asc" }))}>Fee <SortIcon current={transferSort} k="transferFeeCents" /></th>
                       <th>Salary/mo</th>
-                      <th>Years</th>
+                      <th>Months</th>
                       <th>File</th>
                       <th></th>
                     </tr>
@@ -1911,7 +1916,7 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
                         <td style={{ fontSize: "0.82rem", color: "var(--muted)" }}>{fmtDate(t.transferDate)}</td>
                         <td style={{ fontFamily: "var(--font-mono)", fontSize: "0.82rem" }}>{fmtCents(t.transferFeeCents)}</td>
                         <td style={{ fontFamily: "var(--font-mono)", fontSize: "0.82rem" }}>{fmtCents(t.salaryCents)}</td>
-                        <td style={{ fontSize: "0.82rem" }}>{t.contractYears ?? "—"}</td>
+                        <td style={{ fontSize: "0.82rem" }}>{t.contractMonths != null ? `${t.contractMonths}mo` : "—"}</td>
                         <td>
                           {t.contractFileUrl
                             ? <a href={t.contractFileUrl} target="_blank" rel="noopener noreferrer" className="btn btn-outline" style={{ fontSize: "0.68rem", padding: "3px 8px" }}>📄 View</a>
@@ -2808,8 +2813,28 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
                   <input className="input" type="number" value={transferForm.salaryEur} onChange={e => setTransferForm(f => ({ ...f, salaryEur: e.target.value }))} placeholder="0" />
                 </div>
                 <div className="form-group" style={{ margin: 0 }}>
-                  <label className="label">Contract Years</label>
-                  <input className="input" type="number" value={transferForm.contractYears} onChange={e => setTransferForm(f => ({ ...f, contractYears: e.target.value }))} placeholder="2" />
+                  <label className="label">Contract Duration (months)</label>
+                  <input className="input" type="number" value={transferForm.contractMonths} onChange={e => setTransferForm(f => ({ ...f, contractMonths: e.target.value }))} placeholder="24" />
+                </div>
+              </div>
+              {/* Commission auto-create section */}
+              <div style={{ background: "rgba(255,200,0,0.05)", border: "1px solid rgba(255,200,0,0.15)", borderRadius: "var(--radius)", padding: "14px 16px", marginBottom: 16 }}>
+                <div style={{ fontSize: "0.78rem", fontFamily: "var(--font-display)", fontWeight: 700, textTransform: "uppercase", color: "var(--accent)", marginBottom: 10 }}>
+                  💰 Commission (auto-creates in Commissions section)
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label className="label">Commission Amount (€)</label>
+                    <input className="input" type="number" value={transferForm.commissionEur} onChange={e => setTransferForm(f => ({ ...f, commissionEur: e.target.value }))} placeholder="0" />
+                  </div>
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label className="label">Due Date</label>
+                    <input className="input" type="date" value={transferForm.commissionDueDate} onChange={e => setTransferForm(f => ({ ...f, commissionDueDate: e.target.value }))} />
+                  </div>
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label className="label">Description</label>
+                    <input className="input" value={transferForm.commissionDescription} onChange={e => setTransferForm(f => ({ ...f, commissionDescription: e.target.value }))} placeholder="e.g. Transfer fee 5%" />
+                  </div>
                 </div>
               </div>
               <div className="form-group">

@@ -43,9 +43,9 @@ export default async function RootLayout({
     onboardingCompleted = player?.onboardingCompleted ?? false;
   }
 
-  // Unread message count for PLAYER and CLUB
+  // Unread message count for PLAYER, CLUB and AGENT
   let unreadCount = 0;
-  if (role === "PLAYER" || role === "CLUB") {
+  if (role === "PLAYER" || role === "CLUB" || role === "AGENT") {
     unreadCount = await prisma.message.count({
       where: { receiverId: (session!.user as any).id, isRead: false },
     }).catch(() => 0);

@@ -68,7 +68,7 @@ const NAV_ITEMS: { id: Tab; icon: string; label: string }[] = [
 
 const STICKY_HEADER: React.CSSProperties = {
   position: "sticky",
-  top: 64,
+  top: 0,
   zIndex: 80,
   background: "#090909",
   paddingTop: 10,
@@ -90,11 +90,11 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
   const [pitchDecks, setPitchDecks] = useState<any[]>(agent.pitchDecks ?? []);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
 
-  // URL tab sync on mount
+  // URL tab sync — runs on mount AND whenever the URL search params change
   useEffect(() => {
     const t = searchParams.get("tab") as Tab;
     if (t && NAV_ITEMS.some(n => n.id === t)) setTab(t);
-  }, []);
+  }, [searchParams]);
 
   function switchTab(id: Tab) {
     setTab(id);
@@ -419,7 +419,7 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
   }
 
   return (
-    <div className="sidebar-layout" style={{ minHeight: "100vh" }}>
+    <div className="sidebar-layout" style={{ minHeight: "100vh", paddingTop: 64 }}>
       {sidebarOpen && <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 50, background: "rgba(0,0,0,0.6)" }} />}
 
       {/* ── Sidebar ── */}
@@ -453,15 +453,15 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
 
       <div className="main-content">
         {/* Mobile header */}
-        <button className="sidebar-toggle" onClick={() => setSidebarOpen(o => !o)} style={{ display: "none" }}>
+        <button className="sidebar-toggle" onClick={() => setSidebarOpen(o => !o)}>
           {sidebarOpen ? "✕ Close" : `☰ ${NAV_ITEMS.find(n => n.id === tab)?.label ?? "Menu"}`}
         </button>
 
         {/* ══════════════════ OVERVIEW ══════════════════ */}
         {tab === "overview" && (
           <div className="tab-content">
-            {/* Sticky bar — thin */}
-            <div style={{ ...STICKY_HEADER, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            {/* Overview header — NOT sticky so stats are always fully visible */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, paddingBottom: 12, borderBottom: "1px solid rgba(245,243,238,0.06)" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.62rem", color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.18em" }}>Overview</span>
                 <span style={{ fontSize: "0.7rem", color: "rgba(107,107,107,0.5)" }}>·</span>

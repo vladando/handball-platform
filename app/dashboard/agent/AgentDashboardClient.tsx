@@ -901,9 +901,6 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
                                     {[
                                       { icon: "💬", label: "WhatsApp", href: s.whatsapp },
                                       { icon: "📱", label: "Viber", href: s.viber },
-                                      { icon: "📘", label: "Facebook", href: s.facebook },
-                                      { icon: "🐦", label: "Twitter / X", href: s.twitter },
-                                      { icon: "💼", label: "LinkedIn", href: s.linkedin },
                                     ].map(item => (
                                       <a key={item.label} href={item.href} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
                                         style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", fontSize: "0.8rem", color: "var(--white)", borderBottom: "1px solid var(--border)", textDecoration: "none" }}
@@ -998,9 +995,6 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
                                     {[
                                       { icon: "💬", label: "WhatsApp", href: s.whatsapp },
                                       { icon: "📱", label: "Viber", href: s.viber },
-                                      { icon: "📘", label: "Facebook", href: s.facebook },
-                                      { icon: "🐦", label: "Twitter / X", href: s.twitter },
-                                      { icon: "💼", label: "LinkedIn", href: s.linkedin },
                                     ].map(item => (
                                       <a key={item.label} href={item.href} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
                                         style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", fontSize: "0.8rem", color: "var(--white)", borderBottom: "1px solid var(--border)", textDecoration: "none" }}

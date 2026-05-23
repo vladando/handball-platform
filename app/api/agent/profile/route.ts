@@ -21,7 +21,7 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const data = await req.json();
-  const allowed = ["firstName", "lastName", "bio", "phone", "website", "country", "licenseNumber", "onboardingCompleted"];
+  const allowed = ["firstName", "lastName", "bio", "phone", "website", "country", "licenseNumber", "onboardingCompleted", "photoUrl"];
   const update: any = {};
   for (const key of allowed) {
     if (key in data) update[key] = data[key];

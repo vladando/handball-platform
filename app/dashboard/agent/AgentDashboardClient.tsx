@@ -148,6 +148,12 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
   const [contractSaving, setContractSaving] = useState(false);
   const [contractError, setContractError] = useState("");
 
+  // Edit contract modal
+  const [editContract, setEditContract] = useState<any | null>(null);
+  const [editContractForm, setEditContractForm] = useState({ clubName: "", startDate: "", endDate: "", salaryCents: "", bonusDetails: "", notes: "" });
+  const [editContractSaving, setEditContractSaving] = useState(false);
+  const [editContractError, setEditContractError] = useState("");
+
   // Commission modal — multi-installment
   const [showCommissionModal, setShowCommissionModal] = useState(false);
   const [commissionPlayerId, setCommissionPlayerId] = useState("");
@@ -164,6 +170,12 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
   const transferDocRef = useRef<HTMLInputElement>(null);
   const [transferSaving, setTransferSaving] = useState(false);
   const [transferError, setTransferError] = useState("");
+
+  // Health modal
+  const [healthModal, setHealthModal] = useState<any | null>(null);
+  const [healthForm, setHealthForm] = useState({ healthStatus: "HEALTHY", rehabNote: "", rehabReturnDate: "" });
+  const [healthSaving, setHealthSaving] = useState(false);
+  const [healthError, setHealthError] = useState("");
 
   // Pitch form
   const [pitchForm, setPitchForm] = useState({ title: "", selectedPlayerIds: [] as string[], message: "", expiresAt: "" });
@@ -318,6 +330,28 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
     setContracts(cs => cs.filter(c => c.id !== id));
   }
 
+  async function handleEditContractSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editContract) return;
+    setEditContractSaving(true); setEditContractError("");
+    const res = await fetch(`/api/agent/contracts/${editContract.id}`, {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        clubName: editContractForm.clubName,
+        startDate: editContractForm.startDate,
+        endDate: editContractForm.endDate,
+        salaryCents: editContractForm.salaryCents ? Math.round(parseFloat(editContractForm.salaryCents) * 100) : null,
+        bonusDetails: editContractForm.bonusDetails,
+        notes: editContractForm.notes,
+      }),
+    });
+    const data = await res.json();
+    setEditContractSaving(false);
+    if (!res.ok) { setEditContractError(data.error ?? "Failed to save."); return; }
+    setContracts(cs => cs.map(c => c.id === editContract.id ? data.contract : c));
+    setEditContract(null);
+  }
+
   // ── Commission helpers ───────────────────────────────────────────
   function addInstallment() {
     setCommissionInstallments(is => [...is, { description: "", amountEur: "", dueDate: "", notes: "" }]);
@@ -415,6 +449,21 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
     setTransfers(ts => ts.filter(t => t.id !== id));
   }
 
+  async function handleHealthSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!healthModal) return;
+    setHealthSaving(true); setHealthError("");
+    const res = await fetch(`/api/agent/health/${healthModal.id}`, {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ healthStatus: healthForm.healthStatus, rehabNote: healthForm.rehabNote || null, rehabReturnDate: healthForm.rehabReturnDate || null }),
+    });
+    const data = await res.json();
+    setHealthSaving(false);
+    if (!res.ok) { setHealthError(data.error ?? "Failed to update."); return; }
+    setPlayers(ps => ps.map(p => p.id === healthModal.id ? { ...p, healthStatus: data.player.healthStatus, rehabNote: data.player.rehabNote, rehabReturnDate: data.player.rehabReturnDate } : p));
+    setHealthModal(null);
+  }
+
   // ── Pitch ────────────────────────────────────────────────────────
   function togglePitchPlayer(id: string) {
     setPitchForm(f => ({
@@ -464,6 +513,29 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
   }
 
   // ── Settings ─────────────────────────────────────────────────────
+  function exportPlayersCSV() {
+    const headers = ["Name", "Position", "Nationality", "Age", "Height (cm)", "Weight (kg)", "Club", "Available", "Health", "Verified", "Salary Min €/yr", "Salary Max €/yr"];
+    const rows = players.map(p => [
+      `${p.firstName} ${p.lastName}`,
+      posLabel(p.position),
+      p.nationality ?? "",
+      getAge(p.dateOfBirth),
+      p.heightCm ?? "",
+      p.weightKg ?? "",
+      p.currentClub ?? "Free Agent",
+      p.isAvailable ? "Yes" : "No",
+      p.healthStatus ?? "HEALTHY",
+      p.verificationStatus ?? "UNVERIFIED",
+      p.expectedSalaryMin ? Math.round(p.expectedSalaryMin / 100) : "",
+      p.expectedSalaryMax ? Math.round(p.expectedSalaryMax / 100) : "",
+    ]);
+    const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = "roster.csv"; a.click();
+    URL.revokeObjectURL(url);
+  }
+
   async function handleSettingsSave(e: React.FormEvent) {
     e.preventDefault();
     setSettingsSaving(true);
@@ -552,6 +624,74 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
                 </div>
               ))}
             </div>
+
+            {/* ── Income Chart ── */}
+            {commissions.filter(c => c.status === "PAID").length > 0 && (() => {
+              const months: { label: string; cents: number }[] = [];
+              for (let i = 5; i >= 0; i--) {
+                const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - i);
+                const y = d.getFullYear(); const m = d.getMonth();
+                const label = d.toLocaleDateString("en-GB", { month: "short", year: "2-digit" });
+                const cents = commissions
+                  .filter(c => c.status === "PAID" && c.paidAt)
+                  .filter(c => { const pd = new Date(c.paidAt); return pd.getFullYear() === y && pd.getMonth() === m; })
+                  .reduce((s: number, c: any) => s + (c.amountCents ?? 0), 0);
+                months.push({ label, cents });
+              }
+              const maxCents = Math.max(...months.map(m => m.cents), 1);
+              return (
+                <div className="card" style={{ marginBottom: 20 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                    <h4 style={{ textTransform: "uppercase", fontSize: "0.88rem", margin: 0 }}>Commission Income <span style={{ color: "var(--muted)", fontWeight: 400, textTransform: "none" }}>(last 6 months)</span></h4>
+                    <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.75rem", color: "#00c864" }}>{fmtCents(stats.totalPaidCents)} total</span>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "flex-end", gap: 8, height: 90 }}>
+                    {months.map((m, i) => (
+                      <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+                        {m.cents > 0 && <div style={{ fontSize: "0.58rem", color: "var(--accent)", fontFamily: "var(--font-mono)", whiteSpace: "nowrap" }}>{fmtCents(m.cents)}</div>}
+                        <div style={{ width: "100%", background: m.cents > 0 ? "var(--accent)" : "var(--card2)", borderRadius: "3px 3px 0 0", height: `${Math.max((m.cents / maxCents) * 60, m.cents > 0 ? 4 : 2)}px`, opacity: m.cents > 0 ? 1 : 0.3 }} />
+                        <div style={{ fontSize: "0.6rem", color: "var(--muted)", whiteSpace: "nowrap" }}>{m.label}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* ── Contract Expiry Alerts ── */}
+            {(() => {
+              const expiring = contracts.filter(c => c.endDate && daysLeft(c.endDate) >= 0 && daysLeft(c.endDate) < 90);
+              const expired = contracts.filter(c => c.endDate && daysLeft(c.endDate) < 0);
+              if (expiring.length === 0 && expired.length === 0) return null;
+              return (
+                <div className="card" style={{ marginBottom: 20, borderColor: "rgba(255,59,59,0.3)", background: "rgba(255,59,59,0.03)" }}>
+                  <h4 style={{ textTransform: "uppercase", fontSize: "0.85rem", color: "var(--red)", margin: "0 0 12px" }}>⚠ Contract Alerts</h4>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    {expired.map((c: any) => (
+                      <div key={c.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: "rgba(255,59,59,0.08)", borderRadius: "var(--radius)", borderLeft: "3px solid var(--red)" }}>
+                        <div>
+                          <span style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "0.82rem", textTransform: "uppercase" }}>{c.player.firstName} {c.player.lastName}</span>
+                          <span style={{ fontSize: "0.72rem", color: "var(--muted)", marginLeft: 8 }}>@ {c.clubName}</span>
+                        </div>
+                        <span style={{ fontSize: "0.72rem", color: "var(--red)", fontFamily: "var(--font-mono)" }}>Expired {Math.abs(daysLeft(c.endDate))}d ago</span>
+                      </div>
+                    ))}
+                    {expiring.map((c: any) => {
+                      const d = daysLeft(c.endDate);
+                      return (
+                        <div key={c.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: d < 30 ? "rgba(255,59,59,0.05)" : "rgba(232,255,71,0.04)", borderRadius: "var(--radius)", borderLeft: `3px solid ${d < 30 ? "var(--red)" : "var(--accent)"}` }}>
+                          <div>
+                            <span style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "0.82rem", textTransform: "uppercase" }}>{c.player.firstName} {c.player.lastName}</span>
+                            <span style={{ fontSize: "0.72rem", color: "var(--muted)", marginLeft: 8 }}>@ {c.clubName}</span>
+                          </div>
+                          <span style={{ fontSize: "0.72rem", color: d < 30 ? "var(--red)" : "var(--accent)", fontFamily: "var(--font-mono)" }}>{d}d left</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* ── Players Roster ── */}
             <div className="card" style={{ marginBottom: 20 }}>
@@ -802,6 +942,9 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
                       }}>{m === "list" ? "☰" : "⊞"}</button>
                     ))}
                   </div>
+                  {players.length > 0 && (
+                    <button className="btn btn-outline" style={{ fontSize: "0.75rem", padding: "6px 14px" }} onClick={exportPlayersCSV} title="Export roster to CSV">⬇ CSV</button>
+                  )}
                   <button className="btn btn-primary" style={{ fontSize: "0.75rem", padding: "6px 14px" }} onClick={() => { setAddForm({ firstName: "", lastName: "" }); setAddError(""); setShowAddModal(true); }}>+ Add Player</button>
                 </div>
               </div>
@@ -922,6 +1065,7 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
                           )}
                         </>
                       )}
+                      <button className="btn btn-outline" style={{ fontSize: "0.72rem", padding: "5px 10px" }} onClick={e => { e.stopPropagation(); setHealthModal(p); setHealthForm({ healthStatus: p.healthStatus ?? "HEALTHY", rehabNote: p.rehabNote ?? "", rehabReturnDate: p.rehabReturnDate ? new Date(p.rehabReturnDate).toISOString().split("T")[0] : "" }); setHealthError(""); }}>🏥 Health</button>
                       <Link href={`/dashboard/agent/player/${p.id}/edit`} className="btn btn-outline" style={{ fontSize: "0.72rem", padding: "5px 10px" }} onClick={e => e.stopPropagation()}>✏️ Edit</Link>
                       <button className="btn btn-danger" style={{ fontSize: "0.72rem", padding: "5px 8px" }} onClick={e => { e.stopPropagation(); setConfirmDelete({ id: p.id, name: `${p.firstName} ${p.lastName}` }); }}>🗑</button>
                     </div>
@@ -1079,6 +1223,12 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
                               : <span style={{ color: "var(--muted)", fontSize: "0.78rem" }}>—</span>}
                           </td>
                           <td>
+                            <button className="btn btn-outline" style={{ fontSize: "0.7rem", padding: "4px 8px" }} onClick={() => {
+                              setEditContract(c);
+                              const toDate = (d: any) => d ? new Date(d).toISOString().split("T")[0] : "";
+                              setEditContractForm({ clubName: c.clubName ?? "", startDate: toDate(c.startDate), endDate: toDate(c.endDate), salaryCents: c.salaryCents ? String(c.salaryCents / 100) : "", bonusDetails: c.bonusDetails ?? "", notes: c.notes ?? "" });
+                              setEditContractError("");
+                            }}>✏️ Edit</button>
                             <button className="btn btn-danger" style={{ fontSize: "0.7rem", padding: "4px 8px" }} onClick={() => handleDeleteContract(c.id)}>🗑</button>
                           </td>
                         </tr>
@@ -1135,16 +1285,22 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {commissions.map((c: any) => (
-                      <tr key={c.id}>
+                    {commissions.map((c: any) => {
+                      const overdue = c.status === "PENDING" && c.dueDate && new Date(c.dueDate) < new Date();
+                      return (
+                      <tr key={c.id} style={{ background: overdue ? "rgba(255,59,59,0.06)" : "transparent" }}>
                         <td style={{ fontFamily: "var(--font-display)", fontWeight: 700, textTransform: "uppercase" }}>
                           {c.player.firstName} {c.player.lastName}
                         </td>
                         <td style={{ fontSize: "0.85rem" }}>{c.description}</td>
                         <td style={{ fontFamily: "var(--font-mono)", fontSize: "0.82rem" }}>{fmtCents(c.amountCents)}</td>
-                        <td style={{ fontSize: "0.82rem", color: "var(--muted)" }}>{fmtDate(c.dueDate)}</td>
+                        <td style={{ fontSize: "0.82rem", color: overdue ? "var(--red)" : "var(--muted)", fontWeight: overdue ? 700 : 400 }}>
+                          {fmtDate(c.dueDate)}{overdue ? " ⚠" : ""}
+                        </td>
                         <td>
-                          <span className={`badge ${COMMISSION_STATUS_COLORS[c.status] ?? "badge-muted"}`} style={{ fontSize: "0.6rem" }}>{c.status}</span>
+                          <span className={`badge ${overdue ? "badge-red" : COMMISSION_STATUS_COLORS[c.status] ?? "badge-muted"}`} style={{ fontSize: "0.6rem" }}>
+                            {overdue ? "OVERDUE" : c.status}
+                          </span>
                         </td>
                         <td>
                           <div style={{ display: "flex", gap: 6 }}>
@@ -1155,7 +1311,8 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
                           </div>
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -1172,6 +1329,30 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
               </span>
               <button className="btn btn-primary" style={{ fontSize: "0.75rem", padding: "6px 14px" }} onClick={() => { setTransferForm({ playerId: "", fromClub: "", toClub: "", transferDate: "", transferFeeEur: "", salaryEur: "", contractYears: "", notes: "" }); setTransferDocFile(null); setTransferError(""); setShowTransferModal(true); }}>+ Add Transfer</button>
             </div>
+
+            {transfers.length > 0 && (() => {
+              const totalFees = transfers.reduce((s: number, t: any) => s + (t.transferFeeCents ?? 0), 0);
+              const withFee = transfers.filter((t: any) => t.transferFeeCents).length;
+              const salaries = transfers.filter((t: any) => t.salaryCents);
+              const avgSalary = salaries.length > 0 ? Math.round(salaries.reduce((s: number, t: any) => s + t.salaryCents, 0) / salaries.length) : 0;
+              const lastDate = transfers[0]?.transferDate;
+              return (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 20 }}>
+                  {[
+                    { label: "Total Transfers", val: transfers.length, sub: "all time", color: "var(--white)" },
+                    { label: "Total Transfer Fees", val: totalFees > 0 ? fmtCents(totalFees) : "—", sub: `${withFee} with fee`, color: totalFees > 0 ? "#00c864" : "var(--muted)" },
+                    { label: "Avg Monthly Salary", val: avgSalary > 0 ? fmtCents(avgSalary) : "—", sub: `${salaries.length} with salary`, color: avgSalary > 0 ? "var(--white)" : "var(--muted)" },
+                    { label: "Last Transfer", val: lastDate ? fmtDate(lastDate) : "—", sub: "most recent", color: "var(--muted)" },
+                  ].map(s => (
+                    <div key={s.label} className="card" style={{ textAlign: "center", padding: "16px 12px" }}>
+                      <div style={{ fontFamily: "var(--font-display)", fontWeight: 900, fontSize: "1.4rem", color: s.color, lineHeight: 1 }}>{s.val}</div>
+                      <div style={{ fontSize: "0.65rem", color: "var(--muted)", marginTop: 6, textTransform: "uppercase", letterSpacing: "0.06em", lineHeight: 1.3 }}>{s.label}</div>
+                      <div style={{ fontSize: "0.6rem", color: "rgba(107,107,107,0.6)", marginTop: 2 }}>{s.sub}</div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
 
             {transfers.length === 0 ? (
               <div className="card" style={{ textAlign: "center", padding: "48px 24px", color: "var(--muted)" }}>
@@ -1290,13 +1471,20 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
                     {pitchDecks.map((d: any) => {
                       const pitchUrl = typeof window !== "undefined" ? `${window.location.origin}/pitch/${d.token}` : `/pitch/${d.token}`;
                       const playerCount = d.players?.length ?? JSON.parse(d.playerIds).length;
+                      const isExpired = d.expiresAt && new Date(d.expiresAt) < new Date();
+                      const expiresSoon = d.expiresAt && !isExpired && daysLeft(d.expiresAt) < 7;
                       return (
-                        <div key={d.id} className="card" style={{ padding: 16 }}>
+                        <div key={d.id} className="card" style={{ padding: 16, opacity: isExpired ? 0.6 : 1, borderColor: isExpired ? "rgba(255,59,59,0.3)" : "" }}>
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
                             <div>
-                              <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "0.95rem", textTransform: "uppercase" }}>{d.title}</div>
+                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "0.95rem", textTransform: "uppercase" }}>{d.title}</div>
+                                {isExpired && <span className="badge badge-red" style={{ fontSize: "0.58rem" }}>EXPIRED</span>}
+                                {expiresSoon && <span className="badge badge-accent" style={{ fontSize: "0.58rem" }}>Expires in {daysLeft(d.expiresAt)}d</span>}
+                              </div>
                               <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: 2 }}>
                                 {playerCount} player(s) · {d.views} views · {fmtDate(d.createdAt)}
+                                {d.expiresAt && <span style={{ marginLeft: 6, color: isExpired ? "var(--red)" : "var(--muted)" }}>· expires {fmtDate(d.expiresAt)}</span>}
                               </div>
                             </div>
                             <button className="btn btn-danger" style={{ fontSize: "0.68rem", padding: "4px 8px" }} onClick={() => handleDeletePitch(d.token)}>🗑</button>
@@ -1454,6 +1642,56 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
                   {verifying ? <><span className="spinner" /> Submitting…</> : "Submit for Verification"}
                 </button>
                 <button type="button" className="btn btn-outline" onClick={() => { setVerifyPlayer(null); setDocFile(null); setContractFile(null); setVerifyMsg(""); }}>Cancel</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Contract Modal */}
+      {editContract && (
+        <div className="modal-overlay" onClick={() => setEditContract(null)}>
+          <div className="modal" style={{ maxWidth: 560 }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+              <h3 className="modal-title" style={{ margin: 0 }}>Edit Contract</h3>
+              <button onClick={() => setEditContract(null)} style={{ background: "none", border: "none", color: "var(--muted)", fontSize: "1.4rem", cursor: "pointer" }}>✕</button>
+            </div>
+            <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "0.85rem", textTransform: "uppercase", color: "var(--muted)", marginBottom: 16 }}>
+              {editContract.player?.firstName} {editContract.player?.lastName}
+            </div>
+            <form onSubmit={handleEditContractSubmit}>
+              <div className="form-group">
+                <label className="label">Club Name <span style={{ color: "var(--accent)" }}>*</span></label>
+                <input className="input" value={editContractForm.clubName} onChange={e => setEditContractForm(f => ({ ...f, clubName: e.target.value }))} />
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="label">Start Date</label>
+                  <input className="input" type="date" value={editContractForm.startDate} onChange={e => setEditContractForm(f => ({ ...f, startDate: e.target.value }))} />
+                </div>
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="label">End Date <span style={{ color: "var(--accent)" }}>*</span></label>
+                  <input className="input" type="date" value={editContractForm.endDate} onChange={e => setEditContractForm(f => ({ ...f, endDate: e.target.value }))} />
+                </div>
+              </div>
+              <div className="form-group">
+                <label className="label">Monthly Salary (€)</label>
+                <input className="input" type="number" value={editContractForm.salaryCents} onChange={e => setEditContractForm(f => ({ ...f, salaryCents: e.target.value }))} placeholder="3000" />
+              </div>
+              <div className="form-group">
+                <label className="label">Bonus Details</label>
+                <input className="input" value={editContractForm.bonusDetails} onChange={e => setEditContractForm(f => ({ ...f, bonusDetails: e.target.value }))} />
+              </div>
+              <div className="form-group">
+                <label className="label">Notes</label>
+                <textarea className="input" rows={2} value={editContractForm.notes} onChange={e => setEditContractForm(f => ({ ...f, notes: e.target.value }))} style={{ resize: "vertical" }} />
+              </div>
+              {editContractError && <div style={{ background: "rgba(255,59,59,0.1)", border: "1px solid rgba(255,59,59,0.3)", borderRadius: "var(--radius)", padding: "10px 14px", fontSize: "0.85rem", color: "var(--red)", marginBottom: 16 }}>{editContractError}</div>}
+              <div style={{ display: "flex", gap: 12 }}>
+                <button type="submit" className="btn btn-primary" style={{ flex: 1, justifyContent: "center" }} disabled={editContractSaving}>
+                  {editContractSaving ? <><span className="spinner" /> Saving…</> : "Save Changes"}
+                </button>
+                <button type="button" className="btn btn-outline" onClick={() => setEditContract(null)}>Cancel</button>
               </div>
             </form>
           </div>
@@ -1663,6 +1901,49 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
                   {transferSaving ? <><span className="spinner" /> Saving…</> : "Add Transfer"}
                 </button>
                 <button type="button" className="btn btn-outline" onClick={() => setShowTransferModal(false)}>Cancel</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* Health Status Modal */}
+      {healthModal && (
+        <div className="modal-overlay" onClick={() => setHealthModal(null)}>
+          <div className="modal" style={{ maxWidth: 420 }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+              <h3 className="modal-title" style={{ margin: 0 }}>🏥 Update Health Status</h3>
+              <button onClick={() => setHealthModal(null)} style={{ background: "none", border: "none", color: "var(--muted)", fontSize: "1.4rem", cursor: "pointer" }}>✕</button>
+            </div>
+            <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "0.85rem", textTransform: "uppercase", color: "var(--muted)", marginBottom: 16 }}>
+              {healthModal.firstName} {healthModal.lastName}
+            </div>
+            <form onSubmit={handleHealthSubmit}>
+              <div className="form-group">
+                <label className="label">Health Status <span style={{ color: "var(--accent)" }}>*</span></label>
+                <select className="input" value={healthForm.healthStatus} onChange={e => setHealthForm(f => ({ ...f, healthStatus: e.target.value }))}>
+                  {["HEALTHY", "INJURED", "REHAB", "SUSPENDED"].map(s => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+              </div>
+              {(healthForm.healthStatus === "INJURED" || healthForm.healthStatus === "REHAB") && (
+                <>
+                  <div className="form-group">
+                    <label className="label">Note</label>
+                    <input className="input" value={healthForm.rehabNote} onChange={e => setHealthForm(f => ({ ...f, rehabNote: e.target.value }))} placeholder="e.g. Knee ligament, physio 3x/week" />
+                  </div>
+                  <div className="form-group">
+                    <label className="label">Expected Return Date</label>
+                    <input className="input" type="date" value={healthForm.rehabReturnDate} onChange={e => setHealthForm(f => ({ ...f, rehabReturnDate: e.target.value }))} />
+                  </div>
+                </>
+              )}
+              {healthError && <div style={{ background: "rgba(255,59,59,0.1)", border: "1px solid rgba(255,59,59,0.3)", borderRadius: "var(--radius)", padding: "10px 14px", fontSize: "0.85rem", color: "var(--red)", marginBottom: 16 }}>{healthError}</div>}
+              <div style={{ display: "flex", gap: 12 }}>
+                <button type="submit" className="btn btn-primary" style={{ flex: 1, justifyContent: "center" }} disabled={healthSaving}>
+                  {healthSaving ? <><span className="spinner" /> Saving…</> : "Update Status"}
+                </button>
+                <button type="button" className="btn btn-outline" onClick={() => setHealthModal(null)}>Cancel</button>
               </div>
             </form>
           </div>

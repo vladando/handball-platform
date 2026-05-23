@@ -54,7 +54,7 @@ function getAge(dob: string | Date | null | undefined): string {
   return String(Math.floor((Date.now() - d.getTime()) / (365.25 * 24 * 3600 * 1000)));
 }
 
-type Tab = "overview" | "players" | "contracts" | "commissions" | "transfers" | "pitch" | "messages" | "settings";
+type Tab = "overview" | "players" | "contracts" | "commissions" | "transfers" | "pitch" | "calendar" | "messages" | "settings";
 
 const NAV_ITEMS: { id: Tab; icon: string; label: string }[] = [
   { id: "overview",     icon: "⊞",  label: "Overview" },
@@ -63,6 +63,7 @@ const NAV_ITEMS: { id: Tab; icon: string; label: string }[] = [
   { id: "commissions",  icon: "💰", label: "Commissions" },
   { id: "transfers",    icon: "🔄", label: "Transfers" },
   { id: "pitch",        icon: "🚀", label: "Pitch Generator" },
+  { id: "calendar",     icon: "📅", label: "Calendar" },
   { id: "messages",     icon: "💬", label: "Messages" },
   { id: "settings",     icon: "⚙️", label: "Settings" },
 ];
@@ -221,6 +222,9 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
   const [avatarUploading, setAvatarUploading] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
+  // ── Contract view toggle ─────────────────────────────────────────
+  const [contractView, setContractView] = useState<"table" | "gantt">("table");
+
   // ── Table sort state ─────────────────────────────────────────────
   const [contractSort, setContractSort] = useState({ key: "endDate", dir: "asc" as "asc" | "desc" });
   const [commissionSort, setCommissionSort] = useState({ key: "dueDate", dir: "asc" as "asc" | "desc" });
@@ -253,13 +257,13 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
     if (filterPosition && p.position !== filterPosition) return false;
     if (filterSalaryMin) {
       const minCents = parseFloat(filterSalaryMin) * 100;
-      const sal = p.expectedSalaryMin ?? p.expectedSalaryMax ?? 0;
-      if (sal < minCents) return false;
+      const salHigh = p.expectedSalaryMax ?? p.expectedSalaryMin ?? 0;
+      if (salHigh < minCents) return false;
     }
     if (filterSalaryMax) {
       const maxCents = parseFloat(filterSalaryMax) * 100;
-      const sal = p.expectedSalaryMin ?? p.expectedSalaryMax ?? 0;
-      if (sal > maxCents) return false;
+      const salLow = p.expectedSalaryMin ?? p.expectedSalaryMax ?? 0;
+      if (salLow > maxCents) return false;
     }
     return true;
   });
@@ -1279,15 +1283,77 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
               <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.62rem", color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.18em" }}>
                 Contracts <span style={{ color: "var(--muted)", fontWeight: 400 }}>({contracts.length})</span>
               </span>
-              <button className="btn btn-primary" style={{ fontSize: "0.75rem", padding: "6px 14px" }} onClick={() => { setContractForm({ playerId: "", clubName: "", startDate: "", endDate: "", salaryCents: "", bonusDetails: "", notes: "" }); setContractDocFile(null); setContractError(""); setShowContractModal(true); }}>+ Add Contract</button>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                {contracts.length > 0 && (
+                  <div style={{ display: "flex", border: "1px solid rgba(245,243,238,0.12)", borderRadius: "var(--radius)", overflow: "hidden" }}>
+                    {(["table", "gantt"] as const).map(m => (
+                      <button key={m} onClick={() => setContractView(m)} style={{ padding: "4px 10px", background: contractView === m ? "var(--accent)" : "transparent", color: contractView === m ? "var(--black)" : "var(--muted)", border: "none", cursor: "pointer", fontFamily: "var(--font-display)", fontSize: "0.65rem", fontWeight: 700, textTransform: "uppercase" }}>
+                        {m === "table" ? "☰" : "▦"}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <button className="btn btn-primary" style={{ fontSize: "0.75rem", padding: "6px 14px" }} onClick={() => { setContractForm({ playerId: "", clubName: "", startDate: "", endDate: "", salaryCents: "", bonusDetails: "", notes: "" }); setContractDocFile(null); setContractError(""); setShowContractModal(true); }}>+ Add Contract</button>
+              </div>
             </div>
 
             {contracts.length === 0 ? (
-              <div className="card" style={{ textAlign: "center", padding: "48px 24px", color: "var(--muted)" }}>
-                <div style={{ fontSize: "2.5rem", marginBottom: 12 }}>📄</div>
-                <p>No contracts yet. Add a contract to track player club agreements.</p>
+              <div className="card" style={{ textAlign: "center", padding: "60px 24px" }}>
+                <div style={{ fontSize: "3rem", marginBottom: 16 }}>📄</div>
+                <h4 style={{ marginBottom: 8 }}>No Contracts Yet</h4>
+                <p style={{ color: "var(--muted)", fontSize: "0.88rem", marginBottom: 24 }}>Track your players&apos; club contracts, salaries, and expiry dates.</p>
+                <button className="btn btn-primary" onClick={() => { setContractForm({ playerId: "", clubName: "", startDate: "", endDate: "", salaryCents: "", bonusDetails: "", notes: "" }); setContractDocFile(null); setContractError(""); setShowContractModal(true); }}>+ Add First Contract</button>
               </div>
-            ) : (
+            ) : contractView === "gantt" ? (() => {
+              const allDates = contracts.flatMap((c: any) => [c.startDate, c.endDate].filter(Boolean).map((d: string) => new Date(d).getTime()));
+              const minTs = Math.min(...allDates);
+              const maxTs = Math.max(...allDates);
+              const span = maxTs - minTs || 1;
+              const now = Date.now();
+              const nowPct = Math.min(100, Math.max(0, ((now - minTs) / span) * 100));
+              return (
+                <div className="card">
+                  <div style={{ fontSize: "0.65rem", color: "var(--muted)", fontFamily: "var(--font-mono)", marginBottom: 12, display: "flex", justifyContent: "space-between" }}>
+                    <span>{fmtDate(new Date(minTs))}</span>
+                    <span>Timeline</span>
+                    <span>{fmtDate(new Date(maxTs))}</span>
+                  </div>
+                  <div style={{ position: "relative", marginBottom: 16 }}>
+                    <div style={{ position: "absolute", left: `${nowPct}%`, top: 0, bottom: 0, width: 1, background: "rgba(232,255,71,0.5)", zIndex: 1 }} />
+                    <div style={{ position: "absolute", left: `${nowPct}%`, top: -16, transform: "translateX(-50%)", fontSize: "0.55rem", color: "var(--accent)", fontFamily: "var(--font-mono)", whiteSpace: "nowrap" }}>Today</div>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10, paddingTop: 8 }}>
+                    {sortItems(contracts, contractSort.key, contractSort.dir).map((c: any) => {
+                      const start = c.startDate ? new Date(c.startDate).getTime() : minTs;
+                      const end = c.endDate ? new Date(c.endDate).getTime() : maxTs;
+                      const left = ((start - minTs) / span) * 100;
+                      const width = Math.max(((end - start) / span) * 100, 2);
+                      const days = daysLeft(c.endDate);
+                      const expired = days < 0;
+                      const barColor = expired ? "rgba(255,59,59,0.6)" : days < 30 ? "var(--red)" : days < 180 ? "var(--accent)" : "#00c864";
+                      return (
+                        <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                          <div style={{ width: 140, flexShrink: 0, fontSize: "0.75rem", fontFamily: "var(--font-display)", fontWeight: 700, textTransform: "uppercase", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={`${c.player.firstName} ${c.player.lastName}`}>
+                            {c.player.firstName} {c.player.lastName}
+                          </div>
+                          <div style={{ flex: 1, position: "relative", height: 24, background: "var(--card2)", borderRadius: 4 }}>
+                            <div style={{ position: "absolute", left: `${left}%`, width: `${width}%`, height: "100%", background: barColor, borderRadius: 4, opacity: expired ? 0.5 : 1, minWidth: 4, display: "flex", alignItems: "center", paddingLeft: 6, overflow: "hidden" }}>
+                              <span style={{ fontSize: "0.6rem", color: "var(--black)", fontFamily: "var(--font-display)", fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                {c.clubName}
+                              </span>
+                            </div>
+                            <div style={{ position: "absolute", left: `${nowPct}%`, top: 0, bottom: 0, width: 1, background: "rgba(232,255,71,0.4)", zIndex: 1 }} />
+                          </div>
+                          <div style={{ width: 52, textAlign: "right", flexShrink: 0, fontFamily: "var(--font-mono)", fontSize: "0.68rem", color: expired ? "var(--red)" : days < 30 ? "var(--red)" : "var(--muted)" }}>
+                            {expired ? "Exp." : `${days}d`}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })() : (
               <div className="table-wrap">
                 <table className="table">
                   <thead>
@@ -1376,9 +1442,11 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
             </div>
 
             {commissions.length === 0 ? (
-              <div className="card" style={{ textAlign: "center", padding: "48px 24px", color: "var(--muted)" }}>
-                <div style={{ fontSize: "2.5rem", marginBottom: 12 }}>💰</div>
-                <p>No commissions tracked yet.</p>
+              <div className="card" style={{ textAlign: "center", padding: "60px 24px" }}>
+                <div style={{ fontSize: "3rem", marginBottom: 16 }}>💰</div>
+                <h4 style={{ marginBottom: 8 }}>No Commissions Yet</h4>
+                <p style={{ color: "var(--muted)", fontSize: "0.88rem", marginBottom: 24 }}>Track pending and paid commissions. Set due dates to get overdue alerts.</p>
+                <button className="btn btn-primary" onClick={() => { setCommissionPlayerId(""); setCommissionInstallments([{ description: "", amountEur: "", dueDate: "", notes: "" }]); setCommissionError(""); setShowCommissionModal(true); }}>+ Add First Commission</button>
               </div>
             ) : (
               <div className="table-wrap">
@@ -1464,9 +1532,11 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
             })()}
 
             {transfers.length === 0 ? (
-              <div className="card" style={{ textAlign: "center", padding: "48px 24px", color: "var(--muted)" }}>
-                <div style={{ fontSize: "2.5rem", marginBottom: 12 }}>🔄</div>
-                <p>No transfer records yet.</p>
+              <div className="card" style={{ textAlign: "center", padding: "60px 24px" }}>
+                <div style={{ fontSize: "3rem", marginBottom: 16 }}>🔄</div>
+                <h4 style={{ marginBottom: 8 }}>No Transfers Yet</h4>
+                <p style={{ color: "var(--muted)", fontSize: "0.88rem", marginBottom: 24 }}>Record every move — fees, salaries, and contract length all in one place.</p>
+                <button className="btn btn-primary" onClick={() => { setTransferForm({ playerId: "", fromClub: "", toClub: "", transferDate: "", transferFeeEur: "", salaryEur: "", contractYears: "", notes: "" }); setTransferDocFile(null); setTransferError(""); setShowTransferModal(true); }}>+ Add First Transfer</button>
               </div>
             ) : (
               <div className="table-wrap">
@@ -1572,8 +1642,10 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
               <div>
                 <h4 style={{ textTransform: "uppercase", fontSize: "0.9rem", marginBottom: 16 }}>Your Pitch Links ({pitchDecks.length})</h4>
                 {pitchDecks.length === 0 ? (
-                  <div className="card" style={{ textAlign: "center", padding: "32px 16px", color: "var(--muted)", fontSize: "0.85rem" }}>
-                    No pitch links yet. Create your first one.
+                  <div className="card" style={{ textAlign: "center", padding: "40px 20px" }}>
+                    <div style={{ fontSize: "2.5rem", marginBottom: 12 }}>🚀</div>
+                    <h4 style={{ marginBottom: 6, fontSize: "0.95rem" }}>No Pitches Yet</h4>
+                    <p style={{ color: "var(--muted)", fontSize: "0.82rem" }}>Generate a shareable link showcasing your players to clubs. Track views and set expiry dates.</p>
                   </div>
                 ) : (
                   <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -1624,6 +1696,136 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
             </div>
           </div>
         )}
+
+        {/* ══════════════════ CALENDAR ══════════════════ */}
+        {tab === "calendar" && (() => {
+          const now = new Date();
+          const cutoff = new Date(); cutoff.setFullYear(cutoff.getFullYear() + 1);
+          type CalItem = { date: Date; label: string; sub: string; type: "contract" | "commission" | "transfer"; urgent: boolean };
+          const items: CalItem[] = [];
+
+          contracts.forEach((c: any) => {
+            if (!c.endDate) return;
+            const d = new Date(c.endDate);
+            const days = daysLeft(c.endDate);
+            items.push({
+              date: d,
+              label: `${c.player.firstName} ${c.player.lastName} — contract ends`,
+              sub: `@ ${c.clubName}`,
+              type: "contract",
+              urgent: days >= 0 && days < 30,
+            });
+          });
+
+          commissions.forEach((c: any) => {
+            if (c.status !== "PENDING" || !c.dueDate) return;
+            const d = new Date(c.dueDate);
+            const days = daysLeft(c.dueDate);
+            items.push({
+              date: d,
+              label: `${c.player.firstName} ${c.player.lastName} — commission due`,
+              sub: `${c.description} · ${fmtCents(c.amountCents)}`,
+              type: "commission",
+              urgent: days < 0 || days < 7,
+            });
+          });
+
+          transfers.forEach((t: any) => {
+            if (!t.transferDate) return;
+            const d = new Date(t.transferDate);
+            if (d > cutoff) return;
+            items.push({
+              date: d,
+              label: `${t.player.firstName} ${t.player.lastName} — transfer`,
+              sub: `${t.fromClub ?? "Free Agent"} → ${t.toClub}`,
+              type: "transfer",
+              urgent: false,
+            });
+          });
+
+          items.sort((a, b) => a.date.getTime() - b.date.getTime());
+
+          const upcoming = items.filter(i => i.date >= now);
+          const past = items.filter(i => i.date < now);
+
+          const TYPE_COLORS = { contract: "var(--accent)", commission: "#00c864", transfer: "var(--muted)" };
+          const TYPE_ICONS = { contract: "📄", commission: "💰", transfer: "🔄" };
+
+          return (
+            <div className="tab-content">
+              <div style={{ ...STICKY_HEADER, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.62rem", color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.18em" }}>Calendar</span>
+                <span style={{ fontSize: "0.7rem", color: "var(--muted)" }}>{upcoming.length} upcoming · {past.length} past</span>
+              </div>
+
+              {items.length === 0 ? (
+                <div className="card" style={{ textAlign: "center", padding: "60px 24px" }}>
+                  <div style={{ fontSize: "3rem", marginBottom: 16 }}>📅</div>
+                  <h4 style={{ marginBottom: 8 }}>No Deadlines Yet</h4>
+                  <p style={{ color: "var(--muted)", fontSize: "0.88rem" }}>Add contracts, commissions, and transfers to see your schedule here.</p>
+                </div>
+              ) : (
+                <div style={{ maxWidth: 640 }}>
+                  {upcoming.length > 0 && (
+                    <div style={{ marginBottom: 28 }}>
+                      <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.65rem", color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 12 }}>Upcoming</div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                        {upcoming.map((item, i) => {
+                          const days = daysLeft(item.date);
+                          return (
+                            <div key={i} style={{ display: "flex", gap: 0, alignItems: "stretch" }}>
+                              <div style={{ width: 56, flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "center", paddingTop: 14 }}>
+                                <div style={{ width: 8, height: 8, borderRadius: "50%", background: item.urgent ? "var(--red)" : TYPE_COLORS[item.type], flexShrink: 0 }} />
+                                {i < upcoming.length - 1 && <div style={{ width: 1, flex: 1, background: "var(--border)", marginTop: 4 }} />}
+                              </div>
+                              <div style={{ flex: 1, padding: "10px 0 16px", borderBottom: i < upcoming.length - 1 ? "none" : "1px solid var(--border)" }}>
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+                                  <div>
+                                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
+                                      <span style={{ fontSize: "0.75rem" }}>{TYPE_ICONS[item.type]}</span>
+                                      <span style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "0.88rem", textTransform: "uppercase" }}>{item.label}</span>
+                                    </div>
+                                    <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>{item.sub}</div>
+                                  </div>
+                                  <div style={{ textAlign: "right", flexShrink: 0 }}>
+                                    <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.78rem", color: item.urgent ? "var(--red)" : "var(--muted)" }}>
+                                      {days === 0 ? "Today" : days === 1 ? "Tomorrow" : `${days}d`}
+                                    </div>
+                                    <div style={{ fontSize: "0.65rem", color: "rgba(107,107,107,0.6)" }}>{fmtDate(item.date)}</div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {past.length > 0 && (
+                    <div>
+                      <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.65rem", color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 12 }}>Past</div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 8, opacity: 0.55 }}>
+                        {[...past].reverse().map((item, i) => (
+                          <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid var(--border)" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <span style={{ fontSize: "0.7rem" }}>{TYPE_ICONS[item.type]}</span>
+                              <div>
+                                <div style={{ fontSize: "0.82rem", fontFamily: "var(--font-display)", fontWeight: 700, textTransform: "uppercase" }}>{item.label}</div>
+                                <div style={{ fontSize: "0.7rem", color: "var(--muted)" }}>{item.sub}</div>
+                              </div>
+                            </div>
+                            <div style={{ fontSize: "0.72rem", color: "var(--muted)", fontFamily: "var(--font-mono)", flexShrink: 0 }}>{fmtDate(item.date)}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* ══════════════════ MESSAGES ══════════════════ */}
         {tab === "messages" && (

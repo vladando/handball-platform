@@ -71,10 +71,10 @@ const STICKY_HEADER: React.CSSProperties = {
   top: 64,
   zIndex: 80,
   background: "#090909",
-  paddingTop: 20,
-  paddingBottom: 16,
-  marginBottom: 8,
-  borderBottom: "1px solid rgba(245,243,238,0.08)",
+  paddingTop: 10,
+  paddingBottom: 10,
+  marginBottom: 16,
+  borderBottom: "1px solid rgba(245,243,238,0.06)",
 };
 
 export default function AgentDashboardClient({ agent }: { agent: any }) {
@@ -460,14 +460,21 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
         {/* ══════════════════ OVERVIEW ══════════════════ */}
         {tab === "overview" && (
           <div className="tab-content">
-            {/* Sticky header */}
+            {/* Sticky bar — thin */}
             <div style={{ ...STICKY_HEADER, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div>
-                <div className="section-label">Agent Dashboard</div>
-                <h2 style={{ margin: 0 }}>Overview</h2>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.62rem", color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.18em" }}>Overview</span>
+                <span style={{ fontSize: "0.7rem", color: "rgba(107,107,107,0.5)" }}>·</span>
+                <span style={{ fontFamily: "var(--font-display)", fontSize: "0.78rem", fontWeight: 700, textTransform: "uppercase", color: "var(--muted)" }}>
+                  {agent.firstName} {agent.lastName}
+                </span>
               </div>
-              <button className="btn btn-primary" style={{ fontSize: "0.82rem" }}
-                onClick={() => { setAddForm({ firstName: "", lastName: "" }); setAddError(""); setShowAddModal(true); }}>
+              <button
+                onClick={() => { setAddForm({ firstName: "", lastName: "" }); setAddError(""); setShowAddModal(true); }}
+                style={{ background: "none", border: "1px solid rgba(245,243,238,0.18)", color: "var(--muted)", borderRadius: "var(--radius)", padding: "5px 12px", fontSize: "0.72rem", fontFamily: "var(--font-display)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", cursor: "pointer", transition: "all 0.15s" }}
+                onMouseEnter={e => { e.currentTarget.style.color = "var(--white)"; e.currentTarget.style.borderColor = "rgba(245,243,238,0.4)"; }}
+                onMouseLeave={e => { e.currentTarget.style.color = "var(--muted)"; e.currentTarget.style.borderColor = "rgba(245,243,238,0.18)"; }}
+              >
                 + Add Player
               </button>
             </div>
@@ -691,22 +698,21 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
         {/* ══════════════════ PLAYERS ══════════════════ */}
         {tab === "players" && (
           <div className="tab-content">
-            <div style={{ ...STICKY_HEADER, display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
-              <div>
-                <div className="section-label">Roster</div>
-                <h2 style={{ margin: 0 }}>My Players ({players.length})</h2>
-              </div>
+            <div style={{ ...STICKY_HEADER, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+              <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.62rem", color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.18em" }}>
+                Players <span style={{ color: "var(--muted)", fontWeight: 400 }}>({players.length})</span>
+              </span>
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <div style={{ display: "flex", border: "1px solid var(--border)", borderRadius: "var(--radius)", overflow: "hidden" }}>
+                <div style={{ display: "flex", border: "1px solid rgba(245,243,238,0.12)", borderRadius: "var(--radius)", overflow: "hidden" }}>
                   {(["list", "grid"] as const).map(m => (
                     <button key={m} onClick={() => setViewMode(m)} style={{
-                      padding: "8px 14px", background: viewMode === m ? "var(--accent)" : "transparent",
+                      padding: "5px 12px", background: viewMode === m ? "var(--accent)" : "transparent",
                       color: viewMode === m ? "var(--black)" : "var(--muted)", border: "none", cursor: "pointer",
-                      fontFamily: "var(--font-display)", fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase",
-                    }}>{m === "list" ? "☰ List" : "⊞ Grid"}</button>
+                      fontFamily: "var(--font-display)", fontSize: "0.68rem", fontWeight: 700, textTransform: "uppercase",
+                    }}>{m === "list" ? "☰" : "⊞"}</button>
                   ))}
                 </div>
-                <button className="btn btn-primary" style={{ fontSize: "0.82rem" }} onClick={() => { setAddForm({ firstName: "", lastName: "" }); setAddError(""); setShowAddModal(true); }}>+ Add Player</button>
+                <button className="btn btn-primary" style={{ fontSize: "0.75rem", padding: "6px 14px" }} onClick={() => { setAddForm({ firstName: "", lastName: "" }); setAddError(""); setShowAddModal(true); }}>+ Add Player</button>
               </div>
             </div>
 
@@ -808,12 +814,11 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
         {/* ══════════════════ CONTRACTS ══════════════════ */}
         {tab === "contracts" && (
           <div className="tab-content">
-            <div style={{ ...STICKY_HEADER, display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
-              <div>
-                <div className="section-label">Contract Management</div>
-                <h2 style={{ margin: 0 }}>Contracts ({contracts.length})</h2>
-              </div>
-              <button className="btn btn-primary" style={{ fontSize: "0.82rem" }} onClick={() => { setContractForm({ playerId: "", clubName: "", startDate: "", endDate: "", salaryCents: "", bonusDetails: "", notes: "" }); setContractDocFile(null); setContractError(""); setShowContractModal(true); }}>+ Add Contract</button>
+            <div style={{ ...STICKY_HEADER, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.62rem", color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.18em" }}>
+                Contracts <span style={{ color: "var(--muted)", fontWeight: 400 }}>({contracts.length})</span>
+              </span>
+              <button className="btn btn-primary" style={{ fontSize: "0.75rem", padding: "6px 14px" }} onClick={() => { setContractForm({ playerId: "", clubName: "", startDate: "", endDate: "", salaryCents: "", bonusDetails: "", notes: "" }); setContractDocFile(null); setContractError(""); setShowContractModal(true); }}>+ Add Contract</button>
             </div>
 
             {contracts.length === 0 ? (
@@ -881,12 +886,11 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
         {/* ══════════════════ COMMISSIONS ══════════════════ */}
         {tab === "commissions" && (
           <div className="tab-content">
-            <div style={{ ...STICKY_HEADER, display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
-              <div>
-                <div className="section-label">Commission Tracker</div>
-                <h2 style={{ margin: 0 }}>Commissions</h2>
-              </div>
-              <button className="btn btn-primary" style={{ fontSize: "0.82rem" }} onClick={() => { setCommissionPlayerId(""); setCommissionInstallments([{ description: "", amountEur: "", dueDate: "", notes: "" }]); setCommissionError(""); setShowCommissionModal(true); }}>+ Add Commission</button>
+            <div style={{ ...STICKY_HEADER, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.62rem", color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.18em" }}>
+                Commissions <span style={{ color: "var(--muted)", fontWeight: 400 }}>({commissions.length})</span>
+              </span>
+              <button className="btn btn-primary" style={{ fontSize: "0.75rem", padding: "6px 14px" }} onClick={() => { setCommissionPlayerId(""); setCommissionInstallments([{ description: "", amountEur: "", dueDate: "", notes: "" }]); setCommissionError(""); setShowCommissionModal(true); }}>+ Add Commission</button>
             </div>
 
             {stats.pendingCommissions > 0 && (
@@ -954,12 +958,11 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
         {/* ══════════════════ TRANSFERS ══════════════════ */}
         {tab === "transfers" && (
           <div className="tab-content">
-            <div style={{ ...STICKY_HEADER, display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
-              <div>
-                <div className="section-label">Transfer Archive</div>
-                <h2 style={{ margin: 0 }}>Transfer History</h2>
-              </div>
-              <button className="btn btn-primary" style={{ fontSize: "0.82rem" }} onClick={() => { setTransferForm({ playerId: "", fromClub: "", toClub: "", transferDate: "", transferFeeEur: "", salaryEur: "", contractYears: "", notes: "" }); setTransferDocFile(null); setTransferError(""); setShowTransferModal(true); }}>+ Add Transfer</button>
+            <div style={{ ...STICKY_HEADER, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.62rem", color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.18em" }}>
+                Transfers <span style={{ color: "var(--muted)", fontWeight: 400 }}>({transfers.length})</span>
+              </span>
+              <button className="btn btn-primary" style={{ fontSize: "0.75rem", padding: "6px 14px" }} onClick={() => { setTransferForm({ playerId: "", fromClub: "", toClub: "", transferDate: "", transferFeeEur: "", salaryEur: "", contractYears: "", notes: "" }); setTransferDocFile(null); setTransferError(""); setShowTransferModal(true); }}>+ Add Transfer</button>
             </div>
 
             {transfers.length === 0 ? (
@@ -1015,9 +1018,8 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
         {/* ══════════════════ PITCH GENERATOR ══════════════════ */}
         {tab === "pitch" && (
           <div className="tab-content">
-            <div style={{ ...STICKY_HEADER }}>
-              <div className="section-label">Pitch Generator</div>
-              <h2 style={{ margin: 0 }}>Player Pitch Links</h2>
+            <div style={{ ...STICKY_HEADER, display: "flex", alignItems: "center" }}>
+              <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.62rem", color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.18em" }}>Pitch Generator</span>
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, alignItems: "start" }}>
@@ -1115,9 +1117,8 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
         {/* ══════════════════ SETTINGS ══════════════════ */}
         {tab === "settings" && (
           <div className="tab-content">
-            <div style={{ ...STICKY_HEADER }}>
-              <div className="section-label">Settings</div>
-              <h2 style={{ margin: 0 }}>Agent Profile</h2>
+            <div style={{ ...STICKY_HEADER, display: "flex", alignItems: "center" }}>
+              <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.62rem", color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.18em" }}>Settings</span>
             </div>
             <div className="card" style={{ maxWidth: 560 }}>
               <form onSubmit={handleSettingsSave}>

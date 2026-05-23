@@ -119,6 +119,27 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
 
+  // Players filter/search
+  const [playerSearch, setPlayerSearch] = useState("");
+  const [filterPosition, setFilterPosition] = useState("");
+  const [filterSalaryMin, setFilterSalaryMin] = useState("");
+  const [filterSalaryMax, setFilterSalaryMax] = useState("");
+
+  // Share dropdown
+  const [shareOpenFor, setShareOpenFor] = useState<string | null>(null);
+  const [copiedShare, setCopiedShare] = useState(false);
+
+  // Close share dropdown on outside click
+  useEffect(() => {
+    if (!shareOpenFor) return;
+    function close(e: MouseEvent) {
+      const t = e.target as HTMLElement;
+      if (!t.closest("[data-share-dropdown]")) setShareOpenFor(null);
+    }
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [shareOpenFor]);
+
   // Contract modal
   const [showContractModal, setShowContractModal] = useState(false);
   const [contractForm, setContractForm] = useState({ playerId: "", clubName: "", startDate: "", endDate: "", salaryCents: "", bonusDetails: "", notes: "" });
@@ -177,6 +198,40 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
       .filter(c => c.status === "PAID")
       .reduce((s: number, c: any) => s + (c.amountCents ?? 0), 0),
   };
+
+  // ── Filtered players (Players tab) ──────────────────────────────
+  const filteredPlayers = players.filter(p => {
+    if (playerSearch) {
+      const q = playerSearch.toLowerCase();
+      if (!`${p.firstName} ${p.lastName}`.toLowerCase().includes(q)) return false;
+    }
+    if (filterPosition && p.position !== filterPosition) return false;
+    if (filterSalaryMin) {
+      const minCents = parseFloat(filterSalaryMin) * 100;
+      const sal = p.expectedSalaryMin ?? p.expectedSalaryMax ?? 0;
+      if (sal < minCents) return false;
+    }
+    if (filterSalaryMax) {
+      const maxCents = parseFloat(filterSalaryMax) * 100;
+      const sal = p.expectedSalaryMin ?? p.expectedSalaryMax ?? 0;
+      if (sal > maxCents) return false;
+    }
+    return true;
+  });
+
+  function getShareLinks(p: any) {
+    const url = `${typeof window !== "undefined" ? window.location.origin : ""}/players/${p.slug}`;
+    const text = `${p.firstName} ${p.lastName} — ${posLabel(p.position)} | HandballHub`;
+    return {
+      url,
+      copy: () => navigator.clipboard.writeText(url).then(() => { setCopiedShare(true); setTimeout(() => setCopiedShare(false), 1800); }),
+      whatsapp: `https://api.whatsapp.com/send?text=${encodeURIComponent(text + "\n" + url)}`,
+      viber: `viber://forward?text=${encodeURIComponent(text + "\n" + url)}`,
+      facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`,
+      twitter: `https://twitter.com/intent/tweet?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`,
+      linkedin: `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}`,
+    };
+  }
 
   // ── Add Player ───────────────────────────────────────────────────
   async function handleAddPlayer(e: React.FormEvent) {
@@ -704,21 +759,59 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
         {/* ══════════════════ PLAYERS ══════════════════ */}
         {tab === "players" && (
           <div className="tab-content">
-            <div style={{ ...STICKY_HEADER, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-              <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.62rem", color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.18em" }}>
-                Players <span style={{ color: "var(--muted)", fontWeight: 400 }}>({players.length})</span>
-              </span>
-              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <div style={{ display: "flex", border: "1px solid rgba(245,243,238,0.12)", borderRadius: "var(--radius)", overflow: "hidden" }}>
-                  {(["list", "grid"] as const).map(m => (
-                    <button key={m} onClick={() => setViewMode(m)} style={{
-                      padding: "5px 12px", background: viewMode === m ? "var(--accent)" : "transparent",
-                      color: viewMode === m ? "var(--black)" : "var(--muted)", border: "none", cursor: "pointer",
-                      fontFamily: "var(--font-display)", fontSize: "0.68rem", fontWeight: 700, textTransform: "uppercase",
-                    }}>{m === "list" ? "☰" : "⊞"}</button>
-                  ))}
+            {/* ── Header row ── */}
+            <div style={{ ...STICKY_HEADER }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 10 }}>
+                <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.62rem", color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.18em" }}>
+                  Players <span style={{ color: "var(--muted)", fontWeight: 400 }}>({filteredPlayers.length}{filteredPlayers.length !== players.length ? `/${players.length}` : ""})</span>
+                </span>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <div style={{ display: "flex", border: "1px solid rgba(245,243,238,0.12)", borderRadius: "var(--radius)", overflow: "hidden" }}>
+                    {(["list", "grid"] as const).map(m => (
+                      <button key={m} onClick={() => setViewMode(m)} style={{
+                        padding: "5px 12px", background: viewMode === m ? "var(--accent)" : "transparent",
+                        color: viewMode === m ? "var(--black)" : "var(--muted)", border: "none", cursor: "pointer",
+                        fontFamily: "var(--font-display)", fontSize: "0.68rem", fontWeight: 700, textTransform: "uppercase",
+                      }}>{m === "list" ? "☰" : "⊞"}</button>
+                    ))}
+                  </div>
+                  <button className="btn btn-primary" style={{ fontSize: "0.75rem", padding: "6px 14px" }} onClick={() => { setAddForm({ firstName: "", lastName: "" }); setAddError(""); setShowAddModal(true); }}>+ Add Player</button>
                 </div>
-                <button className="btn btn-primary" style={{ fontSize: "0.75rem", padding: "6px 14px" }} onClick={() => { setAddForm({ firstName: "", lastName: "" }); setAddError(""); setShowAddModal(true); }}>+ Add Player</button>
+              </div>
+              {/* ── Filter bar ── */}
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                <input
+                  value={playerSearch} onChange={e => setPlayerSearch(e.target.value)}
+                  placeholder="Search by name…"
+                  style={{ flex: "1 1 160px", minWidth: 130, background: "var(--card2)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "6px 10px", fontSize: "0.78rem", color: "var(--white)", outline: "none", fontFamily: "var(--font-mono)" }}
+                />
+                <select
+                  value={filterPosition} onChange={e => setFilterPosition(e.target.value)}
+                  style={{ flex: "0 0 auto", background: "var(--card2)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "6px 10px", fontSize: "0.78rem", color: filterPosition ? "var(--white)" : "var(--muted)", outline: "none", cursor: "pointer" }}
+                >
+                  <option value="">All Positions</option>
+                  {POSITIONS.map(pos => <option key={pos} value={pos}>{posLabel(pos)}</option>)}
+                </select>
+                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  <span style={{ fontSize: "0.7rem", color: "var(--muted)", whiteSpace: "nowrap" }}>Salary €/yr</span>
+                  <input
+                    value={filterSalaryMin} onChange={e => setFilterSalaryMin(e.target.value)}
+                    placeholder="Min" type="number" min="0"
+                    style={{ width: 72, background: "var(--card2)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "6px 8px", fontSize: "0.78rem", color: "var(--white)", outline: "none", fontFamily: "var(--font-mono)" }}
+                  />
+                  <span style={{ fontSize: "0.7rem", color: "var(--muted)" }}>—</span>
+                  <input
+                    value={filterSalaryMax} onChange={e => setFilterSalaryMax(e.target.value)}
+                    placeholder="Max" type="number" min="0"
+                    style={{ width: 72, background: "var(--card2)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "6px 8px", fontSize: "0.78rem", color: "var(--white)", outline: "none", fontFamily: "var(--font-mono)" }}
+                  />
+                </div>
+                {(playerSearch || filterPosition || filterSalaryMin || filterSalaryMax) && (
+                  <button onClick={() => { setPlayerSearch(""); setFilterPosition(""); setFilterSalaryMin(""); setFilterSalaryMax(""); }}
+                    style={{ background: "none", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "5px 10px", fontSize: "0.7rem", color: "var(--muted)", cursor: "pointer" }}>
+                    ✕ Clear
+                  </button>
+                )}
               </div>
             </div>
 
@@ -729,10 +822,18 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
                 <p style={{ color: "var(--muted)", marginBottom: 24 }}>Add your first player to start managing their career.</p>
                 <button className="btn btn-primary" onClick={() => setShowAddModal(true)}>+ Add First Player</button>
               </div>
+            ) : filteredPlayers.length === 0 ? (
+              <div className="card" style={{ textAlign: "center", padding: "40px 24px", color: "var(--muted)" }}>
+                No players match your filters. <button onClick={() => { setPlayerSearch(""); setFilterPosition(""); setFilterSalaryMin(""); setFilterSalaryMax(""); }} style={{ background: "none", border: "none", color: "var(--accent)", cursor: "pointer", fontSize: "inherit" }}>Clear filters</button>
+              </div>
             ) : viewMode === "list" ? (
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                {players.map((p: any) => (
-                  <div key={p.id} className="card" style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+                {filteredPlayers.map((p: any) => (
+                  <div key={p.id} className="card" style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", cursor: p.slug && p.onboardingCompleted ? "pointer" : "default", transition: "border-color 0.15s" }}
+                    onClick={e => { if ((e.target as HTMLElement).closest("button,a,[data-share-dropdown]")) return; if (p.slug && p.onboardingCompleted) window.open(`/players/${p.slug}`, "_blank"); }}
+                    onMouseEnter={e => { if (p.slug && p.onboardingCompleted) e.currentTarget.style.borderColor = "rgba(232,255,71,0.3)"; }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = ""; }}
+                  >
                     <div style={{ width: 48, height: 48, borderRadius: "50%", background: "var(--card2)", border: "2px solid var(--border)", overflow: "hidden", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.2rem" }}>
                       {p.photoUrl ? <img src={p.photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : "👤"}
                     </div>
@@ -756,29 +857,65 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
                         <Link href={`/onboarding/agent-player/${p.id}`} className="btn btn-primary" style={{ fontSize: "0.72rem", padding: "5px 10px" }}>Continue Setup →</Link>
                       ) : (
                         <>
-                          <Link href={`/players/${p.slug}`} target="_blank" className="btn btn-outline" style={{ fontSize: "0.72rem", padding: "5px 10px" }}>View ↗</Link>
+                          {/* Share button */}
+                          {p.slug && (
+                            <div style={{ position: "relative" }} data-share-dropdown>
+                              <button className="btn btn-outline" style={{ fontSize: "0.72rem", padding: "5px 10px" }}
+                                onClick={e => { e.stopPropagation(); setShareOpenFor(shareOpenFor === p.id ? null : p.id); }}>
+                                ↗ Share
+                              </button>
+                              {shareOpenFor === p.id && (() => {
+                                const s = getShareLinks(p);
+                                return (
+                                  <div data-share-dropdown style={{ position: "absolute", top: "calc(100% + 6px)", right: 0, background: "var(--card)", border: "1px solid var(--border)", borderRadius: "var(--radius)", minWidth: 180, boxShadow: "0 8px 24px rgba(0,0,0,0.5)", zIndex: 200, overflow: "hidden" }}>
+                                    <button onClick={e => { e.stopPropagation(); s.copy(); }} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", background: "none", border: "none", borderBottom: "1px solid var(--border)", padding: "10px 14px", fontSize: "0.8rem", color: "var(--white)", cursor: "pointer", textAlign: "left" }}>
+                                      {copiedShare ? "✅ Copied!" : "🔗 Copy Link"}
+                                    </button>
+                                    {[
+                                      { icon: "💬", label: "WhatsApp", href: s.whatsapp },
+                                      { icon: "📱", label: "Viber", href: s.viber },
+                                      { icon: "📘", label: "Facebook", href: s.facebook },
+                                      { icon: "🐦", label: "Twitter / X", href: s.twitter },
+                                      { icon: "💼", label: "LinkedIn", href: s.linkedin },
+                                    ].map(item => (
+                                      <a key={item.label} href={item.href} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+                                        style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", fontSize: "0.8rem", color: "var(--white)", borderBottom: "1px solid var(--border)", textDecoration: "none" }}
+                                        onMouseEnter={e => e.currentTarget.style.background = "var(--card2)"}
+                                        onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                                        {item.icon} {item.label}
+                                      </a>
+                                    ))}
+                                  </div>
+                                );
+                              })()}
+                            </div>
+                          )}
                           {p.verificationStatus !== "VERIFIED" && p.verificationStatus !== "PENDING" && (
                             <button className="btn btn-primary" style={{ fontSize: "0.72rem", padding: "5px 10px" }}
-                              onClick={() => { setVerifyPlayer({ id: p.id, name: `${p.firstName} ${p.lastName}`, status: p.verificationStatus }); setDocFile(null); setContractFile(null); setVerifyMsg(""); }}>
+                              onClick={e => { e.stopPropagation(); setVerifyPlayer({ id: p.id, name: `${p.firstName} ${p.lastName}`, status: p.verificationStatus }); setDocFile(null); setContractFile(null); setVerifyMsg(""); }}>
                               🔐 Verify
                             </button>
                           )}
                         </>
                       )}
-                      <Link href={`/dashboard/agent/player/${p.id}/edit`} className="btn btn-outline" style={{ fontSize: "0.72rem", padding: "5px 10px" }}>✏️ Edit</Link>
-                      <button className="btn btn-danger" style={{ fontSize: "0.72rem", padding: "5px 8px" }} onClick={() => setConfirmDelete({ id: p.id, name: `${p.firstName} ${p.lastName}` })}>🗑</button>
+                      <Link href={`/dashboard/agent/player/${p.id}/edit`} className="btn btn-outline" style={{ fontSize: "0.72rem", padding: "5px 10px" }} onClick={e => e.stopPropagation()}>✏️ Edit</Link>
+                      <button className="btn btn-danger" style={{ fontSize: "0.72rem", padding: "5px 8px" }} onClick={e => { e.stopPropagation(); setConfirmDelete({ id: p.id, name: `${p.firstName} ${p.lastName}` }); }}>🗑</button>
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 16 }}>
-                {players.map((p: any) => {
+                {filteredPlayers.map((p: any) => {
                   const playerContracts = contracts.filter(c => c.playerId === p.id);
                   const nextContract = playerContracts[0];
                   const contractDays = nextContract ? daysLeft(nextContract.endDate) : null;
                   return (
-                    <div key={p.id} className="card" style={{ padding: 0, overflow: "hidden" }}>
+                    <div key={p.id} className="card" style={{ padding: 0, overflow: "hidden", cursor: p.slug && p.onboardingCompleted ? "pointer" : "default", transition: "border-color 0.15s" }}
+                      onClick={e => { if ((e.target as HTMLElement).closest("button,a,[data-share-dropdown]")) return; if (p.slug && p.onboardingCompleted) window.open(`/players/${p.slug}`, "_blank"); }}
+                      onMouseEnter={e => { if (p.slug && p.onboardingCompleted) e.currentTarget.style.borderColor = "rgba(232,255,71,0.3)"; }}
+                      onMouseLeave={e => { e.currentTarget.style.borderColor = ""; }}
+                    >
                       <div style={{ height: 120, background: "var(--card2)", position: "relative", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
                         {p.photoUrl ? (
                           <img src={p.photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
@@ -804,9 +941,40 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
                           </div>
                         )}
                         <div style={{ display: "flex", gap: 6 }}>
-                          <Link href={`/dashboard/agent/player/${p.id}/edit`} className="btn btn-outline" style={{ fontSize: "0.68rem", padding: "4px 8px", flex: 1, justifyContent: "center" }}>✏️ Edit</Link>
-                          {p.slug && <Link href={`/players/${p.slug}`} target="_blank" className="btn btn-outline" style={{ fontSize: "0.68rem", padding: "4px 8px" }}>↗</Link>}
-                          <button className="btn btn-danger" style={{ fontSize: "0.68rem", padding: "4px 6px" }} onClick={() => setConfirmDelete({ id: p.id, name: `${p.firstName} ${p.lastName}` })}>🗑</button>
+                          <Link href={`/dashboard/agent/player/${p.id}/edit`} className="btn btn-outline" style={{ fontSize: "0.68rem", padding: "4px 8px", flex: 1, justifyContent: "center" }} onClick={e => e.stopPropagation()}>✏️ Edit</Link>
+                          {p.slug && (
+                            <div style={{ position: "relative" }} data-share-dropdown>
+                              <button className="btn btn-outline" style={{ fontSize: "0.68rem", padding: "4px 8px" }}
+                                onClick={e => { e.stopPropagation(); setShareOpenFor(shareOpenFor === p.id ? null : p.id); }}>
+                                ↗ Share
+                              </button>
+                              {shareOpenFor === p.id && (() => {
+                                const s = getShareLinks(p);
+                                return (
+                                  <div data-share-dropdown style={{ position: "absolute", bottom: "calc(100% + 6px)", right: 0, background: "var(--card)", border: "1px solid var(--border)", borderRadius: "var(--radius)", minWidth: 180, boxShadow: "0 8px 24px rgba(0,0,0,0.5)", zIndex: 200, overflow: "hidden" }}>
+                                    <button onClick={e => { e.stopPropagation(); s.copy(); }} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", background: "none", border: "none", borderBottom: "1px solid var(--border)", padding: "10px 14px", fontSize: "0.8rem", color: "var(--white)", cursor: "pointer", textAlign: "left" }}>
+                                      {copiedShare ? "✅ Copied!" : "🔗 Copy Link"}
+                                    </button>
+                                    {[
+                                      { icon: "💬", label: "WhatsApp", href: s.whatsapp },
+                                      { icon: "📱", label: "Viber", href: s.viber },
+                                      { icon: "📘", label: "Facebook", href: s.facebook },
+                                      { icon: "🐦", label: "Twitter / X", href: s.twitter },
+                                      { icon: "💼", label: "LinkedIn", href: s.linkedin },
+                                    ].map(item => (
+                                      <a key={item.label} href={item.href} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+                                        style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", fontSize: "0.8rem", color: "var(--white)", borderBottom: "1px solid var(--border)", textDecoration: "none" }}
+                                        onMouseEnter={e => e.currentTarget.style.background = "var(--card2)"}
+                                        onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                                        {item.icon} {item.label}
+                                      </a>
+                                    ))}
+                                  </div>
+                                );
+                              })()}
+                            </div>
+                          )}
+                          <button className="btn btn-danger" style={{ fontSize: "0.68rem", padding: "4px 6px" }} onClick={e => { e.stopPropagation(); setConfirmDelete({ id: p.id, name: `${p.firstName} ${p.lastName}` }); }}>🗑</button>
                         </div>
                       </div>
                     </div>

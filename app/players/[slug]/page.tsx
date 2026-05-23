@@ -74,7 +74,14 @@ export default async function PlayerProfilePage({
 
   // Agent-managed players are restricted to logged-in clubs
   const isAgentPlayer = !!(player as any).agentId;
-  const requiresClubLogin = isAgentPlayer && !isClub && !isAdmin;
+  const isAgent = role === "AGENT";
+  let isOwnerAgent = false;
+  if (isAgent && isAgentPlayer) {
+    const agentUserId = (session?.user as any)?.id;
+    const agentRec = await prisma.agent.findUnique({ where: { userId: agentUserId }, select: { id: true } }).catch(() => null);
+    isOwnerAgent = agentRec?.id === (player as any).agentId;
+  }
+  const requiresClubLogin = isAgentPlayer && !isClub && !isAdmin && !isOwnerAgent;
 
   const age = new Date().getFullYear() - new Date(player.dateOfBirth).getFullYear();
 

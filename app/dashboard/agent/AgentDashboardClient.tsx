@@ -81,7 +81,13 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
   const searchParams = useSearchParams();
   const router = useRouter();
 
-  const [tab, setTab] = useState<Tab>("overview");
+  // Extract string early — stable primitive dep avoids infinite-loop from unstable searchParams reference
+  const tabParam = searchParams.get("tab");
+
+  const [tab, setTab] = useState<Tab>(() => {
+    if (tabParam && NAV_ITEMS.some(n => n.id === tabParam)) return tabParam as Tab;
+    return "overview";
+  });
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [players, setPlayers] = useState<any[]>(agent.players ?? []);
   const [contracts, setContracts] = useState<any[]>(agent.contracts ?? []);
@@ -90,11 +96,10 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
   const [pitchDecks, setPitchDecks] = useState<any[]>(agent.pitchDecks ?? []);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
 
-  // URL tab sync — runs on mount AND whenever the URL search params change
+  // Sync tab whenever the URL ?tab= param changes (e.g. nav-bar Settings link)
   useEffect(() => {
-    const t = searchParams.get("tab") as Tab;
-    if (t && NAV_ITEMS.some(n => n.id === t)) setTab(t);
-  }, [searchParams]);
+    if (tabParam && NAV_ITEMS.some(n => n.id === tabParam)) setTab(tabParam as Tab);
+  }, [tabParam]); // string dep — stable, no infinite loop
 
   function switchTab(id: Tab) {
     setTab(id);

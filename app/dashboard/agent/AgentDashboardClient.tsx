@@ -850,38 +850,92 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
               );
             })()}
 
-            {/* ── Contract Expiry Alerts ── */}
+            {/* ── Alerts & Notifications ── */}
             {(() => {
-              const expiring = contracts.filter(c => c.endDate && daysLeft(c.endDate) >= 0 && daysLeft(c.endDate) < 90);
-              const expired = contracts.filter(c => c.endDate && daysLeft(c.endDate) < 0);
-              if (expiring.length === 0 && expired.length === 0) return null;
+              const NOTIF_ICONS: Record<string, string> = { club_unlock: "🔓", new_free_agent: "⚽" };
+              const contractAlerts = contracts
+                .filter((c: any) => c.endDate && daysLeft(c.endDate) < 90)
+                .filter((c: any) => !dismissedIds.has(`alert_contract_${c.id}`));
+              const commissionAlerts = commissions
+                .filter((c: any) => c.status === "PENDING" && c.dueDate && new Date(c.dueDate) < new Date())
+                .filter((c: any) => !dismissedIds.has(`alert_commission_${c.id}`));
+              const activeNotifs = notifications.filter(n => !dismissedIds.has(n.id));
+              const total = contractAlerts.length + commissionAlerts.length + activeNotifs.length;
+              if (total === 0) return null;
+
+              function dismissAll() {
+                const ids = [
+                  ...contractAlerts.map((c: any) => `alert_contract_${c.id}`),
+                  ...commissionAlerts.map((c: any) => `alert_commission_${c.id}`),
+                  ...activeNotifs.map(n => n.id),
+                ];
+                setDismissedIds(prev => {
+                  const next = new Set([...prev, ...ids]);
+                  try { localStorage.setItem("hh_dismissed_notifs", JSON.stringify([...next])); } catch {}
+                  return next;
+                });
+              }
+
               return (
-                <div className="card" style={{ marginBottom: 20, borderColor: "rgba(255,59,59,0.3)", background: "rgba(255,59,59,0.03)" }}>
-                  <h4 style={{ textTransform: "uppercase", fontSize: "0.85rem", color: "var(--red)", margin: "0 0 12px" }}>⚠ Contract Alerts</h4>
+                <div className="card" style={{ marginBottom: 20, borderColor: "rgba(255,59,59,0.2)" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                    <h4 style={{ textTransform: "uppercase", fontSize: "0.85rem", margin: 0 }}>
+                      ⚠ Alerts &amp; Notifications
+                      <span style={{ marginLeft: 8, background: "rgba(255,59,59,0.2)", color: "var(--red)", fontSize: "0.65rem", padding: "1px 6px", borderRadius: 3, fontWeight: 700 }}>{total}</span>
+                    </h4>
+                    <button onClick={dismissAll} style={{ background: "none", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "3px 10px", fontSize: "0.68rem", color: "var(--muted)", cursor: "pointer" }}>Clear all</button>
+                  </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                    {expired.map((c: any) => (
-                      <div key={c.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: "rgba(255,59,59,0.08)", borderRadius: "var(--radius)", borderLeft: "3px solid var(--red)" }}>
-                        <div>
-                          <span style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "0.82rem", textTransform: "uppercase" }}>{c.player.firstName} {c.player.lastName}</span>
-                          <span style={{ fontSize: "0.72rem", color: "var(--muted)", marginLeft: 8 }}>@ {c.clubName}</span>
-                        </div>
-                        <span style={{ fontSize: "0.72rem", color: "var(--red)", fontFamily: "var(--font-mono)" }}>Expired {Math.abs(daysLeft(c.endDate))}d ago</span>
-                      </div>
-                    ))}
-                    {expiring.map((c: any) => {
+
+                    {/* Contract alerts */}
+                    {contractAlerts.map((c: any) => {
                       const d = daysLeft(c.endDate);
                       const col = contractStatusColor(d);
                       return (
-                        <div key={c.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: `${col}11`, borderRadius: "var(--radius)", borderLeft: `3px solid ${col}` }}>
-                          <div>
+                        <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", background: `${col}11`, borderRadius: "var(--radius)", borderLeft: `3px solid ${col}` }}>
+                          <span style={{ fontSize: "0.78rem" }}>📄</span>
+                          <div style={{ flex: 1, minWidth: 0 }}>
                             <span style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "0.82rem", textTransform: "uppercase" }}>{c.player.firstName} {c.player.lastName}</span>
-                            <span style={{ fontSize: "0.72rem", color: "var(--muted)", marginLeft: 8 }}>@ {c.clubName}</span>
-                            <span style={{ fontSize: "0.65rem", fontFamily: "var(--font-mono)", fontWeight: 700, color: col, marginLeft: 8, textTransform: "uppercase" }}>{contractStatusLabel(d)}</span>
+                            <span style={{ fontSize: "0.72rem", color: "var(--muted)", marginLeft: 6 }}>@ {c.clubName}</span>
+                            <span style={{ fontSize: "0.65rem", fontFamily: "var(--font-mono)", fontWeight: 700, color: col, marginLeft: 6, textTransform: "uppercase" }}>{contractStatusLabel(d)}</span>
                           </div>
-                          <span style={{ fontSize: "0.72rem", color: col, fontFamily: "var(--font-mono)" }}>{d}d left</span>
+                          <span style={{ fontSize: "0.72rem", color: col, fontFamily: "var(--font-mono)", flexShrink: 0 }}>{d < 0 ? `Expired ${Math.abs(d)}d ago` : `${d}d left`}</span>
+                          <button onClick={() => dismissNotification(`alert_contract_${c.id}`)} style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: "0.85rem", padding: "0 2px", flexShrink: 0, lineHeight: 1 }}>✕</button>
                         </div>
                       );
                     })}
+
+                    {/* Commission overdue alerts */}
+                    {commissionAlerts.map((c: any) => {
+                      const od = overdueLevel(c.dueDate);
+                      return (
+                        <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", background: od.bg, borderRadius: "var(--radius)", borderLeft: `3px solid ${od.color}` }}>
+                          <span style={{ fontSize: "0.78rem" }}>💰</span>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <span style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "0.82rem", textTransform: "uppercase" }}>{c.player.firstName} {c.player.lastName}</span>
+                            <span style={{ fontSize: "0.72rem", color: "var(--muted)", marginLeft: 6, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.description}</span>
+                          </div>
+                          <span style={{ fontSize: "0.72rem", fontFamily: "var(--font-mono)", fontWeight: 700, color: od.color, flexShrink: 0 }}>{od.label}</span>
+                          <span style={{ fontSize: "0.72rem", fontFamily: "var(--font-mono)", color: "var(--muted)", flexShrink: 0 }}>{fmtCents(c.amountCents)}</span>
+                          <button onClick={() => dismissNotification(`alert_commission_${c.id}`)} style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: "0.85rem", padding: "0 2px", flexShrink: 0, lineHeight: 1 }}>✕</button>
+                        </div>
+                      );
+                    })}
+
+                    {/* In-app notifications */}
+                    {activeNotifs.map((n: any) => (
+                      <div key={n.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", background: "rgba(245,243,238,0.03)", borderRadius: "var(--radius)", borderLeft: "3px solid rgba(245,243,238,0.15)" }}>
+                        <span style={{ fontSize: "0.78rem" }}>{NOTIF_ICONS[n.type] ?? "🔔"}</span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <span style={{ fontSize: "0.82rem", fontWeight: 600, color: "var(--white)" }}>{n.title}</span>
+                          <span style={{ fontSize: "0.72rem", color: "var(--muted)", marginLeft: 6 }}>{n.body}</span>
+                        </div>
+                        <span style={{ fontSize: "0.65rem", color: "rgba(107,107,107,0.6)", fontFamily: "var(--font-mono)", flexShrink: 0 }}>{fmtDate(n.createdAt)}</span>
+                        {n.link && <a href={n.link} target="_blank" rel="noopener noreferrer" style={{ fontSize: "0.7rem", color: "var(--accent)", flexShrink: 0 }}>View →</a>}
+                        <button onClick={() => dismissNotification(n.id)} style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: "0.85rem", padding: "0 2px", flexShrink: 0, lineHeight: 1 }}>✕</button>
+                      </div>
+                    ))}
+
                   </div>
                 </div>
               );

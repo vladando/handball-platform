@@ -82,7 +82,7 @@ function getAge(dob: string | Date | null | undefined): string {
   return String(Math.floor((Date.now() - d.getTime()) / (365.25 * 24 * 3600 * 1000)));
 }
 
-type Tab = "overview" | "players" | "contracts" | "commissions" | "transfers" | "pitch" | "calendar" | "messages" | "settings";
+type Tab = "overview" | "players" | "contracts" | "commissions" | "transfers" | "pitch" | "calendar" | "statistics" | "messages" | "settings";
 
 const NAV_ITEMS: { id: Tab; icon: string; label: string }[] = [
   { id: "overview",     icon: "⊞",  label: "Overview" },
@@ -92,6 +92,7 @@ const NAV_ITEMS: { id: Tab; icon: string; label: string }[] = [
   { id: "transfers",    icon: "🔄", label: "Transfers" },
   { id: "pitch",        icon: "🚀", label: "Pitch Generator" },
   { id: "calendar",     icon: "📅", label: "Calendar" },
+  { id: "statistics",   icon: "📊", label: "Statistics" },
   { id: "messages",     icon: "💬", label: "Messages" },
   { id: "settings",     icon: "⚙️", label: "Settings" },
 ];
@@ -817,39 +818,6 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
               ))}
             </div>
 
-            {/* ── Income Chart ── */}
-            {commissions.filter(c => c.status === "PAID").length > 0 && (() => {
-              const months: { label: string; cents: number }[] = [];
-              for (let i = 5; i >= 0; i--) {
-                const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - i);
-                const y = d.getFullYear(); const m = d.getMonth();
-                const label = d.toLocaleDateString("en-GB", { month: "short", year: "2-digit" });
-                const cents = commissions
-                  .filter(c => c.status === "PAID" && c.paidAt)
-                  .filter(c => { const pd = new Date(c.paidAt); return pd.getFullYear() === y && pd.getMonth() === m; })
-                  .reduce((s: number, c: any) => s + (c.amountCents ?? 0), 0);
-                months.push({ label, cents });
-              }
-              const maxCents = Math.max(...months.map(m => m.cents), 1);
-              return (
-                <div className="card" style={{ marginBottom: 20 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-                    <h4 style={{ textTransform: "uppercase", fontSize: "0.88rem", margin: 0 }}>Commission Income <span style={{ color: "var(--muted)", fontWeight: 400, textTransform: "none" }}>(last 6 months)</span></h4>
-                    <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.75rem", color: "#00c864" }}>{fmtCents(stats.totalPaidCents)} total</span>
-                  </div>
-                  <div style={{ display: "flex", alignItems: "flex-end", gap: 8, height: 90 }}>
-                    {months.map((m, i) => (
-                      <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-                        {m.cents > 0 && <div style={{ fontSize: "0.58rem", color: "var(--accent)", fontFamily: "var(--font-mono)", whiteSpace: "nowrap" }}>{fmtCents(m.cents)}</div>}
-                        <div style={{ width: "100%", background: m.cents > 0 ? "var(--accent)" : "var(--card2)", borderRadius: "3px 3px 0 0", height: `${Math.max((m.cents / maxCents) * 60, m.cents > 0 ? 4 : 2)}px`, opacity: m.cents > 0 ? 1 : 0.3 }} />
-                        <div style={{ fontSize: "0.6rem", color: "var(--muted)", whiteSpace: "nowrap" }}>{m.label}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })()}
-
             {/* ── Alerts & Notifications ── */}
             {(() => {
               const NOTIF_ICONS: Record<string, string> = { club_unlock: "🔓", new_free_agent: "⚽" };
@@ -1175,6 +1143,39 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
                 </div>
               )}
             </div>
+
+            {/* ── Income Chart ── */}
+            {commissions.filter((c: any) => c.status === "PAID").length > 0 && (() => {
+              const months: { label: string; cents: number }[] = [];
+              for (let i = 5; i >= 0; i--) {
+                const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - i);
+                const y = d.getFullYear(); const m = d.getMonth();
+                const label = d.toLocaleDateString("en-GB", { month: "short", year: "2-digit" });
+                const cents = commissions
+                  .filter((c: any) => c.status === "PAID" && c.paidAt)
+                  .filter((c: any) => { const pd = new Date(c.paidAt); return pd.getFullYear() === y && pd.getMonth() === m; })
+                  .reduce((s: number, c: any) => s + (c.amountCents ?? 0), 0);
+                months.push({ label, cents });
+              }
+              const maxCents = Math.max(...months.map(m => m.cents), 1);
+              return (
+                <div className="card" style={{ marginTop: 20 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                    <h4 style={{ textTransform: "uppercase", fontSize: "0.88rem", margin: 0 }}>Commission Income <span style={{ color: "var(--muted)", fontWeight: 400, textTransform: "none" }}>(last 6 months)</span></h4>
+                    <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.75rem", color: "#00c864" }}>{fmtCents(stats.totalPaidCents)} total</span>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "flex-end", gap: 8, height: 90 }}>
+                    {months.map((m, i) => (
+                      <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+                        {m.cents > 0 && <div style={{ fontSize: "0.58rem", color: "var(--accent)", fontFamily: "var(--font-mono)", whiteSpace: "nowrap" }}>{fmtCents(m.cents)}</div>}
+                        <div style={{ width: "100%", background: m.cents > 0 ? "var(--accent)" : "var(--card2)", borderRadius: "3px 3px 0 0", height: `${Math.max((m.cents / maxCents) * 60, m.cents > 0 ? 4 : 2)}px`, opacity: m.cents > 0 ? 1 : 0.3 }} />
+                        <div style={{ fontSize: "0.6rem", color: "var(--muted)", whiteSpace: "nowrap" }}>{m.label}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
 
           </div>
         )}
@@ -1970,6 +1971,231 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
                   )}
                 </div>
               )}
+            </div>
+          );
+        })()}
+
+        {/* ══════════════════ STATISTICS ══════════════════ */}
+        {tab === "statistics" && (() => {
+          const paidCommissions = commissions.filter((c: any) => c.status === "PAID");
+          const pendingCommissions = commissions.filter((c: any) => c.status === "PENDING");
+          const overdueCommissions = commissions.filter((c: any) => c.status === "PENDING" && c.dueDate && new Date(c.dueDate) < new Date());
+          const cancelledCommissions = commissions.filter((c: any) => c.status === "CANCELLED");
+          const totalEarned = paidCommissions.reduce((s: number, c: any) => s + (c.amountCents ?? 0), 0);
+          const totalPending = pendingCommissions.reduce((s: number, c: any) => s + (c.amountCents ?? 0), 0);
+
+          // 12-month income chart
+          const months12: { label: string; cents: number }[] = [];
+          for (let i = 11; i >= 0; i--) {
+            const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - i);
+            const y = d.getFullYear(); const m = d.getMonth();
+            const label = d.toLocaleDateString("en-GB", { month: "short", year: "2-digit" });
+            const cents = paidCommissions
+              .filter((c: any) => c.paidAt && new Date(c.paidAt).getFullYear() === y && new Date(c.paidAt).getMonth() === m)
+              .reduce((s: number, c: any) => s + (c.amountCents ?? 0), 0);
+            months12.push({ label, cents });
+          }
+          const maxIncome = Math.max(...months12.map(m => m.cents), 1);
+
+          // Player breakdowns
+          const positionMap: Record<string, number> = {};
+          const healthMap: Record<string, number> = {};
+          const nationalityMap: Record<string, number> = {};
+          players.forEach((p: any) => {
+            if (p.position) positionMap[p.position] = (positionMap[p.position] ?? 0) + 1;
+            const h = p.healthStatus ?? "HEALTHY";
+            healthMap[h] = (healthMap[h] ?? 0) + 1;
+            if (p.nationality && p.nationality !== "Unknown") nationalityMap[p.nationality] = (nationalityMap[p.nationality] ?? 0) + 1;
+          });
+          const topNationalities = Object.entries(nationalityMap).sort((a, b) => b[1] - a[1]).slice(0, 5);
+          const topPositions = Object.entries(positionMap).sort((a, b) => b[1] - a[1]);
+
+          // Contract breakdown
+          const contractBreakdown = { ACTIVE: 0, EXPIRING: 0, WARNING: 0, CRITICAL: 0, EXPIRED: 0 };
+          contracts.forEach((c: any) => {
+            if (!c.endDate) return;
+            const d = daysLeft(c.endDate);
+            contractBreakdown[contractStatusLabel(d) as keyof typeof contractBreakdown]++;
+          });
+
+          // Transfer fees by year
+          const feeByYear: Record<string, number> = {};
+          transfers.forEach((t: any) => {
+            if (!t.transferDate || !t.transferFeeCents) return;
+            const y = new Date(t.transferDate).getFullYear().toString();
+            feeByYear[y] = (feeByYear[y] ?? 0) + t.transferFeeCents;
+          });
+          const feeYears = Object.entries(feeByYear).sort((a, b) => Number(b[0]) - Number(a[0])).slice(0, 5);
+
+          function BarRow({ label, val, max, color }: { label: string; val: number; max: number; color: string }) {
+            const pct = max > 0 ? (val / max) * 100 : 0;
+            return (
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                <div style={{ width: 110, flexShrink: 0, fontSize: "0.75rem", color: "var(--muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</div>
+                <div style={{ flex: 1, background: "var(--card2)", borderRadius: 3, height: 14, overflow: "hidden" }}>
+                  <div style={{ width: `${pct}%`, height: "100%", background: color, borderRadius: 3, minWidth: val > 0 ? 6 : 0 }} />
+                </div>
+                <div style={{ width: 28, textAlign: "right", flexShrink: 0, fontFamily: "var(--font-mono)", fontSize: "0.72rem", color: "var(--white)" }}>{val}</div>
+              </div>
+            );
+          }
+
+          function StatCard({ label, val, sub, color }: { label: string; val: string | number; sub: string; color: string }) {
+            return (
+              <div className="card" style={{ textAlign: "center", padding: "16px 12px" }}>
+                <div style={{ fontFamily: "var(--font-display)", fontWeight: 900, fontSize: "1.5rem", color, lineHeight: 1 }}>{val}</div>
+                <div style={{ fontSize: "0.63rem", color: "var(--muted)", marginTop: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>{label}</div>
+                <div style={{ fontSize: "0.58rem", color: "rgba(107,107,107,0.6)", marginTop: 2 }}>{sub}</div>
+              </div>
+            );
+          }
+
+          return (
+            <div className="tab-content">
+              <div style={{ ...STICKY_HEADER, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.62rem", color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.18em" }}>Statistics</span>
+              </div>
+
+              {/* ── Top KPI row ── */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 20 }}>
+                <StatCard label="Total Earned" val={fmtCents(totalEarned)} sub={`${paidCommissions.length} payments`} color="#00c864" />
+                <StatCard label="Pending Income" val={fmtCents(totalPending)} sub={`${pendingCommissions.length} unpaid`} color={totalPending > 0 ? "var(--accent)" : "var(--muted)"} />
+                <StatCard label="Total Transfers" val={transfers.length} sub={`${transfers.filter((t: any) => t.transferFeeCents).length} with fee`} color="var(--white)" />
+                <StatCard label="Roster Size" val={players.length} sub={`${players.filter((p: any) => p.isAvailable).length} available`} color="var(--white)" />
+              </div>
+
+              {/* ── 12-month income chart ── */}
+              <div className="card" style={{ marginBottom: 20 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                  <h4 style={{ textTransform: "uppercase", fontSize: "0.88rem", margin: 0 }}>Commission Income <span style={{ color: "var(--muted)", fontWeight: 400, textTransform: "none" }}>(last 12 months)</span></h4>
+                  <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.75rem", color: "#00c864" }}>{fmtCents(totalEarned)} total</span>
+                </div>
+                {paidCommissions.length === 0 ? (
+                  <div style={{ textAlign: "center", padding: "20px 0", color: "var(--muted)", fontSize: "0.82rem" }}>No paid commissions yet</div>
+                ) : (
+                  <div style={{ display: "flex", alignItems: "flex-end", gap: 6, height: 100 }}>
+                    {months12.map((m, i) => (
+                      <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+                        {m.cents > 0 && <div style={{ fontSize: "0.52rem", color: "var(--accent)", fontFamily: "var(--font-mono)", whiteSpace: "nowrap" }}>{fmtCents(m.cents)}</div>}
+                        <div style={{ width: "100%", background: m.cents > 0 ? "var(--accent)" : "var(--card2)", borderRadius: "3px 3px 0 0", height: `${Math.max((m.cents / maxIncome) * 70, m.cents > 0 ? 4 : 2)}px`, opacity: m.cents > 0 ? 1 : 0.25 }} />
+                        <div style={{ fontSize: "0.52rem", color: "var(--muted)", whiteSpace: "nowrap" }}>{m.label}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 20 }}>
+                {/* ── Commission breakdown ── */}
+                <div className="card">
+                  <h4 style={{ textTransform: "uppercase", fontSize: "0.85rem", marginBottom: 16, marginTop: 0 }}>Commission Breakdown</h4>
+                  {commissions.length === 0 ? <div style={{ color: "var(--muted)", fontSize: "0.82rem" }}>No commissions</div> : (
+                    <>
+                      {[
+                        { label: "Paid", val: paidCommissions.length, color: "#00c864" },
+                        { label: "Pending", val: pendingCommissions.length - overdueCommissions.length, color: "var(--accent)" },
+                        { label: "Overdue", val: overdueCommissions.length, color: "var(--red)" },
+                        { label: "Cancelled", val: cancelledCommissions.length, color: "rgba(107,107,107,0.5)" },
+                      ].map(row => <BarRow key={row.label} label={row.label} val={row.val} max={commissions.length} color={row.color} />)}
+                      <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border)", display: "flex", justifyContent: "space-between" }}>
+                        <span style={{ fontSize: "0.72rem", color: "var(--muted)" }}>Total value</span>
+                        <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.78rem" }}>{fmtCents(totalEarned + totalPending)}</span>
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                {/* ── Contract status ── */}
+                <div className="card">
+                  <h4 style={{ textTransform: "uppercase", fontSize: "0.85rem", marginBottom: 16, marginTop: 0 }}>Contract Status</h4>
+                  {contracts.length === 0 ? <div style={{ color: "var(--muted)", fontSize: "0.82rem" }}>No contracts</div> : (
+                    <>
+                      {[
+                        { label: "Active", val: contractBreakdown.ACTIVE, color: "#00c864" },
+                        { label: "Expiring (<90d)", val: contractBreakdown.EXPIRING, color: "var(--accent)" },
+                        { label: "Warning (<60d)", val: contractBreakdown.WARNING, color: "#ff8c00" },
+                        { label: "Critical (<30d)", val: contractBreakdown.CRITICAL, color: "var(--red)" },
+                        { label: "Expired", val: contractBreakdown.EXPIRED, color: "rgba(255,59,59,0.4)" },
+                      ].map(row => <BarRow key={row.label} label={row.label} val={row.val} max={contracts.length} color={row.color} />)}
+                    </>
+                  )}
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 20 }}>
+                {/* ── Player positions ── */}
+                <div className="card">
+                  <h4 style={{ textTransform: "uppercase", fontSize: "0.85rem", marginBottom: 16, marginTop: 0 }}>Players by Position</h4>
+                  {players.length === 0 ? <div style={{ color: "var(--muted)", fontSize: "0.82rem" }}>No players</div> : (
+                    topPositions.map(([pos, cnt]) => <BarRow key={pos} label={posLabel(pos)} val={cnt} max={players.length} color="var(--accent)" />)
+                  )}
+                </div>
+
+                {/* ── Player health ── */}
+                <div className="card">
+                  <h4 style={{ textTransform: "uppercase", fontSize: "0.85rem", marginBottom: 16, marginTop: 0 }}>Player Health</h4>
+                  {players.length === 0 ? <div style={{ color: "var(--muted)", fontSize: "0.82rem" }}>No players</div> : (
+                    [
+                      { label: "Healthy", key: "HEALTHY", color: "#00c864" },
+                      { label: "Rehab", key: "REHAB", color: "var(--accent)" },
+                      { label: "Injured", key: "INJURED", color: "var(--red)" },
+                      { label: "Suspended", key: "SUSPENDED", color: "rgba(107,107,107,0.6)" },
+                    ].map(({ label, key, color }) => <BarRow key={key} label={label} val={healthMap[key] ?? 0} max={players.length} color={color} />)
+                  )}
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 20 }}>
+                {/* ── Top nationalities ── */}
+                <div className="card">
+                  <h4 style={{ textTransform: "uppercase", fontSize: "0.85rem", marginBottom: 16, marginTop: 0 }}>Top Nationalities</h4>
+                  {topNationalities.length === 0 ? <div style={{ color: "var(--muted)", fontSize: "0.82rem" }}>No data</div> : (
+                    topNationalities.map(([nat, cnt]) => <BarRow key={nat} label={nat} val={cnt} max={players.length} color="rgba(232,255,71,0.6)" />)
+                  )}
+                </div>
+
+                {/* ── Transfer fees by year ── */}
+                <div className="card">
+                  <h4 style={{ textTransform: "uppercase", fontSize: "0.85rem", marginBottom: 16, marginTop: 0 }}>Transfer Fees by Year</h4>
+                  {feeYears.length === 0 ? <div style={{ color: "var(--muted)", fontSize: "0.82rem" }}>No transfer fee data</div> : (() => {
+                    const maxFee = Math.max(...feeYears.map(([, v]) => v));
+                    return feeYears.map(([year, cents]) => (
+                      <div key={year} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                        <div style={{ width: 40, flexShrink: 0, fontSize: "0.75rem", color: "var(--muted)", fontFamily: "var(--font-mono)" }}>{year}</div>
+                        <div style={{ flex: 1, background: "var(--card2)", borderRadius: 3, height: 14, overflow: "hidden" }}>
+                          <div style={{ width: `${(cents / maxFee) * 100}%`, height: "100%", background: "#00c864", borderRadius: 3 }} />
+                        </div>
+                        <div style={{ width: 72, textAlign: "right", flexShrink: 0, fontFamily: "var(--font-mono)", fontSize: "0.72rem", color: "#00c864" }}>{fmtCents(cents)}</div>
+                      </div>
+                    ));
+                  })()}
+                </div>
+              </div>
+
+              {/* ── Availability + verification ── */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+                <div className="card">
+                  <h4 style={{ textTransform: "uppercase", fontSize: "0.85rem", marginBottom: 16, marginTop: 0 }}>Player Availability</h4>
+                  {players.length === 0 ? <div style={{ color: "var(--muted)", fontSize: "0.82rem" }}>No players</div> : (
+                    [
+                      { label: "Available", val: players.filter((p: any) => p.isAvailable).length, color: "#00c864" },
+                      { label: "Not available", val: players.filter((p: any) => !p.isAvailable).length, color: "rgba(107,107,107,0.5)" },
+                    ].map(row => <BarRow key={row.label} label={row.label} val={row.val} max={players.length} color={row.color} />)
+                  )}
+                </div>
+
+                <div className="card">
+                  <h4 style={{ textTransform: "uppercase", fontSize: "0.85rem", marginBottom: 16, marginTop: 0 }}>Verification Status</h4>
+                  {players.length === 0 ? <div style={{ color: "var(--muted)", fontSize: "0.82rem" }}>No players</div> : (
+                    [
+                      { label: "Verified", val: players.filter((p: any) => p.verificationStatus === "VERIFIED").length, color: "#00c864" },
+                      { label: "Pending", val: players.filter((p: any) => p.verificationStatus === "PENDING").length, color: "var(--accent)" },
+                      { label: "Unverified", val: players.filter((p: any) => p.verificationStatus === "UNVERIFIED").length, color: "rgba(107,107,107,0.5)" },
+                      { label: "Rejected", val: players.filter((p: any) => p.verificationStatus === "REJECTED").length, color: "var(--red)" },
+                    ].map(row => <BarRow key={row.label} label={row.label} val={row.val} max={players.length} color={row.color} />)
+                  )}
+                </div>
+              </div>
             </div>
           );
         })()}

@@ -15,36 +15,71 @@ const COUNTRIES = [
 const VERIF_COLORS: Record<string, string> = {
   UNVERIFIED: "badge-muted", PENDING: "badge-accent", VERIFIED: "badge-green", REJECTED: "badge-red",
 };
-
-function posLabel(p: string) {
-  return p.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
-}
-
-const EMPTY_EDIT_FORM = {
-  firstName: "", lastName: "", dateOfBirth: "", nationality: "", position: "CENTRE_BACK",
-  heightCm: "", weightKg: "", dominantHand: "RIGHT", currentClub: "", bio: "",
-  phone: "", isAvailable: true, expectedSalaryMin: "", expectedSalaryMax: "",
+const HEALTH_COLORS: Record<string, string> = {
+  HEALTHY: "badge-green", INJURED: "badge-red", REHAB: "badge-accent", SUSPENDED: "badge-muted",
+};
+const COMMISSION_STATUS_COLORS: Record<string, string> = {
+  PENDING: "badge-accent", PAID: "badge-green", OVERDUE: "badge-red", CANCELLED: "badge-muted",
 };
 
-export default function AgentDashboardClient({ agent }: { agent: any }) {
-  const [tab, setTab] = useState<"players" | "settings">("players");
-  const [players, setPlayers] = useState<any[]>(agent.players ?? []);
+function posLabel(p: string) {
+  return p?.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()) ?? "—";
+}
 
-  // Add Player modal (simple — redirects to onboarding)
+function daysLeft(endDate: string | Date): number {
+  return Math.ceil((new Date(endDate).getTime() - Date.now()) / 86400000);
+}
+
+function fmtCents(cents: number | null | undefined): string {
+  if (cents == null) return "—";
+  return `€${(cents / 100).toLocaleString("de-DE", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+}
+
+function fmtDate(d: string | Date | null | undefined): string {
+  if (!d) return "—";
+  return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+function contractRowColor(days: number): string {
+  if (days < 30) return "rgba(255,59,59,0.06)";
+  if (days < 180) return "rgba(232,255,71,0.04)";
+  return "transparent";
+}
+
+function getAge(dob: string | Date | null | undefined): string {
+  if (!dob) return "—";
+  const d = new Date(dob);
+  if (isNaN(d.getTime())) return "—";
+  return String(Math.floor((Date.now() - d.getTime()) / (365.25 * 24 * 3600 * 1000)));
+}
+
+type Tab = "overview" | "players" | "contracts" | "commissions" | "transfers" | "pitch" | "settings";
+
+const NAV_ITEMS: { id: Tab; icon: string; label: string }[] = [
+  { id: "overview",     icon: "⊞",  label: "Overview" },
+  { id: "players",      icon: "👥", label: "Players" },
+  { id: "contracts",    icon: "📄", label: "Contracts" },
+  { id: "commissions",  icon: "💰", label: "Commissions" },
+  { id: "transfers",    icon: "🔄", label: "Transfers" },
+  { id: "pitch",        icon: "🚀", label: "Pitch Generator" },
+  { id: "settings",     icon: "⚙️", label: "Settings" },
+];
+
+export default function AgentDashboardClient({ agent }: { agent: any }) {
+  const [tab, setTab] = useState<Tab>("overview");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [players, setPlayers] = useState<any[]>(agent.players ?? []);
+  const [contracts, setContracts] = useState<any[]>(agent.contracts ?? []);
+  const [commissions, setCommissions] = useState<any[]>(agent.commissions ?? []);
+  const [transfers, setTransfers] = useState<any[]>(agent.transfers ?? []);
+  const [pitchDecks, setPitchDecks] = useState<any[]>(agent.pitchDecks ?? []);
+  const [viewMode, setViewMode] = useState<"grid" | "list">("list");
+
+  // Add Player modal
   const [showAddModal, setShowAddModal] = useState(false);
   const [addForm, setAddForm] = useState({ firstName: "", lastName: "" });
   const [addSaving, setAddSaving] = useState(false);
   const [addError, setAddError] = useState("");
-
-  // Edit Player modal (full form)
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState({ ...EMPTY_EDIT_FORM });
-  const [editSaving, setEditSaving] = useState(false);
-  const [editError, setEditError] = useState("");
-
-  // Delete confirm
-  const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
-  const [deleting, setDeleting] = useState(false);
 
   // Verification modal
   const [verifyPlayer, setVerifyPlayer] = useState<{ id: string; name: string; status: string } | null>(null);
@@ -54,6 +89,35 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
   const [verifyMsg, setVerifyMsg] = useState("");
   const docInputRef = useRef<HTMLInputElement>(null);
   const contractInputRef = useRef<HTMLInputElement>(null);
+
+  // Delete player confirm
+  const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  // Contract modal
+  const [showContractModal, setShowContractModal] = useState(false);
+  const [contractForm, setContractForm] = useState({ playerId: "", clubName: "", startDate: "", endDate: "", salaryCents: "", bonusDetails: "", notes: "" });
+  const [contractSaving, setContractSaving] = useState(false);
+  const [contractError, setContractError] = useState("");
+
+  // Commission modal
+  const [showCommissionModal, setShowCommissionModal] = useState(false);
+  const [commissionForm, setCommissionForm] = useState({ playerId: "", description: "", amountEur: "", dueDate: "", notes: "" });
+  const [commissionSaving, setCommissionSaving] = useState(false);
+  const [commissionError, setCommissionError] = useState("");
+
+  // Transfer modal
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [transferForm, setTransferForm] = useState({ playerId: "", fromClub: "", toClub: "", transferDate: "", transferFeeEur: "", salaryEur: "", contractYears: "", notes: "" });
+  const [transferSaving, setTransferSaving] = useState(false);
+  const [transferError, setTransferError] = useState("");
+
+  // Pitch form
+  const [pitchForm, setPitchForm] = useState({ title: "", selectedPlayerIds: [] as string[], message: "", expiresAt: "" });
+  const [pitchSaving, setPitchSaving] = useState(false);
+  const [pitchError, setPitchError] = useState("");
+  const [pitchMsg, setPitchMsg] = useState("");
+  const [copiedToken, setCopiedToken] = useState<string | null>(null);
 
   // Settings form
   const [settings, setSettings] = useState({
@@ -68,17 +132,20 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
   const [settingsSaving, setSettingsSaving] = useState(false);
   const [settingsSaved, setSettingsSaved] = useState(false);
 
-  function openAdd() {
-    setAddForm({ firstName: "", lastName: "" });
-    setAddError("");
-    setShowAddModal(true);
-  }
+  // ── Computed stats ───────────────────────────────────────────────
+  const stats = {
+    total: players.length,
+    verified: players.filter(p => p.verificationStatus === "VERIFIED").length,
+    available: players.filter(p => p.isAvailable).length,
+    contractsExpiringSoon: contracts.filter(c => { const d = daysLeft(c.endDate); return d > 0 && d < 180; }).length,
+    pendingCommissions: commissions.filter(c => c.status === "PENDING").length,
+    totalPendingCents: commissions.filter(c => c.status === "PENDING").reduce((s: number, c: any) => s + c.amountCents, 0),
+  };
 
+  // ── Add Player ───────────────────────────────────────────────────
   async function handleAddPlayer(e: React.FormEvent) {
     e.preventDefault();
-    if (!addForm.firstName.trim() || !addForm.lastName.trim()) {
-      setAddError("Please enter first and last name."); return;
-    }
+    if (!addForm.firstName.trim() || !addForm.lastName.trim()) { setAddError("Please enter first and last name."); return; }
     setAddSaving(true); setAddError("");
     const res = await fetch("/api/agent/players", {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -87,54 +154,10 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
     const data = await res.json();
     setAddSaving(false);
     if (!res.ok) { setAddError(data.error ?? "Failed to create player."); return; }
-    // Redirect to onboarding flow
     window.location.href = `/onboarding/agent-player/${data.player.id}`;
   }
 
-  function openEdit(p: any) {
-    setEditingId(p.id);
-    setEditForm({
-      firstName: p.firstName ?? "",
-      lastName: p.lastName ?? "",
-      dateOfBirth: p.dateOfBirth ? new Date(p.dateOfBirth).toISOString().slice(0, 10) : "",
-      nationality: p.nationality === "Unknown" ? "" : (p.nationality ?? ""),
-      position: p.position ?? "CENTRE_BACK",
-      heightCm: p.heightCm === 185 ? "" : (p.heightCm?.toString() ?? ""),
-      weightKg: p.weightKg === 85 ? "" : (p.weightKg?.toString() ?? ""),
-      dominantHand: p.dominantHand ?? "RIGHT",
-      currentClub: p.currentClub ?? "",
-      bio: p.bio ?? "",
-      phone: p.phone ?? "",
-      isAvailable: p.isAvailable ?? true,
-      expectedSalaryMin: p.expectedSalaryMin?.toString() ?? "",
-      expectedSalaryMax: p.expectedSalaryMax?.toString() ?? "",
-    });
-    setEditError("");
-  }
-
-  async function handleEditSave(e: React.FormEvent) {
-    e.preventDefault();
-    if (!editingId) return;
-    setEditSaving(true); setEditError("");
-    const res = await fetch(`/api/agent/players/${editingId}`, {
-      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(editForm),
-    });
-    const data = await res.json();
-    setEditSaving(false);
-    if (!res.ok) { setEditError(data.error ?? "Failed to save."); return; }
-    setPlayers(ps => ps.map(p => p.id === editingId ? { ...p, ...data.player } : p));
-    setEditingId(null);
-  }
-
-  async function handleDelete() {
-    if (!confirmDelete) return;
-    setDeleting(true);
-    await fetch(`/api/agent/players/${confirmDelete.id}`, { method: "DELETE" });
-    setDeleting(false);
-    setPlayers(ps => ps.filter(p => p.id !== confirmDelete.id));
-    setConfirmDelete(null);
-  }
-
+  // ── Verify player ────────────────────────────────────────────────
   async function handleVerifySubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!verifyPlayer) return;
@@ -149,211 +172,752 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
     setVerifying(false);
     if (res.ok) {
       setPlayers(ps => ps.map(p => p.id === verifyPlayer.id ? { ...p, verificationStatus: "PENDING" } : p));
-      setVerifyPlayer(null);
-      setDocFile(null); setContractFile(null);
-    } else {
-      setVerifyMsg(data.error ?? "Upload failed. Please try again.");
-    }
+      setVerifyPlayer(null); setDocFile(null); setContractFile(null);
+    } else { setVerifyMsg(data.error ?? "Upload failed. Please try again."); }
   }
 
+  // ── Delete player ────────────────────────────────────────────────
+  async function handleDelete() {
+    if (!confirmDelete) return;
+    setDeleting(true);
+    await fetch(`/api/agent/players/${confirmDelete.id}`, { method: "DELETE" });
+    setDeleting(false);
+    setPlayers(ps => ps.filter(p => p.id !== confirmDelete.id));
+    setConfirmDelete(null);
+  }
+
+  // ── Add Contract ─────────────────────────────────────────────────
+  async function handleAddContract(e: React.FormEvent) {
+    e.preventDefault();
+    setContractSaving(true); setContractError("");
+    const res = await fetch("/api/agent/contracts", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...contractForm,
+        salaryCents: contractForm.salaryCents ? Math.round(parseFloat(contractForm.salaryCents) * 100) : null,
+      }),
+    });
+    const data = await res.json();
+    setContractSaving(false);
+    if (!res.ok) { setContractError(data.error ?? "Failed to save."); return; }
+    setContracts(cs => [...cs, data.contract].sort((a, b) => new Date(a.endDate).getTime() - new Date(b.endDate).getTime()));
+    setShowContractModal(false);
+    setContractForm({ playerId: "", clubName: "", startDate: "", endDate: "", salaryCents: "", bonusDetails: "", notes: "" });
+  }
+
+  async function handleDeleteContract(id: string) {
+    await fetch(`/api/agent/contracts/${id}`, { method: "DELETE" });
+    setContracts(cs => cs.filter(c => c.id !== id));
+  }
+
+  // ── Add Commission ───────────────────────────────────────────────
+  async function handleAddCommission(e: React.FormEvent) {
+    e.preventDefault();
+    setCommissionSaving(true); setCommissionError("");
+    const res = await fetch("/api/agent/commissions", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        playerId: commissionForm.playerId,
+        description: commissionForm.description,
+        amountCents: Math.round(parseFloat(commissionForm.amountEur) * 100),
+        dueDate: commissionForm.dueDate,
+        notes: commissionForm.notes,
+      }),
+    });
+    const data = await res.json();
+    setCommissionSaving(false);
+    if (!res.ok) { setCommissionError(data.error ?? "Failed to save."); return; }
+    setCommissions(cs => [...cs, data.commission]);
+    setShowCommissionModal(false);
+    setCommissionForm({ playerId: "", description: "", amountEur: "", dueDate: "", notes: "" });
+  }
+
+  async function handleMarkPaid(id: string) {
+    const res = await fetch(`/api/agent/commissions/${id}`, {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "PAID", paidAt: new Date().toISOString() }),
+    });
+    const data = await res.json();
+    if (res.ok) setCommissions(cs => cs.map(c => c.id === id ? data.commission : c));
+  }
+
+  async function handleDeleteCommission(id: string) {
+    await fetch(`/api/agent/commissions/${id}`, { method: "DELETE" });
+    setCommissions(cs => cs.filter(c => c.id !== id));
+  }
+
+  // ── Add Transfer ─────────────────────────────────────────────────
+  async function handleAddTransfer(e: React.FormEvent) {
+    e.preventDefault();
+    setTransferSaving(true); setTransferError("");
+    const res = await fetch("/api/agent/transfers", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        playerId: transferForm.playerId,
+        fromClub: transferForm.fromClub,
+        toClub: transferForm.toClub,
+        transferDate: transferForm.transferDate,
+        transferFeeCents: transferForm.transferFeeEur ? Math.round(parseFloat(transferForm.transferFeeEur) * 100) : null,
+        salaryCents: transferForm.salaryEur ? Math.round(parseFloat(transferForm.salaryEur) * 100) : null,
+        contractYears: transferForm.contractYears ? parseInt(transferForm.contractYears) : null,
+        notes: transferForm.notes,
+      }),
+    });
+    const data = await res.json();
+    setTransferSaving(false);
+    if (!res.ok) { setTransferError(data.error ?? "Failed to save."); return; }
+    setTransfers(ts => [data.transfer, ...ts]);
+    setShowTransferModal(false);
+    setTransferForm({ playerId: "", fromClub: "", toClub: "", transferDate: "", transferFeeEur: "", salaryEur: "", contractYears: "", notes: "" });
+  }
+
+  async function handleDeleteTransfer(id: string) {
+    await fetch(`/api/agent/transfers/${id}`, { method: "DELETE" });
+    setTransfers(ts => ts.filter(t => t.id !== id));
+  }
+
+  // ── Pitch ────────────────────────────────────────────────────────
+  function togglePitchPlayer(id: string) {
+    setPitchForm(f => ({
+      ...f,
+      selectedPlayerIds: f.selectedPlayerIds.includes(id)
+        ? f.selectedPlayerIds.filter(x => x !== id)
+        : [...f.selectedPlayerIds, id],
+    }));
+  }
+
+  async function handleCreatePitch(e: React.FormEvent) {
+    e.preventDefault();
+    if (pitchForm.selectedPlayerIds.length === 0) { setPitchError("Select at least one player."); return; }
+    setPitchSaving(true); setPitchError(""); setPitchMsg("");
+    const res = await fetch("/api/agent/pitch", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: pitchForm.title,
+        playerIds: pitchForm.selectedPlayerIds,
+        message: pitchForm.message,
+        expiresAt: pitchForm.expiresAt || null,
+      }),
+    });
+    const data = await res.json();
+    setPitchSaving(false);
+    if (!res.ok) { setPitchError(data.error ?? "Failed to create pitch."); return; }
+    // Enrich with player info
+    const enriched = {
+      ...data.pitchDeck,
+      players: players.filter(p => pitchForm.selectedPlayerIds.includes(p.id)),
+    };
+    setPitchDecks(ds => [enriched, ...ds]);
+    setPitchForm({ title: "", selectedPlayerIds: [], message: "", expiresAt: "" });
+    setPitchMsg("✓ Pitch deck created!");
+    setTimeout(() => setPitchMsg(""), 3000);
+  }
+
+  async function handleDeletePitch(token: string) {
+    await fetch(`/api/agent/pitch/${token}`, { method: "DELETE" });
+    setPitchDecks(ds => ds.filter(d => d.token !== token));
+  }
+
+  async function copyPitchLink(token: string) {
+    const url = `${window.location.origin}/pitch/${token}`;
+    await navigator.clipboard.writeText(url);
+    setCopiedToken(token);
+    setTimeout(() => setCopiedToken(null), 2000);
+  }
+
+  // ── Settings ─────────────────────────────────────────────────────
   async function handleSettingsSave(e: React.FormEvent) {
     e.preventDefault();
     setSettingsSaving(true);
     await fetch("/api/agent/profile", {
       method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(settings),
     });
-    setSettingsSaving(false);
-    setSettingsSaved(true);
+    setSettingsSaving(false); setSettingsSaved(true);
     setTimeout(() => setSettingsSaved(false), 2500);
   }
 
-  function setEditField(k: string, v: any) { setEditForm(f => ({ ...f, [k]: v })); }
-
-  const stats = {
-    total: players.length,
-    verified: players.filter(p => p.verificationStatus === "VERIFIED").length,
-    pending: players.filter(p => p.verificationStatus === "PENDING").length,
-    available: players.filter(p => p.isAvailable).length,
-  };
-
   return (
-    <div className="page" style={{ padding: "80px 24px 60px", maxWidth: 1100, margin: "0 auto" }}>
-      {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 32, flexWrap: "wrap", gap: 16 }}>
-        <div>
-          <div className="section-label">Agent Dashboard</div>
-          <h2 style={{ margin: 0 }}>{agent.firstName} {agent.lastName}</h2>
-          {agent.country && <p style={{ color: "var(--muted)", margin: "4px 0 0", fontSize: "0.9rem" }}>📍 {agent.country}</p>}
-        </div>
-        <div style={{ display: "flex", gap: 10 }}>
-          <button className="btn btn-outline" onClick={() => setTab("settings")} style={{ fontSize: "0.85rem" }}>⚙️ Settings</button>
-          <button className="btn btn-primary" onClick={openAdd}>+ Add Player</button>
-        </div>
-      </div>
+    <div className="sidebar-layout" style={{ minHeight: "100vh" }}>
+      {sidebarOpen && <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 50, background: "rgba(0,0,0,0.6)" }} />}
 
-      {/* Stats */}
-      <div className="grid-4" style={{ marginBottom: 32 }}>
-        {[
-          { label: "Total Players", val: stats.total },
-          { label: "Verified", val: stats.verified },
-          { label: "Pending", val: stats.pending, alert: stats.pending > 0 },
-          { label: "Available", val: stats.available },
-        ].map(s => (
-          <div key={s.label} className="card" style={{ textAlign: "center", borderColor: (s as any).alert ? "rgba(232,255,71,0.4)" : undefined }}>
-            <div style={{ fontFamily: "var(--font-display)", fontWeight: 900, fontSize: "2.2rem", color: (s as any).alert ? "var(--accent)" : "var(--white)", lineHeight: 1 }}>{s.val}</div>
-            <div style={{ fontSize: "0.72rem", color: "var(--muted)", marginTop: 8, textTransform: "uppercase", letterSpacing: "0.08em" }}>{s.label}</div>
+      {/* ── Sidebar ── */}
+      <aside className={`sidebar${sidebarOpen ? " is-open" : ""}`}>
+        <div style={{ padding: "24px 24px 16px", borderBottom: "1px solid var(--border)", marginBottom: 8 }}>
+          <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.65rem", color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.15em", marginBottom: 8 }}>Agent Dashboard</div>
+          <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: "1.1rem", textTransform: "uppercase" }}>
+            {agent.firstName} {agent.lastName}
           </div>
-        ))}
-      </div>
+          {agent.country && <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: 2 }}>📍 {agent.country}</div>}
+        </div>
+        <ul className="sidebar-nav">
+          {NAV_ITEMS.map(item => (
+            <li key={item.id}>
+              <a href="#" className={tab === item.id ? "active" : ""}
+                onClick={e => { e.preventDefault(); setTab(item.id); setSidebarOpen(false); }}>
+                <span style={{ fontSize: "1rem" }}>{item.icon}</span>
+                {item.label}
+                {item.id === "players" && <span style={{ marginLeft: "auto", fontSize: "0.7rem", color: "var(--muted)" }}>{players.length}</span>}
+                {item.id === "contracts" && stats.contractsExpiringSoon > 0 && (
+                  <span style={{ marginLeft: "auto", background: "rgba(232,255,71,0.2)", color: "var(--accent)", fontSize: "0.65rem", padding: "1px 6px", borderRadius: 2 }}>{stats.contractsExpiringSoon}</span>
+                )}
+                {item.id === "commissions" && stats.pendingCommissions > 0 && (
+                  <span style={{ marginLeft: "auto", background: "rgba(232,255,71,0.2)", color: "var(--accent)", fontSize: "0.65rem", padding: "1px 6px", borderRadius: 2 }}>{stats.pendingCommissions}</span>
+                )}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </aside>
 
-      {/* Tabs */}
-      <div className="tabs" style={{ marginBottom: 24 }}>
-        {(["players", "settings"] as const).map(t => (
-          <button key={t} className={`tab-btn${tab === t ? " active" : ""}`} onClick={() => setTab(t)}>
-            {t === "players" ? `👤 My Players (${players.length})` : "⚙️ Settings"}
-          </button>
-        ))}
-      </div>
+      <div className="main-content">
+        {/* Mobile header */}
+        <button className="sidebar-toggle" onClick={() => setSidebarOpen(o => !o)} style={{ display: "none" }}>
+          {sidebarOpen ? "✕ Close" : `☰ ${NAV_ITEMS.find(n => n.id === tab)?.label ?? "Menu"}`}
+        </button>
 
-      {/* Players tab */}
-      {tab === "players" && (
-        <div>
-          {players.length === 0 ? (
-            <div className="card" style={{ textAlign: "center", padding: "60px 24px" }}>
-              <div style={{ fontSize: "3rem", marginBottom: 16 }}>👤</div>
-              <h4 style={{ marginBottom: 8 }}>No Players Yet</h4>
-              <p style={{ color: "var(--muted)", marginBottom: 24 }}>Add your first player to start managing their career.</p>
-              <button className="btn btn-primary" onClick={openAdd}>+ Add First Player</button>
+        {/* ══════════════════ OVERVIEW ══════════════════ */}
+        {tab === "overview" && (
+          <div className="tab-content">
+            <div style={{ marginBottom: 28 }}>
+              <div className="section-label">Agent Dashboard</div>
+              <h2 style={{ margin: 0 }}>Overview</h2>
             </div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              {players.map(p => (
-                <div key={p.id} className="card" style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
-                  {/* Photo */}
-                  <div style={{ width: 52, height: 52, borderRadius: "50%", background: "var(--card2)", border: "2px solid var(--border)", overflow: "hidden", flexShrink: 0 }}>
-                    {p.photoUrl
-                      ? <img src={p.photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                      : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.4rem" }}>👤</div>
-                    }
-                  </div>
-                  {/* Info */}
-                  <div style={{ flex: 1, minWidth: 180 }}>
-                    <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: "1.05rem", textTransform: "uppercase" }}>
-                      {p.firstName} {p.lastName}
-                    </div>
-                    {p.onboardingCompleted ? (
-                      <div style={{ fontSize: "0.8rem", color: "var(--muted)", marginTop: 2 }}>
-                        {posLabel(p.position ?? "—")} · {p.nationality === "Unknown" ? "—" : (p.nationality ?? "—")} · {p.heightCm}cm
-                        {p.currentClub && ` · ${p.currentClub}`}
-                      </div>
-                    ) : (
-                      <div style={{ fontSize: "0.78rem", color: "var(--accent)", marginTop: 2 }}>
-                        ⚠️ Profile setup not completed
-                      </div>
-                    )}
-                  </div>
-                  {/* Badges */}
-                  <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                    {!p.onboardingCompleted && (
-                      <span className="badge badge-accent">Incomplete</span>
-                    )}
-                    <span className={`badge ${VERIF_COLORS[p.verificationStatus]}`}>{p.verificationStatus}</span>
-                    <span className={`badge ${p.isAvailable ? "badge-green" : "badge-muted"}`}>
-                      {p.isAvailable ? "Available" : "Unavailable"}
-                    </span>
-                  </div>
-                  {/* Actions */}
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    {!p.onboardingCompleted ? (
-                      <Link href={`/onboarding/agent-player/${p.id}`} className="btn btn-primary" style={{ fontSize: "0.75rem", padding: "6px 12px" }}>
-                        Continue Setup →
-                      </Link>
-                    ) : (
-                      <>
-                        <Link href={`/players/${p.slug}`} target="_blank" className="btn btn-outline" style={{ fontSize: "0.75rem", padding: "6px 12px" }}>
-                          View ↗
-                        </Link>
-                        {p.verificationStatus !== "VERIFIED" && p.verificationStatus !== "PENDING" && (
-                          <button className="btn btn-primary" style={{ fontSize: "0.75rem", padding: "6px 12px" }}
-                            onClick={() => { setVerifyPlayer({ id: p.id, name: `${p.firstName} ${p.lastName}`, status: p.verificationStatus }); setDocFile(null); setContractFile(null); setVerifyMsg(""); }}>
-                            🔐 Verify
-                          </button>
-                        )}
-                        {p.verificationStatus === "PENDING" && (
-                          <span className="badge badge-accent" style={{ fontSize: "0.72rem", padding: "6px 10px" }}>⏳ Pending Review</span>
-                        )}
-                      </>
-                    )}
-                    <Link href={`/dashboard/agent/player/${p.id}/edit`} className="btn btn-outline" style={{ fontSize: "0.75rem", padding: "6px 12px" }}>
-                      ✏️ Edit
-                    </Link>
-                    <button className="btn btn-danger" style={{ fontSize: "0.75rem", padding: "6px 10px" }} onClick={() => setConfirmDelete({ id: p.id, name: `${p.firstName} ${p.lastName}` })}>
-                      🗑
-                    </button>
-                  </div>
+
+            <div className="grid-4" style={{ marginBottom: 28 }}>
+              {[
+                { label: "Total Players", val: stats.total, color: "var(--white)" },
+                { label: "Verified", val: stats.verified, color: "#00c864" },
+                { label: "Available", val: stats.available, color: "var(--accent)" },
+                { label: "Contracts Expiring <6mo", val: stats.contractsExpiringSoon, color: stats.contractsExpiringSoon > 0 ? "var(--accent)" : "var(--white)" },
+                { label: "Pending Commissions", val: stats.pendingCommissions, color: stats.pendingCommissions > 0 ? "var(--accent)" : "var(--white)" },
+                { label: "Total Pending Value", val: fmtCents(stats.totalPendingCents), color: "var(--white)" },
+              ].map(s => (
+                <div key={s.label} className="card" style={{ textAlign: "center" }}>
+                  <div style={{ fontFamily: "var(--font-display)", fontWeight: 900, fontSize: "1.8rem", color: s.color, lineHeight: 1 }}>{s.val}</div>
+                  <div style={{ fontSize: "0.7rem", color: "var(--muted)", marginTop: 8, textTransform: "uppercase", letterSpacing: "0.08em" }}>{s.label}</div>
                 </div>
               ))}
             </div>
-          )}
-        </div>
-      )}
 
-      {/* Settings tab */}
-      {tab === "settings" && (
-        <div className="card" style={{ maxWidth: 560 }}>
-          <h4 style={{ marginBottom: 20, textTransform: "uppercase" }}>Agent Profile</h4>
-          <form onSubmit={handleSettingsSave}>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-              <div className="form-group" style={{ margin: 0 }}>
-                <label className="label">First Name</label>
-                <input className="input" value={settings.firstName} onChange={e => setSettings(s => ({ ...s, firstName: e.target.value }))} />
+            {/* Recent contracts expiring */}
+            {stats.contractsExpiringSoon > 0 && (
+              <div className="card" style={{ marginBottom: 20, borderColor: "rgba(232,255,71,0.2)" }}>
+                <h4 style={{ textTransform: "uppercase", marginBottom: 16, color: "var(--accent)", fontSize: "0.9rem" }}>⚠ Contracts Expiring Soon</h4>
+                {contracts.filter(c => { const d = daysLeft(c.endDate); return d > 0 && d < 180; }).map((c: any) => (
+                  <div key={c.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: "1px solid var(--border)" }}>
+                    <div>
+                      <span style={{ fontFamily: "var(--font-display)", fontWeight: 700 }}>{c.player.firstName} {c.player.lastName}</span>
+                      <span style={{ fontSize: "0.8rem", color: "var(--muted)", marginLeft: 8 }}>{c.clubName}</span>
+                    </div>
+                    <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.8rem", color: daysLeft(c.endDate) < 30 ? "var(--red)" : "var(--accent)" }}>
+                      {daysLeft(c.endDate)}d left
+                    </span>
+                  </div>
+                ))}
               </div>
-              <div className="form-group" style={{ margin: 0 }}>
-                <label className="label">Last Name</label>
-                <input className="input" value={settings.lastName} onChange={e => setSettings(s => ({ ...s, lastName: e.target.value }))} />
-              </div>
-            </div>
-            <div className="form-group" style={{ marginTop: 16 }}>
-              <label className="label">Country</label>
-              <select className="input" value={settings.country} onChange={e => setSettings(s => ({ ...s, country: e.target.value }))}>
-                <option value="">Select…</option>
-                {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </div>
-            <div className="form-group">
-              <label className="label">Phone</label>
-              <input className="input" value={settings.phone} onChange={e => setSettings(s => ({ ...s, phone: e.target.value }))} />
-            </div>
-            <div className="form-group">
-              <label className="label">Website</label>
-              <input className="input" value={settings.website} onChange={e => setSettings(s => ({ ...s, website: e.target.value }))} />
-            </div>
-            <div className="form-group">
-              <label className="label">License Number</label>
-              <input className="input" value={settings.licenseNumber} onChange={e => setSettings(s => ({ ...s, licenseNumber: e.target.value }))} />
-            </div>
-            <div className="form-group">
-              <label className="label">Bio</label>
-              <textarea className="input" rows={3} value={settings.bio} onChange={e => setSettings(s => ({ ...s, bio: e.target.value }))} style={{ resize: "vertical" }} />
-            </div>
-            <button type="submit" className="btn btn-primary" disabled={settingsSaving} style={{ justifyContent: "center" }}>
-              {settingsSaving ? <><span className="spinner" /> Saving…</> : settingsSaved ? "✓ Saved!" : "Save Changes"}
-            </button>
-          </form>
-        </div>
-      )}
+            )}
 
-      {/* ── Add Player Modal (simple: first + last name only, then redirect to onboarding) ── */}
+            {/* Players quick list */}
+            <div className="card">
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                <h4 style={{ textTransform: "uppercase", fontSize: "0.9rem", margin: 0 }}>My Players</h4>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button className="btn btn-outline" style={{ fontSize: "0.75rem", padding: "6px 12px" }} onClick={() => setTab("players")}>View All</button>
+                  <button className="btn btn-primary" style={{ fontSize: "0.75rem", padding: "6px 12px" }} onClick={() => { setAddForm({ firstName: "", lastName: "" }); setAddError(""); setShowAddModal(true); }}>+ Add Player</button>
+                </div>
+              </div>
+              {players.slice(0, 5).map((p: any) => (
+                <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: "1px solid var(--border)" }}>
+                  <div style={{ width: 36, height: 36, borderRadius: "50%", background: "var(--card2)", overflow: "hidden", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.9rem" }}>
+                    {p.photoUrl ? <img src={p.photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : "👤"}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "0.9rem", textTransform: "uppercase" }}>{p.firstName} {p.lastName}</div>
+                    <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>{posLabel(p.position)} · {p.nationality}</div>
+                  </div>
+                  <span className={`badge ${HEALTH_COLORS[p.healthStatus ?? "HEALTHY"]}`} style={{ fontSize: "0.6rem" }}>{p.healthStatus ?? "HEALTHY"}</span>
+                  <span className={`badge ${VERIF_COLORS[p.verificationStatus]}`} style={{ fontSize: "0.6rem" }}>{p.verificationStatus}</span>
+                </div>
+              ))}
+              {players.length > 5 && <div style={{ textAlign: "center", padding: "12px 0 0", fontSize: "0.8rem", color: "var(--muted)" }}>+{players.length - 5} more players</div>}
+            </div>
+          </div>
+        )}
+
+        {/* ══════════════════ PLAYERS ══════════════════ */}
+        {tab === "players" && (
+          <div className="tab-content">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
+              <div>
+                <div className="section-label">Roster</div>
+                <h2 style={{ margin: 0 }}>My Players ({players.length})</h2>
+              </div>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <div style={{ display: "flex", border: "1px solid var(--border)", borderRadius: "var(--radius)", overflow: "hidden" }}>
+                  {(["list", "grid"] as const).map(m => (
+                    <button key={m} onClick={() => setViewMode(m)} style={{
+                      padding: "8px 14px", background: viewMode === m ? "var(--accent)" : "transparent",
+                      color: viewMode === m ? "var(--black)" : "var(--muted)", border: "none", cursor: "pointer",
+                      fontFamily: "var(--font-display)", fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase",
+                    }}>{m === "list" ? "☰ List" : "⊞ Grid"}</button>
+                  ))}
+                </div>
+                <button className="btn btn-primary" style={{ fontSize: "0.82rem" }} onClick={() => { setAddForm({ firstName: "", lastName: "" }); setAddError(""); setShowAddModal(true); }}>+ Add Player</button>
+              </div>
+            </div>
+
+            {players.length === 0 ? (
+              <div className="card" style={{ textAlign: "center", padding: "60px 24px" }}>
+                <div style={{ fontSize: "3rem", marginBottom: 16 }}>👥</div>
+                <h4 style={{ marginBottom: 8 }}>No Players Yet</h4>
+                <p style={{ color: "var(--muted)", marginBottom: 24 }}>Add your first player to start managing their career.</p>
+                <button className="btn btn-primary" onClick={() => setShowAddModal(true)}>+ Add First Player</button>
+              </div>
+            ) : viewMode === "list" ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {players.map((p: any) => (
+                  <div key={p.id} className="card" style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+                    <div style={{ width: 48, height: 48, borderRadius: "50%", background: "var(--card2)", border: "2px solid var(--border)", overflow: "hidden", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.2rem" }}>
+                      {p.photoUrl ? <img src={p.photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : "👤"}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 160 }}>
+                      <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: "1rem", textTransform: "uppercase" }}>
+                        {p.firstName} {p.lastName}
+                      </div>
+                      <div style={{ fontSize: "0.78rem", color: "var(--muted)", marginTop: 2 }}>
+                        {posLabel(p.position)} · {p.nationality === "Unknown" ? "—" : (p.nationality ?? "—")}
+                        {p.currentClub && ` · ${p.currentClub}`}
+                        {p.heightCm && ` · ${p.heightCm}cm`}
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                      <span className={`badge ${HEALTH_COLORS[p.healthStatus ?? "HEALTHY"]}`}>{p.healthStatus ?? "HEALTHY"}</span>
+                      <span className={`badge ${VERIF_COLORS[p.verificationStatus]}`}>{p.verificationStatus}</span>
+                      <span className={`badge ${p.isAvailable ? "badge-green" : "badge-muted"}`}>{p.isAvailable ? "Available" : "Unavailable"}</span>
+                    </div>
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      {!p.onboardingCompleted ? (
+                        <Link href={`/onboarding/agent-player/${p.id}`} className="btn btn-primary" style={{ fontSize: "0.72rem", padding: "5px 10px" }}>Continue Setup →</Link>
+                      ) : (
+                        <>
+                          <Link href={`/players/${p.slug}`} target="_blank" className="btn btn-outline" style={{ fontSize: "0.72rem", padding: "5px 10px" }}>View ↗</Link>
+                          {p.verificationStatus !== "VERIFIED" && p.verificationStatus !== "PENDING" && (
+                            <button className="btn btn-primary" style={{ fontSize: "0.72rem", padding: "5px 10px" }}
+                              onClick={() => { setVerifyPlayer({ id: p.id, name: `${p.firstName} ${p.lastName}`, status: p.verificationStatus }); setDocFile(null); setContractFile(null); setVerifyMsg(""); }}>
+                              🔐 Verify
+                            </button>
+                          )}
+                        </>
+                      )}
+                      <Link href={`/dashboard/agent/player/${p.id}/edit`} className="btn btn-outline" style={{ fontSize: "0.72rem", padding: "5px 10px" }}>✏️ Edit</Link>
+                      <button className="btn btn-danger" style={{ fontSize: "0.72rem", padding: "5px 8px" }} onClick={() => setConfirmDelete({ id: p.id, name: `${p.firstName} ${p.lastName}` })}>🗑</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 16 }}>
+                {players.map((p: any) => {
+                  const playerContracts = contracts.filter(c => c.playerId === p.id);
+                  const nextContract = playerContracts[0];
+                  const contractDays = nextContract ? daysLeft(nextContract.endDate) : null;
+                  return (
+                    <div key={p.id} className="card" style={{ padding: 0, overflow: "hidden" }}>
+                      <div style={{ height: 120, background: "var(--card2)", position: "relative", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        {p.photoUrl ? (
+                          <img src={p.photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                        ) : (
+                          <span style={{ fontSize: "3rem" }}>👤</span>
+                        )}
+                        <div style={{ position: "absolute", top: 8, right: 8 }}>
+                          <span className={`badge ${HEALTH_COLORS[p.healthStatus ?? "HEALTHY"]}`} style={{ fontSize: "0.6rem" }}>{p.healthStatus ?? "HEALTHY"}</span>
+                        </div>
+                      </div>
+                      <div style={{ padding: 14 }}>
+                        <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: "0.95rem", textTransform: "uppercase", marginBottom: 4 }}>{p.firstName} {p.lastName}</div>
+                        <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginBottom: 8 }}>
+                          {posLabel(p.position)} · {p.nationality === "Unknown" ? "—" : (p.nationality ?? "—")}
+                        </div>
+                        <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 10 }}>
+                          <span className={`badge ${VERIF_COLORS[p.verificationStatus]}`} style={{ fontSize: "0.58rem" }}>{p.verificationStatus}</span>
+                          <span className={`badge ${p.isAvailable ? "badge-green" : "badge-muted"}`} style={{ fontSize: "0.58rem" }}>{p.isAvailable ? "Available" : "N/A"}</span>
+                        </div>
+                        {contractDays !== null && (
+                          <div style={{ fontSize: "0.72rem", color: contractDays < 30 ? "var(--red)" : contractDays < 180 ? "var(--accent)" : "var(--muted)", marginBottom: 10 }}>
+                            📄 Contract: {contractDays}d left
+                          </div>
+                        )}
+                        <div style={{ display: "flex", gap: 6 }}>
+                          <Link href={`/dashboard/agent/player/${p.id}/edit`} className="btn btn-outline" style={{ fontSize: "0.68rem", padding: "4px 8px", flex: 1, justifyContent: "center" }}>✏️ Edit</Link>
+                          {p.slug && <Link href={`/players/${p.slug}`} target="_blank" className="btn btn-outline" style={{ fontSize: "0.68rem", padding: "4px 8px" }}>↗</Link>}
+                          <button className="btn btn-danger" style={{ fontSize: "0.68rem", padding: "4px 6px" }} onClick={() => setConfirmDelete({ id: p.id, name: `${p.firstName} ${p.lastName}` })}>🗑</button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ══════════════════ CONTRACTS ══════════════════ */}
+        {tab === "contracts" && (
+          <div className="tab-content">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
+              <div>
+                <div className="section-label">Contract Management</div>
+                <h2 style={{ margin: 0 }}>Contracts ({contracts.length})</h2>
+              </div>
+              <button className="btn btn-primary" style={{ fontSize: "0.82rem" }} onClick={() => { setContractForm({ playerId: "", clubName: "", startDate: "", endDate: "", salaryCents: "", bonusDetails: "", notes: "" }); setContractError(""); setShowContractModal(true); }}>+ Add Contract</button>
+            </div>
+
+            {contracts.length === 0 ? (
+              <div className="card" style={{ textAlign: "center", padding: "48px 24px", color: "var(--muted)" }}>
+                <div style={{ fontSize: "2.5rem", marginBottom: 12 }}>📄</div>
+                <p>No contracts yet. Add a contract to track player club agreements.</p>
+              </div>
+            ) : (
+              <div className="table-wrap">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Player</th>
+                      <th>Club</th>
+                      <th>Start</th>
+                      <th>End</th>
+                      <th>Days Left</th>
+                      <th>Salary/mo</th>
+                      <th>Status</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {contracts.map((c: any) => {
+                      const days = daysLeft(c.endDate);
+                      const expired = days < 0;
+                      return (
+                        <tr key={c.id} style={{ background: expired ? "rgba(255,59,59,0.04)" : contractRowColor(days) }}>
+                          <td style={{ fontFamily: "var(--font-display)", fontWeight: 700, textTransform: "uppercase" }}>
+                            {c.player.firstName} {c.player.lastName}
+                          </td>
+                          <td>{c.clubName}</td>
+                          <td style={{ fontSize: "0.82rem", color: "var(--muted)" }}>{fmtDate(c.startDate)}</td>
+                          <td style={{ fontSize: "0.82rem", color: "var(--muted)" }}>{fmtDate(c.endDate)}</td>
+                          <td>
+                            <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.82rem", color: expired ? "var(--red)" : days < 30 ? "var(--red)" : days < 180 ? "var(--accent)" : "#00c864" }}>
+                              {expired ? `Expired ${Math.abs(days)}d ago` : `${days}d`}
+                            </span>
+                          </td>
+                          <td style={{ fontFamily: "var(--font-mono)", fontSize: "0.82rem" }}>{fmtCents(c.salaryCents)}</td>
+                          <td>
+                            <span className={`badge ${expired ? "badge-red" : days < 180 ? "badge-accent" : "badge-green"}`} style={{ fontSize: "0.6rem" }}>
+                              {expired ? "EXPIRED" : days < 30 ? "CRITICAL" : days < 180 ? "EXPIRING" : "ACTIVE"}
+                            </span>
+                          </td>
+                          <td>
+                            <button className="btn btn-danger" style={{ fontSize: "0.7rem", padding: "4px 8px" }} onClick={() => handleDeleteContract(c.id)}>🗑</button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ══════════════════ COMMISSIONS ══════════════════ */}
+        {tab === "commissions" && (
+          <div className="tab-content">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16, flexWrap: "wrap", gap: 12 }}>
+              <div>
+                <div className="section-label">Commission Tracker</div>
+                <h2 style={{ margin: 0 }}>Commissions</h2>
+              </div>
+              <button className="btn btn-primary" style={{ fontSize: "0.82rem" }} onClick={() => { setCommissionForm({ playerId: "", description: "", amountEur: "", dueDate: "", notes: "" }); setCommissionError(""); setShowCommissionModal(true); }}>+ Add Commission</button>
+            </div>
+
+            {stats.pendingCommissions > 0 && (
+              <div className="card" style={{ marginBottom: 20, background: "rgba(232,255,71,0.04)", borderColor: "rgba(232,255,71,0.2)" }}>
+                <div style={{ display: "flex", gap: 32, flexWrap: "wrap" }}>
+                  <div>
+                    <div style={{ fontSize: "0.7rem", color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.1em" }}>Pending Count</div>
+                    <div style={{ fontFamily: "var(--font-display)", fontSize: "2rem", fontWeight: 900, color: "var(--accent)" }}>{stats.pendingCommissions}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: "0.7rem", color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.1em" }}>Total Pending Value</div>
+                    <div style={{ fontFamily: "var(--font-display)", fontSize: "2rem", fontWeight: 900, color: "var(--accent)" }}>{fmtCents(stats.totalPendingCents)}</div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {commissions.length === 0 ? (
+              <div className="card" style={{ textAlign: "center", padding: "48px 24px", color: "var(--muted)" }}>
+                <div style={{ fontSize: "2.5rem", marginBottom: 12 }}>💰</div>
+                <p>No commissions tracked yet.</p>
+              </div>
+            ) : (
+              <div className="table-wrap">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Player</th>
+                      <th>Description</th>
+                      <th>Amount</th>
+                      <th>Due Date</th>
+                      <th>Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {commissions.map((c: any) => (
+                      <tr key={c.id}>
+                        <td style={{ fontFamily: "var(--font-display)", fontWeight: 700, textTransform: "uppercase" }}>
+                          {c.player.firstName} {c.player.lastName}
+                        </td>
+                        <td style={{ fontSize: "0.85rem" }}>{c.description}</td>
+                        <td style={{ fontFamily: "var(--font-mono)", fontSize: "0.82rem" }}>{fmtCents(c.amountCents)}</td>
+                        <td style={{ fontSize: "0.82rem", color: "var(--muted)" }}>{fmtDate(c.dueDate)}</td>
+                        <td>
+                          <span className={`badge ${COMMISSION_STATUS_COLORS[c.status] ?? "badge-muted"}`} style={{ fontSize: "0.6rem" }}>{c.status}</span>
+                        </td>
+                        <td>
+                          <div style={{ display: "flex", gap: 6 }}>
+                            {c.status === "PENDING" && (
+                              <button className="btn btn-primary" style={{ fontSize: "0.68rem", padding: "4px 8px" }} onClick={() => handleMarkPaid(c.id)}>✓ Mark Paid</button>
+                            )}
+                            <button className="btn btn-danger" style={{ fontSize: "0.68rem", padding: "4px 6px" }} onClick={() => handleDeleteCommission(c.id)}>🗑</button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ══════════════════ TRANSFERS ══════════════════ */}
+        {tab === "transfers" && (
+          <div className="tab-content">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
+              <div>
+                <div className="section-label">Transfer Archive</div>
+                <h2 style={{ margin: 0 }}>Transfer History</h2>
+              </div>
+              <button className="btn btn-primary" style={{ fontSize: "0.82rem" }} onClick={() => { setTransferForm({ playerId: "", fromClub: "", toClub: "", transferDate: "", transferFeeEur: "", salaryEur: "", contractYears: "", notes: "" }); setTransferError(""); setShowTransferModal(true); }}>+ Add Transfer</button>
+            </div>
+
+            {transfers.length === 0 ? (
+              <div className="card" style={{ textAlign: "center", padding: "48px 24px", color: "var(--muted)" }}>
+                <div style={{ fontSize: "2.5rem", marginBottom: 12 }}>🔄</div>
+                <p>No transfer records yet.</p>
+              </div>
+            ) : (
+              <div className="table-wrap">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Player</th>
+                      <th>From</th>
+                      <th>To</th>
+                      <th>Date</th>
+                      <th>Fee</th>
+                      <th>Salary/mo</th>
+                      <th>Years</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {transfers.map((t: any) => (
+                      <tr key={t.id}>
+                        <td style={{ fontFamily: "var(--font-display)", fontWeight: 700, textTransform: "uppercase" }}>
+                          {t.player.firstName} {t.player.lastName}
+                        </td>
+                        <td style={{ fontSize: "0.82rem", color: "var(--muted)" }}>{t.fromClub ?? "Free Agent"}</td>
+                        <td style={{ fontSize: "0.85rem" }}>{t.toClub}</td>
+                        <td style={{ fontSize: "0.82rem", color: "var(--muted)" }}>{fmtDate(t.transferDate)}</td>
+                        <td style={{ fontFamily: "var(--font-mono)", fontSize: "0.82rem" }}>{fmtCents(t.transferFeeCents)}</td>
+                        <td style={{ fontFamily: "var(--font-mono)", fontSize: "0.82rem" }}>{fmtCents(t.salaryCents)}</td>
+                        <td style={{ fontSize: "0.82rem" }}>{t.contractYears ?? "—"}</td>
+                        <td>
+                          <button className="btn btn-danger" style={{ fontSize: "0.7rem", padding: "4px 8px" }} onClick={() => handleDeleteTransfer(t.id)}>🗑</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ══════════════════ PITCH GENERATOR ══════════════════ */}
+        {tab === "pitch" && (
+          <div className="tab-content">
+            <div style={{ marginBottom: 24 }}>
+              <div className="section-label">Pitch Generator</div>
+              <h2 style={{ margin: 0 }}>Player Pitch Links</h2>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, alignItems: "start" }}>
+              {/* Create form */}
+              <div className="card">
+                <h4 style={{ textTransform: "uppercase", marginBottom: 20, fontSize: "0.9rem" }}>Create New Pitch</h4>
+                <form onSubmit={handleCreatePitch}>
+                  <div className="form-group">
+                    <label className="label">Pitch Title</label>
+                    <input className="input" value={pitchForm.title} onChange={e => setPitchForm(f => ({ ...f, title: e.target.value }))} placeholder="Top Goalkeepers 2026" />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="label">Select Players <span style={{ color: "var(--accent)" }}>*</span></label>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 200, overflowY: "auto", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: 10 }}>
+                      {players.filter(p => p.onboardingCompleted).map((p: any) => (
+                        <label key={p.id} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", padding: "4px 0" }}>
+                          <input type="checkbox" checked={pitchForm.selectedPlayerIds.includes(p.id)} onChange={() => togglePitchPlayer(p.id)} />
+                          <span style={{ fontSize: "0.85rem" }}>{p.firstName} {p.lastName}</span>
+                          <span style={{ fontSize: "0.72rem", color: "var(--muted)" }}>· {posLabel(p.position)}</span>
+                        </label>
+                      ))}
+                      {players.filter(p => p.onboardingCompleted).length === 0 && (
+                        <div style={{ fontSize: "0.8rem", color: "var(--muted)", textAlign: "center", padding: "8px 0" }}>No completed player profiles yet</div>
+                      )}
+                    </div>
+                    {pitchForm.selectedPlayerIds.length > 0 && (
+                      <div style={{ fontSize: "0.75rem", color: "var(--accent)", marginTop: 4 }}>{pitchForm.selectedPlayerIds.length} player(s) selected</div>
+                    )}
+                  </div>
+
+                  <div className="form-group">
+                    <label className="label">Message (optional)</label>
+                    <textarea className="input" rows={3} value={pitchForm.message} onChange={e => setPitchForm(f => ({ ...f, message: e.target.value }))} placeholder="Introduction message for the receiving club…" style={{ resize: "vertical" }} />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="label">Expires At (optional)</label>
+                    <input className="input" type="date" value={pitchForm.expiresAt} onChange={e => setPitchForm(f => ({ ...f, expiresAt: e.target.value }))} />
+                  </div>
+
+                  {pitchError && <div style={{ fontSize: "0.82rem", color: "var(--red)", marginBottom: 12 }}>{pitchError}</div>}
+                  {pitchMsg && <div style={{ fontSize: "0.82rem", color: "#00c864", marginBottom: 12 }}>{pitchMsg}</div>}
+
+                  <button type="submit" className="btn btn-primary" style={{ justifyContent: "center", width: "100%" }} disabled={pitchSaving}>
+                    {pitchSaving ? <><span className="spinner" /> Creating…</> : "🚀 Generate Pitch Link"}
+                  </button>
+                </form>
+              </div>
+
+              {/* Existing pitch decks */}
+              <div>
+                <h4 style={{ textTransform: "uppercase", fontSize: "0.9rem", marginBottom: 16 }}>Your Pitch Links ({pitchDecks.length})</h4>
+                {pitchDecks.length === 0 ? (
+                  <div className="card" style={{ textAlign: "center", padding: "32px 16px", color: "var(--muted)", fontSize: "0.85rem" }}>
+                    No pitch links yet. Create your first one.
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                    {pitchDecks.map((d: any) => {
+                      const pitchUrl = typeof window !== "undefined" ? `${window.location.origin}/pitch/${d.token}` : `/pitch/${d.token}`;
+                      const playerCount = d.players?.length ?? JSON.parse(d.playerIds).length;
+                      return (
+                        <div key={d.id} className="card" style={{ padding: 16 }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+                            <div>
+                              <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "0.95rem", textTransform: "uppercase" }}>{d.title}</div>
+                              <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: 2 }}>
+                                {playerCount} player(s) · {d.views} views · {fmtDate(d.createdAt)}
+                              </div>
+                            </div>
+                            <button className="btn btn-danger" style={{ fontSize: "0.68rem", padding: "4px 8px" }} onClick={() => handleDeletePitch(d.token)}>🗑</button>
+                          </div>
+                          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                            <div style={{ flex: 1, background: "var(--card2)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "6px 10px", fontSize: "0.7rem", fontFamily: "var(--font-mono)", color: "var(--muted)", overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>
+                              /pitch/{d.token}
+                            </div>
+                            <button className="btn btn-outline" style={{ fontSize: "0.7rem", padding: "5px 10px", flexShrink: 0 }} onClick={() => copyPitchLink(d.token)}>
+                              {copiedToken === d.token ? "✓ Copied!" : "Copy Link"}
+                            </button>
+                            <Link href={`/pitch/${d.token}`} target="_blank" className="btn btn-outline" style={{ fontSize: "0.7rem", padding: "5px 10px", flexShrink: 0 }}>
+                              Preview ↗
+                            </Link>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ══════════════════ SETTINGS ══════════════════ */}
+        {tab === "settings" && (
+          <div className="tab-content">
+            <div style={{ marginBottom: 24 }}>
+              <div className="section-label">Settings</div>
+              <h2 style={{ margin: 0 }}>Agent Profile</h2>
+            </div>
+            <div className="card" style={{ maxWidth: 560 }}>
+              <form onSubmit={handleSettingsSave}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label className="label">First Name</label>
+                    <input className="input" value={settings.firstName} onChange={e => setSettings(s => ({ ...s, firstName: e.target.value }))} />
+                  </div>
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label className="label">Last Name</label>
+                    <input className="input" value={settings.lastName} onChange={e => setSettings(s => ({ ...s, lastName: e.target.value }))} />
+                  </div>
+                </div>
+                <div className="form-group" style={{ marginTop: 16 }}>
+                  <label className="label">Country</label>
+                  <select className="input" value={settings.country} onChange={e => setSettings(s => ({ ...s, country: e.target.value }))}>
+                    <option value="">Select…</option>
+                    {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="label">Phone</label>
+                  <input className="input" value={settings.phone} onChange={e => setSettings(s => ({ ...s, phone: e.target.value }))} />
+                </div>
+                <div className="form-group">
+                  <label className="label">Website</label>
+                  <input className="input" value={settings.website} onChange={e => setSettings(s => ({ ...s, website: e.target.value }))} />
+                </div>
+                <div className="form-group">
+                  <label className="label">License Number</label>
+                  <input className="input" value={settings.licenseNumber} onChange={e => setSettings(s => ({ ...s, licenseNumber: e.target.value }))} />
+                </div>
+                <div className="form-group">
+                  <label className="label">Bio</label>
+                  <textarea className="input" rows={3} value={settings.bio} onChange={e => setSettings(s => ({ ...s, bio: e.target.value }))} style={{ resize: "vertical" }} />
+                </div>
+                <button type="submit" className="btn btn-primary" disabled={settingsSaving} style={{ justifyContent: "center" }}>
+                  {settingsSaving ? <><span className="spinner" /> Saving…</> : settingsSaved ? "✓ Saved!" : "Save Changes"}
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ══════════════════ MODALS ══════════════════ */}
+
+      {/* Add Player */}
       {showAddModal && (
         <div className="modal-overlay" onClick={() => setShowAddModal(false)}>
-          <div className="modal" style={{ maxWidth: 440, width: "100%" }} onClick={e => e.stopPropagation()}>
+          <div className="modal" style={{ maxWidth: 440 }} onClick={e => e.stopPropagation()}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
               <h3 className="modal-title" style={{ margin: 0 }}>Add Player</h3>
               <button onClick={() => setShowAddModal(false)} style={{ background: "none", border: "none", color: "var(--muted)", fontSize: "1.4rem", cursor: "pointer" }}>✕</button>
             </div>
-            <p style={{ color: "var(--muted)", fontSize: "0.85rem", lineHeight: 1.6, marginBottom: 20 }}>
-              Enter the player&apos;s name to get started. You&apos;ll complete the full profile in the next step using our 10-step setup wizard.
-            </p>
+            <p style={{ color: "var(--muted)", fontSize: "0.85rem", marginBottom: 20 }}>Enter the player&apos;s name. You&apos;ll complete the full profile in the setup wizard.</p>
             <form onSubmit={handleAddPlayer}>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
                 <div className="form-group" style={{ margin: 0 }}>
@@ -365,11 +929,7 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
                   <input className="input" value={addForm.lastName} onChange={e => setAddForm(f => ({ ...f, lastName: e.target.value }))} placeholder="Petrović" />
                 </div>
               </div>
-              {addError && (
-                <div style={{ background: "rgba(255,59,59,0.1)", border: "1px solid rgba(255,59,59,0.3)", borderRadius: "var(--radius)", padding: "10px 14px", fontSize: "0.85rem", color: "var(--red)", marginBottom: 16 }}>
-                  {addError}
-                </div>
-              )}
+              {addError && <div style={{ background: "rgba(255,59,59,0.1)", border: "1px solid rgba(255,59,59,0.3)", borderRadius: "var(--radius)", padding: "10px 14px", fontSize: "0.85rem", color: "var(--red)", marginBottom: 16 }}>{addError}</div>}
               <div style={{ display: "flex", gap: 12 }}>
                 <button type="submit" className="btn btn-primary" style={{ flex: 1, justifyContent: "center" }} disabled={addSaving}>
                   {addSaving ? <><span className="spinner" /> Creating…</> : "Create & Setup Profile →"}
@@ -381,192 +941,49 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
         </div>
       )}
 
-      {/* ── Edit Player Modal (full form) ── */}
-      {editingId && (
-        <div className="modal-overlay" onClick={() => setEditingId(null)}>
-          <div className="modal" style={{ maxWidth: 640, width: "100%", maxHeight: "90vh", overflowY: "auto" }} onClick={e => e.stopPropagation()}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-              <h3 className="modal-title" style={{ margin: 0 }}>Edit Player</h3>
-              <button onClick={() => setEditingId(null)} style={{ background: "none", border: "none", color: "var(--muted)", fontSize: "1.4rem", cursor: "pointer" }}>✕</button>
+      {/* Delete Player Confirm */}
+      {confirmDelete && (
+        <div className="modal-overlay" onClick={() => setConfirmDelete(null)}>
+          <div className="modal" style={{ maxWidth: 400 }} onClick={e => e.stopPropagation()}>
+            <h4 style={{ textTransform: "uppercase", marginBottom: 8, color: "var(--red)" }}>⚠ Remove Player</h4>
+            <p style={{ fontSize: "0.88rem", color: "var(--muted)", marginBottom: 20 }}>
+              Remove <strong style={{ color: "var(--white)" }}>{confirmDelete.name}</strong> from your roster? This cannot be undone.
+            </p>
+            <div style={{ display: "flex", gap: 12 }}>
+              <button className="btn btn-danger" style={{ flex: 1, justifyContent: "center" }} onClick={handleDelete} disabled={deleting}>
+                {deleting ? <><span className="spinner" /> Removing…</> : "🗑 Remove"}
+              </button>
+              <button className="btn btn-outline" style={{ flex: 1, justifyContent: "center" }} onClick={() => setConfirmDelete(null)}>Cancel</button>
             </div>
-
-            <form onSubmit={handleEditSave}>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                <div className="form-group" style={{ margin: 0 }}>
-                  <label className="label">First Name</label>
-                  <input className="input" value={editForm.firstName} onChange={e => setEditField("firstName", e.target.value)} />
-                </div>
-                <div className="form-group" style={{ margin: 0 }}>
-                  <label className="label">Last Name</label>
-                  <input className="input" value={editForm.lastName} onChange={e => setEditField("lastName", e.target.value)} />
-                </div>
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginTop: 16 }}>
-                <div className="form-group" style={{ margin: 0 }}>
-                  <label className="label">Date of Birth</label>
-                  <input className="input" type="date" value={editForm.dateOfBirth} onChange={e => setEditField("dateOfBirth", e.target.value)} />
-                </div>
-                <div className="form-group" style={{ margin: 0 }}>
-                  <label className="label">Nationality</label>
-                  <select className="input" value={editForm.nationality} onChange={e => setEditField("nationality", e.target.value)}>
-                    <option value="">Select…</option>
-                    {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                </div>
-              </div>
-
-              <div className="form-group" style={{ marginTop: 16 }}>
-                <label className="label">Position</label>
-                <select className="input" value={editForm.position} onChange={e => setEditField("position", e.target.value)}>
-                  {POSITIONS.map(p => <option key={p} value={p}>{posLabel(p)}</option>)}
-                </select>
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
-                <div className="form-group" style={{ margin: 0 }}>
-                  <label className="label">Height (cm)</label>
-                  <input className="input" type="number" min={150} max={230} value={editForm.heightCm} onChange={e => setEditField("heightCm", e.target.value)} />
-                </div>
-                <div className="form-group" style={{ margin: 0 }}>
-                  <label className="label">Weight (kg)</label>
-                  <input className="input" type="number" min={50} max={150} value={editForm.weightKg} onChange={e => setEditField("weightKg", e.target.value)} />
-                </div>
-                <div className="form-group" style={{ margin: 0 }}>
-                  <label className="label">Dom. Hand</label>
-                  <select className="input" value={editForm.dominantHand} onChange={e => setEditField("dominantHand", e.target.value)}>
-                    <option value="RIGHT">Right</option>
-                    <option value="LEFT">Left</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="form-group" style={{ marginTop: 16 }}>
-                <label className="label">Current Club</label>
-                <input className="input" value={editForm.currentClub} onChange={e => setEditField("currentClub", e.target.value)} placeholder="Free Agent if empty" />
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                <div className="form-group" style={{ margin: 0 }}>
-                  <label className="label">Expected Salary Min (€)</label>
-                  <input className="input" type="number" value={editForm.expectedSalaryMin} onChange={e => setEditField("expectedSalaryMin", e.target.value)} placeholder="0" />
-                </div>
-                <div className="form-group" style={{ margin: 0 }}>
-                  <label className="label">Expected Salary Max (€)</label>
-                  <input className="input" type="number" value={editForm.expectedSalaryMax} onChange={e => setEditField("expectedSalaryMax", e.target.value)} placeholder="0" />
-                </div>
-              </div>
-
-              <div className="form-group" style={{ marginTop: 16 }}>
-                <label className="label">Phone</label>
-                <input className="input" value={editForm.phone} onChange={e => setEditField("phone", e.target.value)} placeholder="+387 61 000 000" />
-              </div>
-
-              <div className="form-group">
-                <label className="label">Bio</label>
-                <textarea className="input" rows={3} value={editForm.bio} onChange={e => setEditField("bio", e.target.value)}
-                  style={{ resize: "vertical" }} placeholder="Player description, strengths…" />
-              </div>
-
-              <div className="form-group">
-                <label className="label">Availability</label>
-                <div style={{ display: "flex", gap: 8 }}>
-                  {([true, false] as const).map(v => (
-                    <button key={String(v)} type="button" onClick={() => setEditField("isAvailable", v)} style={{
-                      flex: 1, padding: "10px", borderRadius: "var(--radius)", fontFamily: "var(--font-display)",
-                      fontWeight: 700, fontSize: "0.82rem", textTransform: "uppercase", cursor: "pointer",
-                      background: editForm.isAvailable === v ? "var(--accent)" : "var(--card2)",
-                      color: editForm.isAvailable === v ? "var(--black)" : "var(--muted)",
-                      border: editForm.isAvailable === v ? "none" : "1px solid var(--border)",
-                    }}>
-                      {v ? "✓ Available" : "✕ Not Available"}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {editError && (
-                <div style={{ background: "rgba(255,59,59,0.1)", border: "1px solid rgba(255,59,59,0.3)", borderRadius: "var(--radius)", padding: "10px 14px", fontSize: "0.85rem", color: "var(--red)", marginBottom: 16 }}>
-                  {editError}
-                </div>
-              )}
-
-              <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
-                <button type="submit" className="btn btn-primary" style={{ flex: 1, justifyContent: "center" }} disabled={editSaving}>
-                  {editSaving ? <><span className="spinner" /> Saving…</> : "Save Changes"}
-                </button>
-                <button type="button" className="btn btn-outline" onClick={() => setEditingId(null)}>Cancel</button>
-              </div>
-            </form>
           </div>
         </div>
       )}
 
-      {/* ── Verification Modal ── */}
+      {/* Verify Player */}
       {verifyPlayer && (
         <div className="modal-overlay" onClick={() => { setVerifyPlayer(null); setDocFile(null); setContractFile(null); setVerifyMsg(""); }}>
-          <div className="modal" style={{ maxWidth: 500, width: "100%" }} onClick={e => e.stopPropagation()}>
+          <div className="modal" style={{ maxWidth: 500 }} onClick={e => e.stopPropagation()}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
               <h3 className="modal-title" style={{ margin: 0 }}>🔐 Verify Player</h3>
               <button onClick={() => { setVerifyPlayer(null); setDocFile(null); setContractFile(null); setVerifyMsg(""); }} style={{ background: "none", border: "none", color: "var(--muted)", fontSize: "1.4rem", cursor: "pointer" }}>✕</button>
             </div>
-
-            <div style={{ marginBottom: 20 }}>
-              <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: "1.05rem", textTransform: "uppercase", marginBottom: 6 }}>{verifyPlayer.name}</div>
-              <p style={{ color: "var(--muted)", fontSize: "0.85rem", lineHeight: 1.6, margin: 0 }}>
-                To verify this player, upload their identity document (passport or national ID) and the signed representation contract between you and the player. The admin will review and approve the verification.
-              </p>
-            </div>
-
+            <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: "1rem", textTransform: "uppercase", marginBottom: 12 }}>{verifyPlayer.name}</div>
             <form onSubmit={handleVerifySubmit}>
-              {/* Document upload */}
               <div style={{ marginBottom: 16 }}>
-                <div style={{ fontSize: "0.75rem", color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8, fontFamily: "var(--font-mono)" }}>
-                  Player Identity Document <span style={{ color: "var(--accent)" }}>*</span>
-                </div>
-                <div style={{ background: "var(--card2)", border: `2px dashed ${docFile ? "var(--accent)" : "var(--border)"}`, borderRadius: "var(--radius)", padding: "16px", textAlign: "center", cursor: "pointer" }}
-                  onClick={() => docInputRef.current?.click()}>
-                  <input ref={docInputRef} type="file" accept="image/jpeg,image/png,image/webp,application/pdf" style={{ display: "none" }}
-                    onChange={e => { const f = e.target.files?.[0]; if (f) setDocFile(f); }} />
-                  {docFile ? (
-                    <div style={{ fontSize: "0.85rem", color: "var(--white)" }}>✓ {docFile.name}</div>
-                  ) : (
-                    <>
-                      <div style={{ fontSize: "1.5rem", marginBottom: 6 }}>🪪</div>
-                      <div style={{ fontSize: "0.82rem", color: "var(--muted)" }}>Click to upload passport or ID card</div>
-                      <div style={{ fontSize: "0.7rem", color: "var(--muted)", marginTop: 4 }}>JPEG, PNG, WebP or PDF · max 15 MB</div>
-                    </>
-                  )}
+                <div style={{ fontSize: "0.75rem", color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8, fontFamily: "var(--font-mono)" }}>Player Identity Document *</div>
+                <div style={{ background: "var(--card2)", border: `2px dashed ${docFile ? "var(--accent)" : "var(--border)"}`, borderRadius: "var(--radius)", padding: "16px", textAlign: "center", cursor: "pointer" }} onClick={() => docInputRef.current?.click()}>
+                  <input ref={docInputRef} type="file" accept="image/jpeg,image/png,image/webp,application/pdf" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) setDocFile(f); }} />
+                  {docFile ? <div style={{ fontSize: "0.85rem" }}>✓ {docFile.name}</div> : <div style={{ fontSize: "0.82rem", color: "var(--muted)" }}>🪪 Click to upload passport or ID card</div>}
                 </div>
               </div>
-
-              {/* Contract upload */}
               <div style={{ marginBottom: 20 }}>
-                <div style={{ fontSize: "0.75rem", color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8, fontFamily: "var(--font-mono)" }}>
-                  Signed Agent-Player Contract <span style={{ color: "var(--accent)" }}>*</span>
-                </div>
-                <div style={{ background: "var(--card2)", border: `2px dashed ${contractFile ? "var(--accent)" : "var(--border)"}`, borderRadius: "var(--radius)", padding: "16px", textAlign: "center", cursor: "pointer" }}
-                  onClick={() => contractInputRef.current?.click()}>
-                  <input ref={contractInputRef} type="file" accept="image/jpeg,image/png,image/webp,application/pdf" style={{ display: "none" }}
-                    onChange={e => { const f = e.target.files?.[0]; if (f) setContractFile(f); }} />
-                  {contractFile ? (
-                    <div style={{ fontSize: "0.85rem", color: "var(--white)" }}>✓ {contractFile.name}</div>
-                  ) : (
-                    <>
-                      <div style={{ fontSize: "1.5rem", marginBottom: 6 }}>📄</div>
-                      <div style={{ fontSize: "0.82rem", color: "var(--muted)" }}>Click to upload signed contract</div>
-                      <div style={{ fontSize: "0.7rem", color: "var(--muted)", marginTop: 4 }}>JPEG, PNG, WebP or PDF · max 15 MB</div>
-                    </>
-                  )}
+                <div style={{ fontSize: "0.75rem", color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8, fontFamily: "var(--font-mono)" }}>Signed Agent-Player Contract *</div>
+                <div style={{ background: "var(--card2)", border: `2px dashed ${contractFile ? "var(--accent)" : "var(--border)"}`, borderRadius: "var(--radius)", padding: "16px", textAlign: "center", cursor: "pointer" }} onClick={() => contractInputRef.current?.click()}>
+                  <input ref={contractInputRef} type="file" accept="image/jpeg,image/png,image/webp,application/pdf" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) setContractFile(f); }} />
+                  {contractFile ? <div style={{ fontSize: "0.85rem" }}>✓ {contractFile.name}</div> : <div style={{ fontSize: "0.82rem", color: "var(--muted)" }}>📄 Click to upload signed contract</div>}
                 </div>
               </div>
-
-              {verifyMsg && (
-                <div style={{ background: "rgba(255,59,59,0.1)", border: "1px solid rgba(255,59,59,0.3)", borderRadius: "var(--radius)", padding: "10px 14px", fontSize: "0.85rem", color: "var(--red)", marginBottom: 16 }}>
-                  {verifyMsg}
-                </div>
-              )}
-
+              {verifyMsg && <div style={{ background: "rgba(255,59,59,0.1)", border: "1px solid rgba(255,59,59,0.3)", borderRadius: "var(--radius)", padding: "10px 14px", fontSize: "0.85rem", color: "var(--red)", marginBottom: 16 }}>{verifyMsg}</div>}
               <div style={{ display: "flex", gap: 12 }}>
                 <button type="submit" className="btn btn-primary" style={{ flex: 1, justifyContent: "center" }} disabled={verifying}>
                   {verifying ? <><span className="spinner" /> Submitting…</> : "Submit for Verification"}
@@ -578,20 +995,158 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
         </div>
       )}
 
-      {/* Delete Confirm Modal */}
-      {confirmDelete && (
-        <div className="modal-overlay" onClick={() => setConfirmDelete(null)}>
-          <div className="modal" style={{ maxWidth: 400 }} onClick={e => e.stopPropagation()}>
-            <h4 style={{ textTransform: "uppercase", marginBottom: 8, color: "var(--red)" }}>⚠ Remove Player</h4>
-            <p style={{ fontSize: "0.88rem", color: "var(--muted)", lineHeight: 1.6, marginBottom: 20 }}>
-              Are you sure you want to remove <strong style={{ color: "var(--white)" }}>{confirmDelete.name}</strong> from your roster? This cannot be undone.
-            </p>
-            <div style={{ display: "flex", gap: 12 }}>
-              <button className="btn btn-danger" style={{ flex: 1, justifyContent: "center" }} onClick={handleDelete} disabled={deleting}>
-                {deleting ? <><span className="spinner" /> Deleting…</> : "🗑 Remove"}
-              </button>
-              <button className="btn btn-outline" style={{ flex: 1, justifyContent: "center" }} onClick={() => setConfirmDelete(null)}>Cancel</button>
+      {/* Add Contract Modal */}
+      {showContractModal && (
+        <div className="modal-overlay" onClick={() => setShowContractModal(false)}>
+          <div className="modal" style={{ maxWidth: 560 }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+              <h3 className="modal-title" style={{ margin: 0 }}>Add Contract</h3>
+              <button onClick={() => setShowContractModal(false)} style={{ background: "none", border: "none", color: "var(--muted)", fontSize: "1.4rem", cursor: "pointer" }}>✕</button>
             </div>
+            <form onSubmit={handleAddContract}>
+              <div className="form-group">
+                <label className="label">Player <span style={{ color: "var(--accent)" }}>*</span></label>
+                <select className="input" value={contractForm.playerId} onChange={e => setContractForm(f => ({ ...f, playerId: e.target.value }))}>
+                  <option value="">Select player…</option>
+                  {players.map(p => <option key={p.id} value={p.id}>{p.firstName} {p.lastName}</option>)}
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="label">Club Name <span style={{ color: "var(--accent)" }}>*</span></label>
+                <input className="input" value={contractForm.clubName} onChange={e => setContractForm(f => ({ ...f, clubName: e.target.value }))} placeholder="RK Zagreb" />
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="label">Start Date <span style={{ color: "var(--accent)" }}>*</span></label>
+                  <input className="input" type="date" value={contractForm.startDate} onChange={e => setContractForm(f => ({ ...f, startDate: e.target.value }))} />
+                </div>
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="label">End Date <span style={{ color: "var(--accent)" }}>*</span></label>
+                  <input className="input" type="date" value={contractForm.endDate} onChange={e => setContractForm(f => ({ ...f, endDate: e.target.value }))} />
+                </div>
+              </div>
+              <div className="form-group">
+                <label className="label">Monthly Salary (€)</label>
+                <input className="input" type="number" value={contractForm.salaryCents} onChange={e => setContractForm(f => ({ ...f, salaryCents: e.target.value }))} placeholder="3000" />
+              </div>
+              <div className="form-group">
+                <label className="label">Notes</label>
+                <textarea className="input" rows={2} value={contractForm.notes} onChange={e => setContractForm(f => ({ ...f, notes: e.target.value }))} style={{ resize: "vertical" }} />
+              </div>
+              {contractError && <div style={{ background: "rgba(255,59,59,0.1)", border: "1px solid rgba(255,59,59,0.3)", borderRadius: "var(--radius)", padding: "10px 14px", fontSize: "0.85rem", color: "var(--red)", marginBottom: 16 }}>{contractError}</div>}
+              <div style={{ display: "flex", gap: 12 }}>
+                <button type="submit" className="btn btn-primary" style={{ flex: 1, justifyContent: "center" }} disabled={contractSaving}>
+                  {contractSaving ? <><span className="spinner" /> Saving…</> : "Add Contract"}
+                </button>
+                <button type="button" className="btn btn-outline" onClick={() => setShowContractModal(false)}>Cancel</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Add Commission Modal */}
+      {showCommissionModal && (
+        <div className="modal-overlay" onClick={() => setShowCommissionModal(false)}>
+          <div className="modal" style={{ maxWidth: 520 }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+              <h3 className="modal-title" style={{ margin: 0 }}>Add Commission</h3>
+              <button onClick={() => setShowCommissionModal(false)} style={{ background: "none", border: "none", color: "var(--muted)", fontSize: "1.4rem", cursor: "pointer" }}>✕</button>
+            </div>
+            <form onSubmit={handleAddCommission}>
+              <div className="form-group">
+                <label className="label">Player <span style={{ color: "var(--accent)" }}>*</span></label>
+                <select className="input" value={commissionForm.playerId} onChange={e => setCommissionForm(f => ({ ...f, playerId: e.target.value }))}>
+                  <option value="">Select player…</option>
+                  {players.map(p => <option key={p.id} value={p.id}>{p.firstName} {p.lastName}</option>)}
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="label">Description <span style={{ color: "var(--accent)" }}>*</span></label>
+                <input className="input" value={commissionForm.description} onChange={e => setCommissionForm(f => ({ ...f, description: e.target.value }))} placeholder="Transfer commission – RK Zagreb deal" />
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="label">Amount (€) <span style={{ color: "var(--accent)" }}>*</span></label>
+                  <input className="input" type="number" value={commissionForm.amountEur} onChange={e => setCommissionForm(f => ({ ...f, amountEur: e.target.value }))} placeholder="5000" />
+                </div>
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="label">Due Date <span style={{ color: "var(--accent)" }}>*</span></label>
+                  <input className="input" type="date" value={commissionForm.dueDate} onChange={e => setCommissionForm(f => ({ ...f, dueDate: e.target.value }))} />
+                </div>
+              </div>
+              <div className="form-group">
+                <label className="label">Notes</label>
+                <textarea className="input" rows={2} value={commissionForm.notes} onChange={e => setCommissionForm(f => ({ ...f, notes: e.target.value }))} style={{ resize: "vertical" }} />
+              </div>
+              {commissionError && <div style={{ background: "rgba(255,59,59,0.1)", border: "1px solid rgba(255,59,59,0.3)", borderRadius: "var(--radius)", padding: "10px 14px", fontSize: "0.85rem", color: "var(--red)", marginBottom: 16 }}>{commissionError}</div>}
+              <div style={{ display: "flex", gap: 12 }}>
+                <button type="submit" className="btn btn-primary" style={{ flex: 1, justifyContent: "center" }} disabled={commissionSaving}>
+                  {commissionSaving ? <><span className="spinner" /> Saving…</> : "Add Commission"}
+                </button>
+                <button type="button" className="btn btn-outline" onClick={() => setShowCommissionModal(false)}>Cancel</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Add Transfer Modal */}
+      {showTransferModal && (
+        <div className="modal-overlay" onClick={() => setShowTransferModal(false)}>
+          <div className="modal" style={{ maxWidth: 560 }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+              <h3 className="modal-title" style={{ margin: 0 }}>Add Transfer Record</h3>
+              <button onClick={() => setShowTransferModal(false)} style={{ background: "none", border: "none", color: "var(--muted)", fontSize: "1.4rem", cursor: "pointer" }}>✕</button>
+            </div>
+            <form onSubmit={handleAddTransfer}>
+              <div className="form-group">
+                <label className="label">Player <span style={{ color: "var(--accent)" }}>*</span></label>
+                <select className="input" value={transferForm.playerId} onChange={e => setTransferForm(f => ({ ...f, playerId: e.target.value }))}>
+                  <option value="">Select player…</option>
+                  {players.map(p => <option key={p.id} value={p.id}>{p.firstName} {p.lastName}</option>)}
+                </select>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="label">From Club</label>
+                  <input className="input" value={transferForm.fromClub} onChange={e => setTransferForm(f => ({ ...f, fromClub: e.target.value }))} placeholder="Leave empty if free agent" />
+                </div>
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="label">To Club <span style={{ color: "var(--accent)" }}>*</span></label>
+                  <input className="input" value={transferForm.toClub} onChange={e => setTransferForm(f => ({ ...f, toClub: e.target.value }))} placeholder="RK Zagreb" />
+                </div>
+              </div>
+              <div className="form-group">
+                <label className="label">Transfer Date <span style={{ color: "var(--accent)" }}>*</span></label>
+                <input className="input" type="date" value={transferForm.transferDate} onChange={e => setTransferForm(f => ({ ...f, transferDate: e.target.value }))} />
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, marginBottom: 16 }}>
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="label">Transfer Fee (€)</label>
+                  <input className="input" type="number" value={transferForm.transferFeeEur} onChange={e => setTransferForm(f => ({ ...f, transferFeeEur: e.target.value }))} placeholder="0" />
+                </div>
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="label">Monthly Salary (€)</label>
+                  <input className="input" type="number" value={transferForm.salaryEur} onChange={e => setTransferForm(f => ({ ...f, salaryEur: e.target.value }))} placeholder="0" />
+                </div>
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="label">Contract Years</label>
+                  <input className="input" type="number" value={transferForm.contractYears} onChange={e => setTransferForm(f => ({ ...f, contractYears: e.target.value }))} placeholder="2" />
+                </div>
+              </div>
+              <div className="form-group">
+                <label className="label">Notes</label>
+                <textarea className="input" rows={2} value={transferForm.notes} onChange={e => setTransferForm(f => ({ ...f, notes: e.target.value }))} style={{ resize: "vertical" }} />
+              </div>
+              {transferError && <div style={{ background: "rgba(255,59,59,0.1)", border: "1px solid rgba(255,59,59,0.3)", borderRadius: "var(--radius)", padding: "10px 14px", fontSize: "0.85rem", color: "var(--red)", marginBottom: 16 }}>{transferError}</div>}
+              <div style={{ display: "flex", gap: 12 }}>
+                <button type="submit" className="btn btn-primary" style={{ flex: 1, justifyContent: "center" }} disabled={transferSaving}>
+                  {transferSaving ? <><span className="spinner" /> Saving…</> : "Add Transfer"}
+                </button>
+                <button type="button" className="btn btn-outline" onClick={() => setShowTransferModal(false)}>Cancel</button>
+              </div>
+            </form>
           </div>
         </div>
       )}

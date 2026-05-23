@@ -26,12 +26,19 @@ const DEFENSIVE_POSITIONS = [
 ];
 
 const NAV_ITEMS = [
-  { id: "profile",  label: "Edit Profile", icon: "👤" },
-  { id: "career",   label: "Career",       icon: "📅" },
-  { id: "videos",   label: "Videos",       icon: "▶" },
-  { id: "medical",  label: "Medical",      icon: "⚕" },
+  { id: "profile",  label: "Edit Profile",  icon: "👤" },
+  { id: "career",   label: "Career",        icon: "📅" },
+  { id: "videos",   label: "Videos",        icon: "▶" },
+  { id: "medical",  label: "Medical",       icon: "⚕" },
   { id: "gallery",  label: "Photo & Gallery", icon: "📷" },
+  { id: "health",   label: "Notes & Health", icon: "🏥" },
 ];
+
+const HEALTH_STATUSES = ["HEALTHY", "INJURED", "REHAB", "SUSPENDED"] as const;
+const HEALTH_COLORS: Record<string, string> = {
+  HEALTHY: "#00c864", INJURED: "var(--red)", REHAB: "var(--accent)", SUSPENDED: "var(--muted)",
+};
+const NOTE_CATEGORIES = ["general", "financial", "personal", "contract", "tactical"] as const;
 
 export default function AgentPlayerEditClient({ player }: { player: any }) {
   const agentPlayerId: string = player.id;
@@ -260,6 +267,68 @@ export default function AgentPlayerEditClient({ player }: { player: any }) {
     setGallery(g => g.filter(x => x.id !== id));
   }
 
+  // ── Health & Notes ───────────────────────────────────────────────
+  const [healthStatus, setHealthStatus] = useState<string>(player.healthStatus ?? "HEALTHY");
+  const [rehabNote, setRehabNote] = useState<string>(player.rehabNote ?? "");
+  const [rehabReturnDate, setRehabReturnDate] = useState<string>(
+    player.rehabReturnDate ? new Date(player.rehabReturnDate).toISOString().slice(0, 10) : ""
+  );
+  const [healthSaving, setHealthSaving] = useState(false);
+  const [healthMsg, setHealthMsg] = useState("");
+
+  const [notes, setNotes] = useState<any[]>([]);
+  const [notesLoading, setNotesLoading] = useState(false);
+  const [notesLoaded, setNotesLoaded] = useState(false);
+  const [newNote, setNewNote] = useState({ content: "", category: "general" });
+  const [noteSaving, setNoteSaving] = useState(false);
+  const [noteMsg, setNoteMsg] = useState("");
+
+  async function loadNotes() {
+    if (notesLoaded) return;
+    setNotesLoading(true);
+    const res = await fetch(`/api/agent/notes?playerId=${agentPlayerId}`);
+    if (res.ok) {
+      const data = await res.json();
+      setNotes(data.notes);
+    }
+    setNotesLoading(false);
+    setNotesLoaded(true);
+  }
+
+  async function saveHealth(e: React.FormEvent) {
+    e.preventDefault();
+    setHealthSaving(true); setHealthMsg("");
+    const res = await fetch(`/api/agent/health/${agentPlayerId}`, {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ healthStatus, rehabNote, rehabReturnDate: rehabReturnDate || null }),
+    });
+    setHealthSaving(false);
+    setHealthMsg(res.ok ? "✓ Health status saved!" : "Failed to save.");
+    if (res.ok) setTimeout(() => setHealthMsg(""), 3000);
+  }
+
+  async function addNote(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newNote.content.trim()) { setNoteMsg("Note content required."); return; }
+    setNoteSaving(true); setNoteMsg("");
+    const res = await fetch("/api/agent/notes", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ playerId: agentPlayerId, content: newNote.content.trim(), category: newNote.category }),
+    });
+    setNoteSaving(false);
+    if (res.ok) {
+      const data = await res.json();
+      setNotes(ns => [data.note, ...ns]);
+      setNewNote({ content: "", category: "general" });
+      setNoteMsg("✓ Note added."); setTimeout(() => setNoteMsg(""), 2000);
+    } else { setNoteMsg("Failed to save note."); }
+  }
+
+  async function deleteNote(id: string) {
+    await fetch(`/api/agent/notes/${id}`, { method: "DELETE" });
+    setNotes(ns => ns.filter(n => n.id !== id));
+  }
+
   const THIS_YEAR = new Date().getFullYear();
 
   function Msg({ text }: { text: string }) {
@@ -294,7 +363,7 @@ export default function AgentPlayerEditClient({ player }: { player: any }) {
         <ul className="sidebar-nav">
           {NAV_ITEMS.map(item => (
             <li key={item.id}>
-              <a href="#" className={tab === item.id ? "active" : ""} onClick={e => { e.preventDefault(); setTab(item.id); setSidebarOpen(false); }}>
+              <a href="#" className={tab === item.id ? "active" : ""} onClick={e => { e.preventDefault(); setTab(item.id); setSidebarOpen(false); if (item.id === "health") loadNotes(); }}>
                 <span>{item.icon}</span> {item.label}
               </a>
             </li>
@@ -726,6 +795,102 @@ export default function AgentPlayerEditClient({ player }: { player: any }) {
                 </div>
               ) : (
                 <div style={{ textAlign: "center", padding: "24px 0", color: "var(--muted)", fontSize: "0.85rem" }}>No gallery photos yet.</div>
+              )}
+            </div>
+          </div>
+        )}
+        {/* ── Health & Notes Tab ── */}
+        {tab === "health" && (
+          <div className="tab-content">
+            <div style={{ marginBottom: 24 }}>
+              <div className="section-label">Private (not visible to clubs)</div>
+              <h2 style={{ margin: 0 }}>Notes &amp; Health</h2>
+            </div>
+
+            {/* Health status */}
+            <div className="card" style={{ maxWidth: 680, marginBottom: 24 }}>
+              <h4 style={{ textTransform: "uppercase", marginBottom: 20, fontSize: "0.9rem" }}>Health Status</h4>
+              <form onSubmit={saveHealth}>
+                <div className="form-group">
+                  <label className="label">Current Status</label>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    {HEALTH_STATUSES.map(s => (
+                      <button key={s} type="button" onClick={() => setHealthStatus(s)} style={{
+                        padding: "8px 16px", borderRadius: "var(--radius)", cursor: "pointer",
+                        fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "0.82rem", textTransform: "uppercase",
+                        background: healthStatus === s ? HEALTH_COLORS[s] : "var(--card2)",
+                        color: healthStatus === s ? (s === "HEALTHY" ? "var(--black)" : s === "REHAB" ? "var(--black)" : "var(--white)") : "var(--muted)",
+                        border: healthStatus === s ? "none" : "1px solid var(--border)",
+                      }}>{s}</button>
+                    ))}
+                  </div>
+                </div>
+
+                {healthStatus !== "HEALTHY" && (
+                  <>
+                    <div className="form-group">
+                      <label className="label">Expected Return Date</label>
+                      <input className="input" type="date" value={rehabReturnDate} onChange={e => setRehabReturnDate(e.target.value)} />
+                    </div>
+                    <div className="form-group">
+                      <label className="label">Rehab / Injury Note</label>
+                      <textarea className="input" rows={3} value={rehabNote} onChange={e => setRehabNote(e.target.value)} style={{ resize: "vertical" }} placeholder="Details about the injury, treatment, recovery plan…" />
+                    </div>
+                  </>
+                )}
+
+                <Msg text={healthMsg} />
+                <button type="submit" className="btn btn-primary" style={{ justifyContent: "center" }} disabled={healthSaving}>
+                  {healthSaving ? <><span className="spinner" /> Saving…</> : "Save Health Status"}
+                </button>
+              </form>
+            </div>
+
+            <hr style={{ border: "none", borderTop: "1px solid var(--border)", margin: "0 0 24px" }} />
+
+            {/* Internal notes */}
+            <div style={{ maxWidth: 680 }}>
+              <h4 style={{ textTransform: "uppercase", marginBottom: 16, fontSize: "0.9rem" }}>Internal Notes</h4>
+
+              <div className="card" style={{ marginBottom: 20 }}>
+                <h5 style={{ textTransform: "uppercase", fontSize: "0.8rem", marginBottom: 14, color: "var(--muted)" }}>Add Note</h5>
+                <form onSubmit={addNote}>
+                  <div className="form-group">
+                    <label className="label">Category</label>
+                    <select className="input" value={newNote.category} onChange={e => setNewNote(n => ({ ...n, category: e.target.value }))}>
+                      {NOTE_CATEGORIES.map(c => <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>)}
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label className="label">Note <span style={{ color: "var(--accent)" }}>*</span></label>
+                    <textarea className="input" rows={4} value={newNote.content} onChange={e => setNewNote(n => ({ ...n, content: e.target.value }))} style={{ resize: "vertical" }} placeholder="Private note about this player…" />
+                  </div>
+                  <Msg text={noteMsg} />
+                  <button type="submit" className="btn btn-primary" disabled={noteSaving} style={{ justifyContent: "center" }}>
+                    {noteSaving ? <><span className="spinner" /> Saving…</> : "+ Add Note"}
+                  </button>
+                </form>
+              </div>
+
+              {notesLoading ? (
+                <div style={{ textAlign: "center", padding: "24px", color: "var(--muted)" }}>Loading notes…</div>
+              ) : notes.length === 0 ? (
+                <div className="card" style={{ textAlign: "center", padding: "32px 24px", color: "var(--muted)" }}>No notes yet for this player.</div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {notes.map((n: any) => (
+                    <div key={n.id} className="card" style={{ padding: 16 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+                        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                          <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.65rem", background: "rgba(107,107,107,0.2)", color: "var(--muted)", padding: "2px 6px", borderRadius: 2, textTransform: "uppercase" }}>{n.category}</span>
+                          <span style={{ fontSize: "0.72rem", color: "var(--muted)" }}>{new Date(n.createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</span>
+                        </div>
+                        <button onClick={() => deleteNote(n.id)} className="btn btn-danger" style={{ fontSize: "0.68rem", padding: "3px 7px" }}>🗑</button>
+                      </div>
+                      <p style={{ fontSize: "0.88rem", color: "var(--white)", margin: 0, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{n.content}</p>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
           </div>

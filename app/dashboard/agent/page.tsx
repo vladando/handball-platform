@@ -22,7 +22,23 @@ export default async function AgentDashboardPage() {
           expectedSalaryMin: true, expectedSalaryMax: true,
           achievements: true, defensivePosition: true, createdAt: true,
           onboardingCompleted: true,
+          healthStatus: true, rehabNote: true, rehabReturnDate: true,
         },
+      },
+      contracts: {
+        include: { player: { select: { id: true, firstName: true, lastName: true } } },
+        orderBy: { endDate: "asc" },
+      },
+      commissions: {
+        include: { player: { select: { id: true, firstName: true, lastName: true } } },
+        orderBy: { dueDate: "asc" },
+      },
+      transfers: {
+        include: { player: { select: { id: true, firstName: true, lastName: true } } },
+        orderBy: { transferDate: "desc" },
+      },
+      pitchDecks: {
+        orderBy: { createdAt: "desc" },
       },
     },
   });

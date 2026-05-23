@@ -212,12 +212,21 @@ model Player {
   agentId         String?
   agent           Agent?    @relation(fields: [agentId], references: [id])
 
+  // Health tracking
+  healthStatus    String    @default("HEALTHY")
+  rehabNote       String?   @db.Text
+  rehabReturnDate DateTime?
+
   videos          VideoVault[]
   careerEntries   CareerEntry[]
   medicalRecords  MedicalRecord[]
   interactions    Interaction[]
   watchlistItems  WatchlistItem[]
   galleryImages   PlayerGalleryImage[]
+  agentNotes      AgentNote[]
+  agentContracts  AgentContract[]
+  agentCommissions AgentCommission[]
+  transferRecords TransferRecord[]
 
   @@index([position, isAvailable, heightCm])
   @@index([expectedSalary])
@@ -480,8 +489,96 @@ model Agent {
   updatedAt     DateTime @updatedAt
 
   players       Player[]
+  notes         AgentNote[]
+  contracts     AgentContract[]
+  commissions   AgentCommission[]
+  transfers     TransferRecord[]
+  pitchDecks    PitchDeck[]
 
   @@map("agents")
+}
+
+model AgentNote {
+  id        String   @id @default(cuid())
+  agentId   String
+  agent     Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  playerId  String
+  player    Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  content   String   @db.Text
+  category  String   @default("general")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([agentId, playerId])
+  @@map("agent_notes")
+}
+
+model AgentContract {
+  id           String   @id @default(cuid())
+  agentId      String
+  agent        Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  playerId     String
+  player       Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  clubName     String
+  startDate    DateTime
+  endDate      DateTime
+  salaryCents  Int?
+  bonusDetails String?  @db.Text
+  notes        String?  @db.Text
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  @@index([agentId])
+  @@index([playerId])
+  @@map("agent_contracts")
+}
+
+model AgentCommission {
+  id          String   @id @default(cuid())
+  agentId     String
+  agent       Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  playerId    String
+  player      Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  description String
+  amountCents Int
+  dueDate     DateTime
+  paidAt      DateTime?
+  status      String   @default("PENDING")
+  notes       String?  @db.Text
+  createdAt   DateTime @default(now())
+  @@index([agentId])
+  @@map("agent_commissions")
+}
+
+model TransferRecord {
+  id               String   @id @default(cuid())
+  agentId          String
+  agent            Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  playerId         String
+  player           Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  fromClub         String?
+  toClub           String
+  transferDate     DateTime
+  transferFeeCents Int?
+  salaryCents      Int?
+  contractYears    Int?
+  notes            String?  @db.Text
+  createdAt        DateTime @default(now())
+  @@index([agentId])
+  @@map("transfer_records")
+}
+
+model PitchDeck {
+  id        String   @id @default(cuid())
+  agentId   String
+  agent     Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  title     String   @default("Player Pitch")
+  playerIds String
+  message   String?  @db.Text
+  expiresAt DateTime?
+  views     Int      @default(0)
+  createdAt DateTime @default(now())
+  @@index([agentId])
+  @@map("pitch_decks")
 }
 
 // ── Admin ─────────────────────────────────────────────────────────

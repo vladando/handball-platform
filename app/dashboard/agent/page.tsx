@@ -21,6 +21,7 @@ export default async function AgentDashboardPage() {
           dominantHand: true, bio: true, phone: true,
           expectedSalaryMin: true, expectedSalaryMax: true,
           achievements: true, defensivePosition: true, createdAt: true,
+          onboardingCompleted: true,
         },
       },
     },

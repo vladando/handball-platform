@@ -4,20 +4,20 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { savePlayerImage } from "@/lib/storage";
+import { resolvePlayerForSession } from "@/lib/playerAuth";
 
 export const maxDuration = 30;
 
 // GET /api/player/gallery — list gallery images for logged-in player
-export async function GET() {
+export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
-  if (!session || (session.user as any).role !== "PLAYER") {
+  const role = (session?.user as any)?.role;
+  if (!session || (role !== "PLAYER" && role !== "AGENT")) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const player = await prisma.player.findUnique({
-    where: { userId: (session.user as any).id },
-    select: { id: true },
-  });
+  const agentPlayerId = req.nextUrl.searchParams.get("agentPlayerId");
+  const player = await resolvePlayerForSession(session, agentPlayerId);
   if (!player) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const images = await prisma.playerGalleryImage.findMany({
@@ -31,20 +31,9 @@ export async function GET() {
 // POST /api/player/gallery — upload a new gallery image
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
-  if (!session || (session.user as any).role !== "PLAYER") {
+  const role = (session?.user as any)?.role;
+  if (!session || (role !== "PLAYER" && role !== "AGENT")) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const player = await prisma.player.findUnique({
-    where: { userId: (session.user as any).id },
-    select: { id: true },
-  });
-  if (!player) return NextResponse.json({ error: "Not found" }, { status: 404 });
-
-  // Max 12 gallery images
-  const count = await prisma.playerGalleryImage.count({ where: { playerId: player.id } });
-  if (count >= 12) {
-    return NextResponse.json({ error: "Maximum 12 gallery images allowed." }, { status: 422 });
   }
 
   let formData: FormData;
@@ -52,6 +41,16 @@ export async function POST(req: NextRequest) {
     formData = await req.formData();
   } catch {
     return NextResponse.json({ error: "Invalid form data" }, { status: 400 });
+  }
+
+  const agentPlayerId = (formData.get("agentPlayerId") as string) || null;
+  const player = await resolvePlayerForSession(session, agentPlayerId);
+  if (!player) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  // Max 12 gallery images
+  const count = await prisma.playerGalleryImage.count({ where: { playerId: player.id } });
+  if (count >= 12) {
+    return NextResponse.json({ error: "Maximum 12 gallery images allowed." }, { status: 422 });
   }
 
   const file = formData.get("file");

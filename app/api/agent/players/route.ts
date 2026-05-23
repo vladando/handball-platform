@@ -28,6 +28,7 @@ export async function GET() {
       position: true, nationality: true, currentClub: true,
       verificationStatus: true, isAvailable: true, slug: true,
       dateOfBirth: true, heightCm: true, weightKg: true, createdAt: true,
+      onboardingCompleted: true,
     },
   });
   return NextResponse.json({ players });
@@ -44,14 +45,13 @@ export async function POST(req: NextRequest) {
   });
   if (!agent) return NextResponse.json({ error: "Agent not found" }, { status: 404 });
 
-  const { firstName, lastName, dateOfBirth, nationality, position, heightCm, weightKg,
-          dominantHand, currentClub, bio, phone, isAvailable, expectedSalaryMin, expectedSalaryMax } = await req.json();
+  const { firstName, lastName } = await req.json();
 
-  if (!firstName || !lastName || !dateOfBirth || !nationality || !position || !heightCm || !weightKg) {
-    return NextResponse.json({ error: "Missing required fields." }, { status: 400 });
+  if (!firstName?.trim() || !lastName?.trim()) {
+    return NextResponse.json({ error: "First name and last name are required." }, { status: 400 });
   }
 
-  const fullName = `${firstName} ${lastName}`;
+  const fullName = `${firstName.trim()} ${lastName.trim()}`;
   const slug = makeSlug(fullName);
 
   // Create a placeholder user account for this player (no real login)
@@ -66,21 +66,17 @@ export async function POST(req: NextRequest) {
       data: {
         userId: user.id,
         agentId: agent.id,
-        firstName, lastName,
-        dateOfBirth: new Date(dateOfBirth),
-        nationality,
-        position,
-        heightCm: Number(heightCm),
-        weightKg: Number(weightKg),
-        dominantHand: dominantHand ?? "RIGHT",
-        currentClub: currentClub ?? null,
-        bio: bio ?? null,
-        phone: phone ?? null,
-        isAvailable: isAvailable ?? true,
-        expectedSalaryMin: expectedSalaryMin ? Number(expectedSalaryMin) : null,
-        expectedSalaryMax: expectedSalaryMax ? Number(expectedSalaryMax) : null,
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
         slug,
         verificationStatus: "UNVERIFIED",
+        onboardingCompleted: false,
+        // Placeholder required fields — filled in during onboarding
+        dateOfBirth: new Date("2000-01-01"),
+        nationality: "Unknown",
+        position: "CENTRE_BACK",
+        heightCm: 185,
+        weightKg: 85,
         // Pre-fill agent info
         agentName: `${agent.firstName} ${agent.lastName}`,
       },

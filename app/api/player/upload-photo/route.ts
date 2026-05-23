@@ -3,21 +3,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { resolvePlayerForSession } from "@/lib/playerAuth";
 
 export const maxDuration = 30;
 import { savePlayerImage, deleteLocalFile } from "@/lib/storage";
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
-  if (!session || (session.user as any).role !== "PLAYER") {
+  const role = (session?.user as any)?.role;
+  if (!session || (role !== "PLAYER" && role !== "AGENT")) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-
-  const player = await prisma.player.findUnique({
-    where: { userId: (session.user as any).id },
-    select: { id: true, photoUrl: true },
-  });
-  if (!player) return NextResponse.json({ error: "Player not found" }, { status: 404 });
 
   let formData: FormData;
   try {
@@ -25,6 +21,17 @@ export async function POST(req: NextRequest) {
   } catch {
     return NextResponse.json({ error: "Invalid form data" }, { status: 400 });
   }
+
+  const agentPlayerId = (formData.get("agentPlayerId") as string) || null;
+
+  const player = await resolvePlayerForSession(session, agentPlayerId);
+  if (!player) return NextResponse.json({ error: "Player not found" }, { status: 404 });
+
+  // Get current photoUrl for cleanup
+  const existing = await prisma.player.findUnique({
+    where: { id: player.id },
+    select: { photoUrl: true },
+  });
 
   const file = formData.get("file");
   if (!file || !(file instanceof File)) {
@@ -37,8 +44,8 @@ export async function POST(req: NextRequest) {
   }
 
   // Delete old photo if it was a local file
-  if (player.photoUrl?.startsWith("/uploads/")) {
-    deleteLocalFile(player.photoUrl);
+  if (existing?.photoUrl?.startsWith("/uploads/")) {
+    deleteLocalFile(existing.photoUrl);
   }
 
   const updated = await prisma.player.update({

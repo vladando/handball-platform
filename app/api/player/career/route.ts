@@ -3,17 +3,21 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { resolvePlayerForSession } from "@/lib/playerAuth";
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
-  if (!session || (session.user as any).role !== "PLAYER")
+  const role = (session?.user as any)?.role;
+  if (!session || (role !== "PLAYER" && role !== "AGENT"))
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { clubName, country, city, startDate, endDate, appearances, goals, assists, isCurrentClub } = await req.json();
+  const body = await req.json();
+  const { agentPlayerId, clubName, country, city, startDate, endDate, appearances, goals, assists, isCurrentClub } = body;
+
   if (!clubName || !country || !startDate)
     return NextResponse.json({ error: "Club name, country and start date are required." }, { status: 400 });
 
-  const player = await prisma.player.findUnique({ where: { userId: (session.user as any).id }, select: { id: true } });
+  const player = await resolvePlayerForSession(session, agentPlayerId);
   if (!player) return NextResponse.json({ error: "Player not found." }, { status: 404 });
 
   const entry = await prisma.careerEntry.create({

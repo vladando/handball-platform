@@ -2,14 +2,19 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { resolvePlayerForSession } from "@/lib/playerAuth";
 
 export async function PUT(req: NextRequest) {
   const session = await getServerSession(authOptions);
-  if (!session || (session.user as any).role !== "PLAYER")
+  const role = (session?.user as any)?.role;
+  if (!session || (role !== "PLAYER" && role !== "AGENT"))
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const userId = (session.user as any).id;
   const body = await req.json();
+  const { agentPlayerId, ...rest } = body;
+
+  const player = await resolvePlayerForSession(session, agentPlayerId);
+  if (!player) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const {
     firstName, lastName, dateOfBirth, nationality, bio,
@@ -18,10 +23,10 @@ export async function PUT(req: NextRequest) {
     expectedSalaryMin, expectedSalaryMax,
     agentName, agentPhone, agentEmail,
     achievements, defensivePosition,
-  } = body;
+  } = rest;
 
   await prisma.player.update({
-    where: { userId },
+    where: { id: player.id },
     data: {
       firstName:    firstName?.trim() || undefined,
       lastName:     lastName?.trim()  || undefined,

@@ -30,7 +30,7 @@ const THIS_YEAR = new Date().getFullYear();
 // step 0 = welcome, steps 1-10 = content, step 11 = done
 const TOTAL = 10;
 
-export default function PlayerOnboardingClient({ player }: { player: any }) {
+export default function PlayerOnboardingClient({ player, agentPlayerId }: { player: any; agentPlayerId?: string }) {
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -91,6 +91,7 @@ export default function PlayerOnboardingClient({ player }: { player: any }) {
     }
     setCareerSaving(true); setCareerMsg("");
     const payload = {
+      agentPlayerId: agentPlayerId ?? null,
       clubName: newCareer.clubName,
       country: newCareer.country,
       startDate: `${newCareer.startYear}-01-01`,
@@ -112,7 +113,8 @@ export default function PlayerOnboardingClient({ player }: { player: any }) {
   }
 
   async function deleteCareer(id: string) {
-    await fetch(`/api/player/career/${id}`, { method: "DELETE" });
+    const qs = agentPlayerId ? `?agentPlayerId=${agentPlayerId}` : "";
+    await fetch(`/api/player/career/${id}${qs}`, { method: "DELETE" });
     setCareer(c => c.filter(x => x.id !== id));
   }
 
@@ -131,7 +133,7 @@ export default function PlayerOnboardingClient({ player }: { player: any }) {
     setMedSaving(true); setMedMsg("");
     const res = await fetch("/api/player/medical", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...newMed, recordType: medType }),
+      body: JSON.stringify({ ...newMed, recordType: medType, agentPlayerId: agentPlayerId ?? null }),
     });
     if (res.ok) {
       const data = await res.json();
@@ -144,7 +146,8 @@ export default function PlayerOnboardingClient({ player }: { player: any }) {
   }
 
   async function deleteMedical(id: string) {
-    await fetch(`/api/player/medical/${id}`, { method: "DELETE" });
+    const qs = agentPlayerId ? `?agentPlayerId=${agentPlayerId}` : "";
+    await fetch(`/api/player/medical/${id}${qs}`, { method: "DELETE" });
     setMedical(m => m.filter(x => x.id !== id));
   }
 
@@ -161,7 +164,7 @@ export default function PlayerOnboardingClient({ player }: { player: any }) {
     setVideoSaving(true); setVideoMsg("");
     const res = await fetch("/api/player/videos", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(newVideo),
+      body: JSON.stringify({ ...newVideo, agentPlayerId: agentPlayerId ?? null }),
     });
     if (res.ok) {
       const data = await res.json();
@@ -174,7 +177,8 @@ export default function PlayerOnboardingClient({ player }: { player: any }) {
   }
 
   async function deleteVideo(id: string) {
-    await fetch(`/api/player/videos/${id}`, { method: "DELETE" });
+    const qs = agentPlayerId ? `?agentPlayerId=${agentPlayerId}` : "";
+    await fetch(`/api/player/videos/${id}${qs}`, { method: "DELETE" });
     setVideos(v => v.filter(x => x.id !== id));
   }
 
@@ -203,6 +207,7 @@ export default function PlayerOnboardingClient({ player }: { player: any }) {
     setPhotoUploading(true); setPhotoMsg("");
     const fd = new FormData();
     fd.append("file", croppedFile);
+    if (agentPlayerId) fd.append("agentPlayerId", agentPlayerId);
     const res = await fetch("/api/player/upload-photo", { method: "POST", body: fd });
     const data = await res.json();
     if (res.ok) {
@@ -211,7 +216,7 @@ export default function PlayerOnboardingClient({ player }: { player: any }) {
       await fetch("/api/player/photo-position", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ x: posX, y: posY }),
+        body: JSON.stringify({ x: posX, y: posY, agentPlayerId: agentPlayerId ?? null }),
       });
       setPhotoMsg("✓ Photo uploaded!");
     } else {
@@ -227,6 +232,7 @@ export default function PlayerOnboardingClient({ player }: { player: any }) {
     const fd = new FormData();
     fd.append("file", file);
     fd.append("caption", galleryCaption);
+    if (agentPlayerId) fd.append("agentPlayerId", agentPlayerId);
     const res = await fetch("/api/player/gallery", { method: "POST", body: fd });
     const data = await res.json();
     setGalleryUploading(false);
@@ -240,7 +246,8 @@ export default function PlayerOnboardingClient({ player }: { player: any }) {
   }
 
   async function deleteGalleryImage(id: string) {
-    await fetch(`/api/player/gallery/${id}`, { method: "DELETE" });
+    const qs = agentPlayerId ? `?agentPlayerId=${agentPlayerId}` : "";
+    await fetch(`/api/player/gallery/${id}${qs}`, { method: "DELETE" });
     setGallery(g => g.filter(x => x.id !== id));
   }
 
@@ -271,6 +278,7 @@ export default function PlayerOnboardingClient({ player }: { player: any }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         ...form,
+        agentPlayerId: agentPlayerId ?? null,
         dateOfBirth: (dobYear && dobMonth && dobDay)
           ? `${dobYear}-${String(dobMonth).padStart(2,"0")}-${String(dobDay).padStart(2,"0")}`
           : form.dateOfBirth,
@@ -371,10 +379,16 @@ export default function PlayerOnboardingClient({ player }: { player: any }) {
           <div style={{ ...card, textAlign: "center", padding: "44px 32px" }}>
             <div style={{ fontSize: "3rem", marginBottom: 16 }}>&#128075;</div>
             <h2 style={{ fontSize: "1.8rem", marginBottom: 12 }}>
-              Welcome to <span style={{ color: "var(--accent)" }}>HandballHub!</span>
+              {agentPlayerId
+                ? <>Set Up <span style={{ color: "var(--accent)" }}>Player Profile</span></>
+                : <>Welcome to <span style={{ color: "var(--accent)" }}>HandballHub!</span></>
+              }
             </h2>
             <p style={{ color: "var(--muted)", lineHeight: 1.7, marginBottom: 8 }}>
-              Let&apos;s build your player profile in <strong style={{ color: "var(--white)" }}>10 steps</strong>.
+              {agentPlayerId
+                ? <>Let&apos;s complete this player&apos;s profile in <strong style={{ color: "var(--white)" }}>10 steps</strong>.</>
+                : <>Let&apos;s build your player profile in <strong style={{ color: "var(--white)" }}>10 steps</strong>.</>
+              }
             </p>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, margin: "20px 0 28px", textAlign: "left" }}>
               {[
@@ -844,7 +858,7 @@ export default function PlayerOnboardingClient({ player }: { player: any }) {
             <div style={{ fontSize: "3.5rem", marginBottom: 16 }}>&#127881;</div>
             <h2 style={{ fontSize: "1.8rem", marginBottom: 12 }}>Profile Complete!</h2>
             <p style={{ color: "var(--muted)", lineHeight: 1.7, marginBottom: 8 }}>
-              Your player profile is fully set up.
+              {agentPlayerId ? "The player profile has been fully set up." : "Your player profile is fully set up."}
             </p>
             <div style={{ display: "flex", flexDirection: "column", gap: 6, margin: "16px 0 28px", textAlign: "left" }}>
               {[
@@ -857,11 +871,21 @@ export default function PlayerOnboardingClient({ player }: { player: any }) {
                 <div key={i} style={{ fontSize: "0.85rem", color: "#00c864" }} dangerouslySetInnerHTML={{ __html: item as string }} />
               ))}
             </div>
-            <p style={{ color: "var(--muted)", fontSize: "0.82rem", marginBottom: 28, lineHeight: 1.6 }}>
-              Once an admin verifies your identity, your profile becomes visible in the player directory and clubs can contact you.
-            </p>
-            <button className="btn btn-primary" style={{ width: "100%", justifyContent: "center", padding: "15px", fontSize: "1rem" }} onClick={() => { window.location.href = player.slug ? `/players/${player.slug}` : "/dashboard/player"; }}>
-              Go to My Profile &rarr;
+            {!agentPlayerId && (
+              <p style={{ color: "var(--muted)", fontSize: "0.82rem", marginBottom: 28, lineHeight: 1.6 }}>
+                Once an admin verifies your identity, your profile becomes visible in the player directory and clubs can contact you.
+              </p>
+            )}
+            <button className="btn btn-primary" style={{ width: "100%", justifyContent: "center", padding: "15px", fontSize: "1rem", marginTop: agentPlayerId ? 28 : 0 }}
+              onClick={() => {
+                if (agentPlayerId) {
+                  window.location.href = "/dashboard/agent";
+                } else {
+                  window.location.href = player.slug ? `/players/${player.slug}` : "/dashboard/player";
+                }
+              }}
+            >
+              {agentPlayerId ? "Back to My Players →" : "Go to My Profile →"}
             </button>
           </div>
         )}

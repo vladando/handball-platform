@@ -20,7 +20,7 @@ function posLabel(p: string) {
   return p.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
 }
 
-const EMPTY_FORM = {
+const EMPTY_EDIT_FORM = {
   firstName: "", lastName: "", dateOfBirth: "", nationality: "", position: "CENTRE_BACK",
   heightCm: "", weightKg: "", dominantHand: "RIGHT", currentClub: "", bio: "",
   phone: "", isAvailable: true, expectedSalaryMin: "", expectedSalaryMax: "",
@@ -30,12 +30,17 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
   const [tab, setTab] = useState<"players" | "settings">("players");
   const [players, setPlayers] = useState<any[]>(agent.players ?? []);
 
-  // Add/Edit modal
-  const [showModal, setShowModal] = useState(false);
+  // Add Player modal (simple — redirects to onboarding)
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [addForm, setAddForm] = useState({ firstName: "", lastName: "" });
+  const [addSaving, setAddSaving] = useState(false);
+  const [addError, setAddError] = useState("");
+
+  // Edit Player modal (full form)
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState({ ...EMPTY_FORM });
-  const [saving, setSaving] = useState(false);
-  const [formError, setFormError] = useState("");
+  const [editForm, setEditForm] = useState({ ...EMPTY_EDIT_FORM });
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState("");
 
   // Delete confirm
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
@@ -54,25 +59,39 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
   const [settingsSaving, setSettingsSaving] = useState(false);
   const [settingsSaved, setSettingsSaved] = useState(false);
 
-  function setField(k: string, v: any) { setForm(f => ({ ...f, [k]: v })); }
-
   function openAdd() {
-    setEditingId(null);
-    setForm({ ...EMPTY_FORM });
-    setFormError("");
-    setShowModal(true);
+    setAddForm({ firstName: "", lastName: "" });
+    setAddError("");
+    setShowAddModal(true);
+  }
+
+  async function handleAddPlayer(e: React.FormEvent) {
+    e.preventDefault();
+    if (!addForm.firstName.trim() || !addForm.lastName.trim()) {
+      setAddError("Please enter first and last name."); return;
+    }
+    setAddSaving(true); setAddError("");
+    const res = await fetch("/api/agent/players", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ firstName: addForm.firstName.trim(), lastName: addForm.lastName.trim() }),
+    });
+    const data = await res.json();
+    setAddSaving(false);
+    if (!res.ok) { setAddError(data.error ?? "Failed to create player."); return; }
+    // Redirect to onboarding flow
+    window.location.href = `/onboarding/agent-player/${data.player.id}`;
   }
 
   function openEdit(p: any) {
     setEditingId(p.id);
-    setForm({
+    setEditForm({
       firstName: p.firstName ?? "",
       lastName: p.lastName ?? "",
       dateOfBirth: p.dateOfBirth ? new Date(p.dateOfBirth).toISOString().slice(0, 10) : "",
-      nationality: p.nationality ?? "",
+      nationality: p.nationality === "Unknown" ? "" : (p.nationality ?? ""),
       position: p.position ?? "CENTRE_BACK",
-      heightCm: p.heightCm?.toString() ?? "",
-      weightKg: p.weightKg?.toString() ?? "",
+      heightCm: p.heightCm === 185 ? "" : (p.heightCm?.toString() ?? ""),
+      weightKg: p.weightKg === 85 ? "" : (p.weightKg?.toString() ?? ""),
       dominantHand: p.dominantHand ?? "RIGHT",
       currentClub: p.currentClub ?? "",
       bio: p.bio ?? "",
@@ -81,35 +100,21 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
       expectedSalaryMin: p.expectedSalaryMin?.toString() ?? "",
       expectedSalaryMax: p.expectedSalaryMax?.toString() ?? "",
     });
-    setFormError("");
-    setShowModal(true);
+    setEditError("");
   }
 
-  async function handleSave(e: React.FormEvent) {
+  async function handleEditSave(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.firstName || !form.lastName || !form.dateOfBirth || !form.nationality || !form.heightCm || !form.weightKg) {
-      setFormError("Please fill in all required fields."); return;
-    }
-    setSaving(true); setFormError("");
-    let res: Response;
-    if (editingId) {
-      res = await fetch(`/api/agent/players/${editingId}`, {
-        method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form),
-      });
-    } else {
-      res = await fetch("/api/agent/players", {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form),
-      });
-    }
+    if (!editingId) return;
+    setEditSaving(true); setEditError("");
+    const res = await fetch(`/api/agent/players/${editingId}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(editForm),
+    });
     const data = await res.json();
-    setSaving(false);
-    if (!res.ok) { setFormError(data.error ?? "Failed to save."); return; }
-    if (editingId) {
-      setPlayers(ps => ps.map(p => p.id === editingId ? { ...p, ...data.player } : p));
-    } else {
-      setPlayers(ps => [data.player, ...ps]);
-    }
-    setShowModal(false);
+    setEditSaving(false);
+    if (!res.ok) { setEditError(data.error ?? "Failed to save."); return; }
+    setPlayers(ps => ps.map(p => p.id === editingId ? { ...p, ...data.player } : p));
+    setEditingId(null);
   }
 
   async function handleDelete() {
@@ -131,6 +136,8 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
     setSettingsSaved(true);
     setTimeout(() => setSettingsSaved(false), 2500);
   }
+
+  function setEditField(k: string, v: any) { setEditForm(f => ({ ...f, [k]: v })); }
 
   const stats = {
     total: players.length,
@@ -204,23 +211,38 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
                     <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: "1.05rem", textTransform: "uppercase" }}>
                       {p.firstName} {p.lastName}
                     </div>
-                    <div style={{ fontSize: "0.8rem", color: "var(--muted)", marginTop: 2 }}>
-                      {posLabel(p.position)} · {p.nationality} · {p.heightCm}cm
-                      {p.currentClub && ` · ${p.currentClub}`}
-                    </div>
+                    {p.onboardingCompleted ? (
+                      <div style={{ fontSize: "0.8rem", color: "var(--muted)", marginTop: 2 }}>
+                        {posLabel(p.position ?? "—")} · {p.nationality === "Unknown" ? "—" : (p.nationality ?? "—")} · {p.heightCm}cm
+                        {p.currentClub && ` · ${p.currentClub}`}
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: "0.78rem", color: "var(--accent)", marginTop: 2 }}>
+                        ⚠️ Profile setup not completed
+                      </div>
+                    )}
                   </div>
                   {/* Badges */}
                   <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                    {!p.onboardingCompleted && (
+                      <span className="badge badge-accent">Incomplete</span>
+                    )}
                     <span className={`badge ${VERIF_COLORS[p.verificationStatus]}`}>{p.verificationStatus}</span>
                     <span className={`badge ${p.isAvailable ? "badge-green" : "badge-muted"}`}>
                       {p.isAvailable ? "Available" : "Unavailable"}
                     </span>
                   </div>
                   {/* Actions */}
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <Link href={`/players/${p.slug}`} target="_blank" className="btn btn-outline" style={{ fontSize: "0.75rem", padding: "6px 12px" }}>
-                      View ↗
-                    </Link>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    {!p.onboardingCompleted ? (
+                      <Link href={`/onboarding/agent-player/${p.id}`} className="btn btn-primary" style={{ fontSize: "0.75rem", padding: "6px 12px" }}>
+                        Continue Setup →
+                      </Link>
+                    ) : (
+                      <Link href={`/players/${p.slug}`} target="_blank" className="btn btn-outline" style={{ fontSize: "0.75rem", padding: "6px 12px" }}>
+                        View ↗
+                      </Link>
+                    )}
                     <button className="btn btn-outline" style={{ fontSize: "0.75rem", padding: "6px 12px" }} onClick={() => openEdit(p)}>
                       ✏️ Edit
                     </button>
@@ -280,35 +302,73 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
         </div>
       )}
 
-      {/* Add/Edit Modal */}
-      {showModal && (
-        <div className="modal-overlay" onClick={() => setShowModal(false)}>
-          <div className="modal" style={{ maxWidth: 640, width: "100%", maxHeight: "90vh", overflowY: "auto" }} onClick={e => e.stopPropagation()}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-              <h3 className="modal-title" style={{ margin: 0 }}>{editingId ? "Edit Player" : "Add Player"}</h3>
-              <button onClick={() => setShowModal(false)} style={{ background: "none", border: "none", color: "var(--muted)", fontSize: "1.4rem", cursor: "pointer" }}>✕</button>
+      {/* ── Add Player Modal (simple: first + last name only, then redirect to onboarding) ── */}
+      {showAddModal && (
+        <div className="modal-overlay" onClick={() => setShowAddModal(false)}>
+          <div className="modal" style={{ maxWidth: 440, width: "100%" }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+              <h3 className="modal-title" style={{ margin: 0 }}>Add Player</h3>
+              <button onClick={() => setShowAddModal(false)} style={{ background: "none", border: "none", color: "var(--muted)", fontSize: "1.4rem", cursor: "pointer" }}>✕</button>
             </div>
-
-            <form onSubmit={handleSave}>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <p style={{ color: "var(--muted)", fontSize: "0.85rem", lineHeight: 1.6, marginBottom: 20 }}>
+              Enter the player&apos;s name to get started. You&apos;ll complete the full profile in the next step using our 10-step setup wizard.
+            </p>
+            <form onSubmit={handleAddPlayer}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
                 <div className="form-group" style={{ margin: 0 }}>
                   <label className="label">First Name <span style={{ color: "var(--accent)" }}>*</span></label>
-                  <input className="input" value={form.firstName} onChange={e => setField("firstName", e.target.value)} required />
+                  <input className="input" value={addForm.firstName} onChange={e => setAddForm(f => ({ ...f, firstName: e.target.value }))} placeholder="Ivan" autoFocus />
                 </div>
                 <div className="form-group" style={{ margin: 0 }}>
                   <label className="label">Last Name <span style={{ color: "var(--accent)" }}>*</span></label>
-                  <input className="input" value={form.lastName} onChange={e => setField("lastName", e.target.value)} required />
+                  <input className="input" value={addForm.lastName} onChange={e => setAddForm(f => ({ ...f, lastName: e.target.value }))} placeholder="Petrović" />
+                </div>
+              </div>
+              {addError && (
+                <div style={{ background: "rgba(255,59,59,0.1)", border: "1px solid rgba(255,59,59,0.3)", borderRadius: "var(--radius)", padding: "10px 14px", fontSize: "0.85rem", color: "var(--red)", marginBottom: 16 }}>
+                  {addError}
+                </div>
+              )}
+              <div style={{ display: "flex", gap: 12 }}>
+                <button type="submit" className="btn btn-primary" style={{ flex: 1, justifyContent: "center" }} disabled={addSaving}>
+                  {addSaving ? <><span className="spinner" /> Creating…</> : "Create & Setup Profile →"}
+                </button>
+                <button type="button" className="btn btn-outline" onClick={() => setShowAddModal(false)}>Cancel</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── Edit Player Modal (full form) ── */}
+      {editingId && (
+        <div className="modal-overlay" onClick={() => setEditingId(null)}>
+          <div className="modal" style={{ maxWidth: 640, width: "100%", maxHeight: "90vh", overflowY: "auto" }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+              <h3 className="modal-title" style={{ margin: 0 }}>Edit Player</h3>
+              <button onClick={() => setEditingId(null)} style={{ background: "none", border: "none", color: "var(--muted)", fontSize: "1.4rem", cursor: "pointer" }}>✕</button>
+            </div>
+
+            <form onSubmit={handleEditSave}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="label">First Name</label>
+                  <input className="input" value={editForm.firstName} onChange={e => setEditField("firstName", e.target.value)} />
+                </div>
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="label">Last Name</label>
+                  <input className="input" value={editForm.lastName} onChange={e => setEditField("lastName", e.target.value)} />
                 </div>
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginTop: 16 }}>
                 <div className="form-group" style={{ margin: 0 }}>
-                  <label className="label">Date of Birth <span style={{ color: "var(--accent)" }}>*</span></label>
-                  <input className="input" type="date" value={form.dateOfBirth} onChange={e => setField("dateOfBirth", e.target.value)} required />
+                  <label className="label">Date of Birth</label>
+                  <input className="input" type="date" value={editForm.dateOfBirth} onChange={e => setEditField("dateOfBirth", e.target.value)} />
                 </div>
                 <div className="form-group" style={{ margin: 0 }}>
-                  <label className="label">Nationality <span style={{ color: "var(--accent)" }}>*</span></label>
-                  <select className="input" value={form.nationality} onChange={e => setField("nationality", e.target.value)} required>
+                  <label className="label">Nationality</label>
+                  <select className="input" value={editForm.nationality} onChange={e => setEditField("nationality", e.target.value)}>
                     <option value="">Select…</option>
                     {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
@@ -316,24 +376,24 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
               </div>
 
               <div className="form-group" style={{ marginTop: 16 }}>
-                <label className="label">Position <span style={{ color: "var(--accent)" }}>*</span></label>
-                <select className="input" value={form.position} onChange={e => setField("position", e.target.value)}>
+                <label className="label">Position</label>
+                <select className="input" value={editForm.position} onChange={e => setEditField("position", e.target.value)}>
                   {POSITIONS.map(p => <option key={p} value={p}>{posLabel(p)}</option>)}
                 </select>
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
                 <div className="form-group" style={{ margin: 0 }}>
-                  <label className="label">Height (cm) <span style={{ color: "var(--accent)" }}>*</span></label>
-                  <input className="input" type="number" min={150} max={230} value={form.heightCm} onChange={e => setField("heightCm", e.target.value)} required />
+                  <label className="label">Height (cm)</label>
+                  <input className="input" type="number" min={150} max={230} value={editForm.heightCm} onChange={e => setEditField("heightCm", e.target.value)} />
                 </div>
                 <div className="form-group" style={{ margin: 0 }}>
-                  <label className="label">Weight (kg) <span style={{ color: "var(--accent)" }}>*</span></label>
-                  <input className="input" type="number" min={50} max={150} value={form.weightKg} onChange={e => setField("weightKg", e.target.value)} required />
+                  <label className="label">Weight (kg)</label>
+                  <input className="input" type="number" min={50} max={150} value={editForm.weightKg} onChange={e => setEditField("weightKg", e.target.value)} />
                 </div>
                 <div className="form-group" style={{ margin: 0 }}>
                   <label className="label">Dom. Hand</label>
-                  <select className="input" value={form.dominantHand} onChange={e => setField("dominantHand", e.target.value)}>
+                  <select className="input" value={editForm.dominantHand} onChange={e => setEditField("dominantHand", e.target.value)}>
                     <option value="RIGHT">Right</option>
                     <option value="LEFT">Left</option>
                   </select>
@@ -342,28 +402,28 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
 
               <div className="form-group" style={{ marginTop: 16 }}>
                 <label className="label">Current Club</label>
-                <input className="input" value={form.currentClub} onChange={e => setField("currentClub", e.target.value)} placeholder="Free Agent if empty" />
+                <input className="input" value={editForm.currentClub} onChange={e => setEditField("currentClub", e.target.value)} placeholder="Free Agent if empty" />
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
                 <div className="form-group" style={{ margin: 0 }}>
                   <label className="label">Expected Salary Min (€)</label>
-                  <input className="input" type="number" value={form.expectedSalaryMin} onChange={e => setField("expectedSalaryMin", e.target.value)} placeholder="0" />
+                  <input className="input" type="number" value={editForm.expectedSalaryMin} onChange={e => setEditField("expectedSalaryMin", e.target.value)} placeholder="0" />
                 </div>
                 <div className="form-group" style={{ margin: 0 }}>
                   <label className="label">Expected Salary Max (€)</label>
-                  <input className="input" type="number" value={form.expectedSalaryMax} onChange={e => setField("expectedSalaryMax", e.target.value)} placeholder="0" />
+                  <input className="input" type="number" value={editForm.expectedSalaryMax} onChange={e => setEditField("expectedSalaryMax", e.target.value)} placeholder="0" />
                 </div>
               </div>
 
               <div className="form-group" style={{ marginTop: 16 }}>
                 <label className="label">Phone</label>
-                <input className="input" value={form.phone} onChange={e => setField("phone", e.target.value)} placeholder="+387 61 000 000" />
+                <input className="input" value={editForm.phone} onChange={e => setEditField("phone", e.target.value)} placeholder="+387 61 000 000" />
               </div>
 
               <div className="form-group">
                 <label className="label">Bio</label>
-                <textarea className="input" rows={3} value={form.bio} onChange={e => setField("bio", e.target.value)}
+                <textarea className="input" rows={3} value={editForm.bio} onChange={e => setEditField("bio", e.target.value)}
                   style={{ resize: "vertical" }} placeholder="Player description, strengths…" />
               </div>
 
@@ -371,12 +431,12 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
                 <label className="label">Availability</label>
                 <div style={{ display: "flex", gap: 8 }}>
                   {([true, false] as const).map(v => (
-                    <button key={String(v)} type="button" onClick={() => setField("isAvailable", v)} style={{
+                    <button key={String(v)} type="button" onClick={() => setEditField("isAvailable", v)} style={{
                       flex: 1, padding: "10px", borderRadius: "var(--radius)", fontFamily: "var(--font-display)",
                       fontWeight: 700, fontSize: "0.82rem", textTransform: "uppercase", cursor: "pointer",
-                      background: form.isAvailable === v ? "var(--accent)" : "var(--card2)",
-                      color: form.isAvailable === v ? "var(--black)" : "var(--muted)",
-                      border: form.isAvailable === v ? "none" : "1px solid var(--border)",
+                      background: editForm.isAvailable === v ? "var(--accent)" : "var(--card2)",
+                      color: editForm.isAvailable === v ? "var(--black)" : "var(--muted)",
+                      border: editForm.isAvailable === v ? "none" : "1px solid var(--border)",
                     }}>
                       {v ? "✓ Available" : "✕ Not Available"}
                     </button>
@@ -384,17 +444,17 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
                 </div>
               </div>
 
-              {formError && (
+              {editError && (
                 <div style={{ background: "rgba(255,59,59,0.1)", border: "1px solid rgba(255,59,59,0.3)", borderRadius: "var(--radius)", padding: "10px 14px", fontSize: "0.85rem", color: "var(--red)", marginBottom: 16 }}>
-                  {formError}
+                  {editError}
                 </div>
               )}
 
               <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
-                <button type="submit" className="btn btn-primary" style={{ flex: 1, justifyContent: "center" }} disabled={saving}>
-                  {saving ? <><span className="spinner" /> Saving…</> : editingId ? "Save Changes" : "Add Player"}
+                <button type="submit" className="btn btn-primary" style={{ flex: 1, justifyContent: "center" }} disabled={editSaving}>
+                  {editSaving ? <><span className="spinner" /> Saving…</> : "Save Changes"}
                 </button>
-                <button type="button" className="btn btn-outline" onClick={() => setShowModal(false)}>Cancel</button>
+                <button type="button" className="btn btn-outline" onClick={() => setEditingId(null)}>Cancel</button>
               </div>
             </form>
           </div>

@@ -228,6 +228,7 @@ model Player {
   agentCommissions        AgentCommission[]
   transferRecords         TransferRecord[]
   representationRequests  RepresentationRequest[]
+  agentContactReveals     AgentContactReveal[]
 
   @@index([position, isAvailable, heightCm])
   @@index([expectedSalary])
@@ -496,6 +497,7 @@ model Agent {
   transfers               TransferRecord[]
   pitchDecks              PitchDeck[]
   representationRequests  RepresentationRequest[]
+  contactReveals          AgentContactReveal[]
 
   @@map("agents")
 }
@@ -581,6 +583,22 @@ model PitchDeck {
   createdAt DateTime @default(now())
   @@index([agentId])
   @@map("pitch_decks")
+}
+
+// ── Agent Contact Reveal ──────────────────────────────────────────
+
+model AgentContactReveal {
+  id        String   @id @default(cuid())
+  agentId   String
+  agent     Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  playerId  String
+  player    Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([agentId, playerId])
+  @@index([agentId])
+  @@index([playerId])
+  @@map("agent_contact_reveals")
 }
 
 // ── Representation Request ────────────────────────────────────────

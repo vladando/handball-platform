@@ -4,6 +4,73 @@ import { useState, useMemo } from "react";
 import RevealContactButton from "@/components/RevealContactButton";
 import GalleryLightbox from "@/components/GalleryLightbox";
 
+// ── Agent Reveal Contact Button ────────────────────────────────────
+type ContactInfo = { email: string | null; phone: string | null; agentName: string | null; agentPhone: string | null; agentEmail: string | null };
+function AgentRevealContactButton({ playerId, playerName, initialContact, alreadyRevealed: initAlreadyRevealed }: { playerId: string; playerName: string; initialContact?: ContactInfo | null; alreadyRevealed: boolean }) {
+  const [state, setState] = useState<"idle" | "loading" | "revealed" | "error">(initialContact ? "revealed" : "idle");
+  const [contact, setContact] = useState<ContactInfo | null>(initialContact ?? null);
+  const [alreadyRevealed, setAlreadyRevealed] = useState(initAlreadyRevealed);
+  const [errMsg, setErrMsg] = useState("");
+
+  async function reveal() {
+    setState("loading");
+    try {
+      const res = await fetch("/api/agent/reveal-contact", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ playerId }) });
+      const json = await res.json();
+      if (!res.ok) { setErrMsg(json.error ?? "Error"); setState("error"); return; }
+      setContact(json.data.contact);
+      setAlreadyRevealed(json.data.alreadyRevealed);
+      setState("revealed");
+    } catch { setErrMsg("Network error."); setState("error"); }
+  }
+
+  if (state === "revealed" && contact) {
+    const hasContact = contact.email || contact.phone || contact.agentName;
+    return (
+      <div style={{ background: "rgba(0,200,100,0.06)", border: "1px solid rgba(0,200,100,0.25)", borderRadius: "var(--radius-lg)", overflow: "hidden" }}>
+        <div style={{ background: "rgba(0,200,100,0.1)", padding: "12px 20px", display: "flex", alignItems: "center", gap: 10, borderBottom: "1px solid rgba(0,200,100,0.15)" }}>
+          <span>✅</span>
+          <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: "0.85rem", textTransform: "uppercase", color: "#00c864" }}>
+            Contact Unlocked {alreadyRevealed && <span style={{ fontSize: "0.72rem", color: "var(--muted)", fontFamily: "inherit" }}>· Previously revealed</span>}
+          </div>
+        </div>
+        <div style={{ padding: "16px 20px" }}>
+          {!hasContact ? <p style={{ fontSize: "0.85rem", color: "var(--muted)" }}>Player hasn&apos;t added contact info yet.</p> : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {contact.email && <AgentContactRow icon="✉" label="Email"><a href={`mailto:${contact.email}`} style={{ color: "var(--accent)" }}>{contact.email}</a></AgentContactRow>}
+              {contact.phone && <AgentContactRow icon="📞" label="Phone"><a href={`tel:${contact.phone}`} style={{ color: "var(--accent)" }}>{contact.phone}</a></AgentContactRow>}
+              {contact.agentName && <AgentContactRow icon="🤝" label="Agent">{contact.agentName}</AgentContactRow>}
+              {contact.agentPhone && <AgentContactRow icon="📱" label="Agent Ph."><a href={`tel:${contact.agentPhone}`} style={{ color: "var(--accent)" }}>{contact.agentPhone}</a></AgentContactRow>}
+              {contact.agentEmail && <AgentContactRow icon="📧" label="Agent Mail"><a href={`mailto:${contact.agentEmail}`} style={{ color: "var(--accent)" }}>{contact.agentEmail}</a></AgentContactRow>}
+            </div>
+          )}
+          <p style={{ fontSize: "0.7rem", color: "var(--muted)", marginTop: 12, lineHeight: 1.5 }}>This access is logged as required by our Terms of Service.</p>
+        </div>
+      </div>
+    );
+  }
+  if (state === "error") return (
+    <div style={{ background: "rgba(255,59,59,0.1)", border: "1px solid rgba(255,59,59,0.3)", borderRadius: "var(--radius)", padding: 16 }}>
+      <p style={{ fontSize: "0.85rem", color: "var(--red)", marginBottom: 12 }}>{errMsg}</p>
+      <button onClick={() => setState("idle")} className="btn btn-outline">Try again</button>
+    </div>
+  );
+  return (
+    <button onClick={reveal} disabled={state === "loading"} className="btn btn-primary" style={{ width: "100%", justifyContent: "center" }}>
+      {state === "loading" ? <><span className="spinner" /> Unlocking…</> : <>🔓 Reveal Contact Details</>}
+    </button>
+  );
+}
+function AgentContactRow({ icon, label, children }: { icon: string; label: string; children: React.ReactNode }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+      <span style={{ fontSize: "0.9rem", width: 20, textAlign: "center", flexShrink: 0 }}>{icon}</span>
+      <span style={{ fontSize: "0.75rem", color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.06em", width: 80, flexShrink: 0 }}>{label}</span>
+      <span style={{ fontSize: "0.88rem" }}>{children}</span>
+    </div>
+  );
+}
+
 const POS_LABELS: Record<string, string> = {
   GOALKEEPER: "Goalkeeper", LEFT_BACK: "Left Back", RIGHT_BACK: "Right Back",
   LEFT_WING: "Left Wing", RIGHT_WING: "Right Wing", CENTRE_BACK: "Centre Back",
@@ -24,6 +91,11 @@ export default function PlayerProfileClient({
   initialInteractionId,
   initialContact,
   requiresClubLogin,
+  isAgent,
+  isVerifiedAgent,
+  agentAlreadyRevealed,
+  agentInitialContact,
+  playerId,
 }: {
   player: any;
   isClub: boolean;
@@ -32,6 +104,11 @@ export default function PlayerProfileClient({
   initialInteractionId?: string | null;
   initialContact?: any | null;
   requiresClubLogin?: boolean;
+  isAgent?: boolean;
+  isVerifiedAgent?: boolean;
+  agentAlreadyRevealed?: boolean;
+  agentInitialContact?: any | null;
+  playerId?: string;
 }) {
   const [tab, setTab] = useState<Tab>("overview");
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
@@ -344,6 +421,25 @@ export default function PlayerProfileClient({
                 </p>
                 <a href="/dashboard/club" className="btn btn-outline" style={{ width: "100%", justifyContent: "center", fontSize: "0.85rem" }}>
                   Check Verification Status →
+                </a>
+              </div>
+            ) : isAgent && isVerifiedAgent ? (
+              <AgentRevealContactButton
+                playerId={playerId ?? player.id}
+                playerName={`${player.firstName} ${player.lastName}`}
+                initialContact={agentInitialContact}
+                alreadyRevealed={agentAlreadyRevealed ?? false}
+              />
+            ) : isAgent && !isVerifiedAgent ? (
+              <div style={{ background: "rgba(232,255,71,0.05)", border: "1px solid rgba(232,255,71,0.25)", borderRadius: "var(--radius-lg)", padding: "20px" }}>
+                <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: "0.95rem", textTransform: "uppercase", color: "var(--accent)", marginBottom: 10 }}>
+                  🔒 Complete Onboarding
+                </div>
+                <p style={{ fontSize: "0.82rem", color: "var(--muted)", lineHeight: 1.6, marginBottom: 14 }}>
+                  Complete your agent profile setup to unlock player contact details.
+                </p>
+                <a href="/onboarding/agent" className="btn btn-outline" style={{ width: "100%", justifyContent: "center", fontSize: "0.85rem" }}>
+                  Complete Setup →
                 </a>
               </div>
             ) : (

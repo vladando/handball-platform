@@ -91,12 +91,57 @@ export default async function PlayerProfilePage({
   const isAgentPlayer = !!(player as any).agentId;
   const isAgent = role === "AGENT";
   let isOwnerAgent = false;
-  if (isAgent && isAgentPlayer) {
+  let isVerifiedAgent = false;
+  let agentAlreadyRevealed = false;
+  let agentInitialContact: { email: string | null; phone: string | null; agentName: string | null; agentPhone: string | null; agentEmail: string | null } | null = null;
+  let agentId: string | null = null;
+
+  if (isAgent) {
     const agentUserId = (session?.user as any)?.id;
-    const agentRec = await prisma.agent.findUnique({ where: { userId: agentUserId }, select: { id: true } }).catch(() => null);
-    isOwnerAgent = agentRec?.id === (player as any).agentId;
+    const agentRec = await prisma.agent.findUnique({
+      where: { userId: agentUserId },
+      select: { id: true, onboardingCompleted: true },
+    }).catch(() => null);
+    agentId = agentRec?.id ?? null;
+    isVerifiedAgent = agentRec?.onboardingCompleted === true;
+    if (isAgentPlayer && agentRec) {
+      isOwnerAgent = agentRec.id === (player as any).agentId;
+    }
+
+    // Check if agent already revealed this player's contact
+    if (agentRec && isVerifiedAgent) {
+      const existingReveal = await (prisma as any).agentContactReveal.findUnique({
+        where: { agentId_playerId: { agentId: agentRec.id, playerId: player.id } },
+      }).catch(() => null);
+      if (existingReveal) {
+        agentAlreadyRevealed = true;
+        // Build contact info
+        let agentName = player.agentName ?? null;
+        let agentPhone = player.agentPhone ?? null;
+        let agentEmail: string | null = player.agentEmail ?? null;
+        if ((player as any).agentId && (player as any).agentId !== agentRec.id) {
+          const playerAgentRec = await prisma.agent.findUnique({
+            where: { id: (player as any).agentId },
+            select: { firstName: true, lastName: true, phone: true, user: { select: { email: true } } },
+          }).catch(() => null);
+          if (playerAgentRec) {
+            agentName = `${playerAgentRec.firstName} ${playerAgentRec.lastName}`;
+            agentPhone = playerAgentRec.phone ?? null;
+            agentEmail = playerAgentRec.user?.email ?? null;
+          }
+        }
+        agentInitialContact = {
+          email: (player as any).user?.email ?? null,
+          phone: player.phone ?? null,
+          agentName,
+          agentPhone,
+          agentEmail,
+        };
+      }
+    }
   }
-  const requiresClubLogin = isAgentPlayer && !isClub && !isAdmin && !isOwnerAgent;
+
+  const requiresClubLogin = isAgentPlayer && !isClub && !isAdmin && !isOwnerAgent && !isAgent;
 
   const age = new Date().getFullYear() - new Date(player.dateOfBirth).getFullYear();
 
@@ -195,6 +240,11 @@ export default async function PlayerProfilePage({
           initialInteractionId={existingInteractionId}
           initialContact={existingContact}
           requiresClubLogin={requiresClubLogin}
+          isAgent={isAgent}
+          isVerifiedAgent={isVerifiedAgent}
+          agentAlreadyRevealed={agentAlreadyRevealed}
+          agentInitialContact={agentInitialContact}
+          playerId={player.id}
         />
       </div>
     </main>

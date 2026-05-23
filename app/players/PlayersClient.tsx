@@ -7,7 +7,9 @@ const POS_SHORT: Record<string,string> = {
   RIGHT_WING:"RW", CENTRE_BACK:"CB", PIVOT:"PV", CENTRE_FORWARD:"CF",
 };
 
-export default function PlayersClient({ players, positions, posLabels, nationalities, isVerified }: any) {
+export default function PlayersClient({ players, positions, posLabels, nationalities, isVerified, isAgent }: any) {
+  // Agents get full access like verified+subscribed clubs
+  const hasAccess = isVerified || isAgent;
   const [q, setQ] = useState("");
   const [pos, setPos] = useState("");
   const [nat, setNat] = useState("");
@@ -20,7 +22,7 @@ export default function PlayersClient({ players, positions, posLabels, nationali
   const prevFilters = useRef({ pos: "", nat: "", minH: 160, maxH: 220 });
 
   useEffect(() => {
-    if (!isVerified) return;
+    if (!hasAccess) return;
     // Only log if at least one filter is active (not default state)
     const hasFilter = pos !== "" || nat !== "" || minH !== 160 || maxH !== 220;
     if (!hasFilter) return;
@@ -44,7 +46,7 @@ export default function PlayersClient({ players, positions, posLabels, nationali
     }, 1500);
 
     return () => { if (logTimer.current) clearTimeout(logTimer.current); };
-  }, [pos, nat, minH, maxH, isVerified]);
+  }, [pos, nat, minH, maxH, hasAccess]);
 
   const filtered = useMemo(() => players.filter((p: any) => {
     if (pos && p.position !== pos) return false;
@@ -60,7 +62,7 @@ export default function PlayersClient({ players, positions, posLabels, nationali
   return (
     <>
       {/* Sidebar — fully locked for unverified clubs */}
-      {isVerified ? (
+      {hasAccess ? (
         <div className="filter-sidebar">
           <div className="filter-title">
             Filters
@@ -113,7 +115,7 @@ export default function PlayersClient({ players, positions, posLabels, nationali
       )}
 
       <div>
-        {isVerified ? (
+        {hasAccess ? (
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
             <span style={{ fontSize:"0.85rem", color:"var(--muted)" }}>{filtered.length} results</span>
             <div style={{ display:"flex", gap:4 }}>
@@ -138,7 +140,7 @@ export default function PlayersClient({ players, positions, posLabels, nationali
         )}
 
         {/* Locked showcase for unverified clubs */}
-        {!isVerified ? (
+        {!hasAccess ? (
           <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))", gap:20 }}>
             {players.slice(0, 6).map((p: any) => (
               <div key={p.id} style={{ position:"relative" }}>

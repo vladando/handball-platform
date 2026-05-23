@@ -11,18 +11,24 @@ export async function GET() {
 
   const agent = await prisma.agent.findUnique({
     where: { userId: (session.user as any).id },
-    select: { id: true },
+    // Include createdAt so we can use it as the retroactive cutoff
+    select: { id: true, createdAt: true },
   });
   if (!agent) return NextResponse.json({ notifications: [] });
 
   const since30d = new Date(Date.now() - 30 * 24 * 3600 * 1000);
   const since7d = new Date(Date.now() - 7 * 24 * 3600 * 1000);
 
-  // Club unlock notifications — interactions on agent's players
+  // Never show notifications for activity that predates the agent's account
+  const accountCreatedAt = agent.createdAt;
+  const effectiveSince30d = since30d > accountCreatedAt ? since30d : accountCreatedAt;
+  const effectiveSince7d = since7d > accountCreatedAt ? since7d : accountCreatedAt;
+
+  // Club unlock notifications — interactions on agent's players (only since account was created)
   const interactions = await prisma.interaction.findMany({
     where: {
       player: { agentId: agent.id },
-      createdAt: { gte: since30d },
+      createdAt: { gte: effectiveSince30d },
     },
     include: {
       club: { select: { name: true, logoUrl: true, country: true } },
@@ -32,13 +38,13 @@ export async function GET() {
     take: 50,
   });
 
-  // New free agent players — registered in last 7 days, not managed by this agent
+  // New free agent players — registered after agent account was created (max 7d lookback)
   const newPlayers = await prisma.player.findMany({
     where: {
       onboardingCompleted: true,
       isAvailable: true,
       agentId: null,
-      createdAt: { gte: since7d },
+      createdAt: { gte: effectiveSince7d },
     },
     select: {
       id: true,
@@ -53,12 +59,12 @@ export async function GET() {
     take: 20,
   });
 
-  // Representation request responses — player accepted/rejected in last 30 days
+  // Representation request responses — only those responded to after account creation
   const repRequests = await (prisma as any).representationRequest.findMany({
     where: {
       agentId: agent.id,
       status: { in: ["ACCEPTED", "REJECTED"] },
-      respondedAt: { gte: since30d },
+      respondedAt: { gte: effectiveSince30d },
     },
     include: {
       player: { select: { firstName: true, lastName: true, slug: true } },

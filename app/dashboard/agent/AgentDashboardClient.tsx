@@ -168,14 +168,13 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
   const stats = {
     total: players.length,
     available: players.filter(p => p.isAvailable === true).length,
-    contractsExpiringSoon: contracts.filter(c => {
-      if (!c.endDate) return false;
-      const d = daysLeft(c.endDate);
-      return d > 0 && d < 180;
-    }).length,
     pendingCommissions: commissions.filter(c => c.status === "PENDING").length,
     totalPendingCents: commissions
       .filter(c => c.status === "PENDING")
+      .reduce((s: number, c: any) => s + (c.amountCents ?? 0), 0),
+    paidCommissions: commissions.filter(c => c.status === "PAID").length,
+    totalPaidCents: commissions
+      .filter(c => c.status === "PAID")
       .reduce((s: number, c: any) => s + (c.amountCents ?? 0), 0),
   };
 
@@ -438,8 +437,8 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
                 <span style={{ fontSize: "1rem" }}>{item.icon}</span>
                 {item.label}
                 {item.id === "players" && <span style={{ marginLeft: "auto", fontSize: "0.7rem", color: "var(--muted)" }}>{players.length}</span>}
-                {item.id === "contracts" && stats.contractsExpiringSoon > 0 && (
-                  <span style={{ marginLeft: "auto", background: "rgba(232,255,71,0.2)", color: "var(--accent)", fontSize: "0.65rem", padding: "1px 6px", borderRadius: 2 }}>{stats.contractsExpiringSoon}</span>
+                {item.id === "contracts" && contracts.length > 0 && (
+                  <span style={{ marginLeft: "auto", background: "rgba(232,255,71,0.2)", color: "var(--accent)", fontSize: "0.65rem", padding: "1px 6px", borderRadius: 2 }}>{contracts.length}</span>
                 )}
                 {item.id === "commissions" && stats.pendingCommissions > 0 && (
                   <span style={{ marginLeft: "auto", background: "rgba(232,255,71,0.2)", color: "var(--accent)", fontSize: "0.65rem", padding: "1px 6px", borderRadius: 2 }}>{stats.pendingCommissions}</span>
@@ -483,9 +482,9 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
               {[
                 { label: "Total Players", val: stats.total, sub: "in roster", color: "var(--white)" },
                 { label: "Available", val: stats.available, sub: "for transfer", color: stats.available > 0 ? "#00c864" : "var(--muted)" },
-                { label: "Contracts Expiring", val: stats.contractsExpiringSoon, sub: "< 6 months", color: stats.contractsExpiringSoon > 0 ? "var(--accent)" : "var(--muted)" },
                 { label: "Pending Commissions", val: stats.pendingCommissions, sub: "awaiting payment", color: stats.pendingCommissions > 0 ? "var(--accent)" : "var(--muted)" },
                 { label: "Pending Value", val: fmtCents(stats.totalPendingCents), sub: "total outstanding", color: stats.totalPendingCents > 0 ? "var(--white)" : "var(--muted)" },
+                { label: "Completed Payments", val: fmtCents(stats.totalPaidCents), sub: `${stats.paidCommissions} paid`, color: stats.paidCommissions > 0 ? "#00c864" : "var(--muted)" },
               ].map(s => (
                 <div key={s.label} className="card" style={{ textAlign: "center", padding: "16px 12px" }}>
                   <div style={{ fontFamily: "var(--font-display)", fontWeight: 900, fontSize: "1.6rem", color: s.color, lineHeight: 1 }}>{s.val}</div>

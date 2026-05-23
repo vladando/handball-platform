@@ -384,9 +384,9 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
   const [contractView, setContractView] = useState<"table" | "gantt">("table");
 
   // ── Table sort state ─────────────────────────────────────────────
-  const [contractSort, setContractSort] = useState({ key: "endDate", dir: "asc" as "asc" | "desc" });
-  const [commissionSort, setCommissionSort] = useState({ key: "dueDate", dir: "asc" as "asc" | "desc" });
-  const [transferSort, setTransferSort] = useState({ key: "transferDate", dir: "desc" as "asc" | "desc" });
+  const [contractSort, setContractSort] = useState({ key: "createdAt", dir: "desc" as "asc" | "desc" });
+  const [commissionSort, setCommissionSort] = useState({ key: "createdAt", dir: "desc" as "asc" | "desc" });
+  const [transferSort, setTransferSort] = useState({ key: "createdAt", dir: "desc" as "asc" | "desc" });
 
   // ── Computed stats ───────────────────────────────────────────────
   const stats = {
@@ -1043,7 +1043,7 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
                   <div style={{ color: "var(--muted)", fontSize: "0.82rem", textAlign: "center", padding: "20px 0" }}>No contracts recorded</div>
                 ) : (
                   <div>
-                    {contracts.slice(0, 7).map((c: any) => {
+                    {[...contracts].sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 7).map((c: any) => {
                       if (!c.endDate) return null;
                       const d = daysLeft(c.endDate);
                       const expired = d < 0;
@@ -1095,7 +1095,7 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
                   <div style={{ color: "var(--muted)", fontSize: "0.82rem", textAlign: "center", padding: "20px 0" }}>No commissions tracked</div>
                 ) : (
                   <div>
-                    {commissions.slice(0, 7).map((c: any) => {
+                    {[...commissions].sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 7).map((c: any) => {
                       const od = c.status === "PENDING" ? overdueLevel(c.dueDate) : { days: -1, label: "", color: "", bg: "" };
                       const isOverdue = od.days >= 0;
                       return (
@@ -1143,7 +1143,7 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
                 <div style={{ color: "var(--muted)", fontSize: "0.82rem", textAlign: "center", padding: "20px 0" }}>No transfer records yet</div>
               ) : (
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 0 }}>
-                  {transfers.slice(0, 8).map((t: any) => (
+                  {[...transfers].sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 8).map((t: any) => (
                     <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: "1px solid var(--border)" }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "0.85rem", textTransform: "uppercase" }}>
@@ -1899,16 +1899,18 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
             </div>
 
             {transfers.length > 0 && (() => {
-              const totalFees = transfers.reduce((s: number, t: any) => s + (t.transferFeeCents ?? 0), 0);
-              const withFee = transfers.filter((t: any) => t.transferFeeCents).length;
               const salaries = transfers.filter((t: any) => t.salaryCents);
               const avgSalary = salaries.length > 0 ? Math.round(salaries.reduce((s: number, t: any) => s + t.salaryCents, 0) / salaries.length) : 0;
-              const lastDate = transfers[0]?.transferDate;
+              const sortedTransfers = [...transfers].sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+              const lastDate = sortedTransfers[0]?.transferDate;
+              const totalCommissions = commissions.reduce((s: number, c: any) => s + (c.amountCents ?? 0), 0);
+              const paidCount = commissions.filter((c: any) => c.status === "PAID").length;
+              const pendingCount = commissions.filter((c: any) => c.status === "PENDING").length;
               return (
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 20 }}>
                   {[
                     { label: "Total Transfers", val: transfers.length, sub: "all time", color: "var(--white)" },
-                    { label: "Total Transfer Fees", val: totalFees > 0 ? fmtCents(totalFees) : "—", sub: `${withFee} with fee`, color: totalFees > 0 ? "#00c864" : "var(--muted)" },
+                    { label: "Total Commissions", val: totalCommissions > 0 ? fmtCents(totalCommissions) : "—", sub: `${paidCount} paid · ${pendingCount} pending`, color: totalCommissions > 0 ? "#00c864" : "var(--muted)" },
                     { label: "Avg Monthly Salary", val: avgSalary > 0 ? fmtCents(avgSalary) : "—", sub: `${salaries.length} with salary`, color: avgSalary > 0 ? "var(--white)" : "var(--muted)" },
                     { label: "Last Transfer", val: lastDate ? fmtDate(lastDate) : "—", sub: "most recent", color: "var(--muted)" },
                   ].map(s => (

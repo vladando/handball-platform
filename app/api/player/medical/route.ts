@@ -5,6 +5,23 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { resolvePlayerForSession } from "@/lib/playerAuth";
 
+export async function GET(req: NextRequest) {
+  const session = await getServerSession(authOptions);
+  const role = (session?.user as any)?.role;
+  if (!session || (role !== "PLAYER" && role !== "AGENT"))
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const agentPlayerId = req.nextUrl.searchParams.get("agentPlayerId");
+  const player = await resolvePlayerForSession(session, agentPlayerId);
+  if (!player) return NextResponse.json({ error: "Player not found." }, { status: 404 });
+
+  const records = await prisma.medicalRecord.findMany({
+    where: { playerId: player.id },
+    orderBy: { createdAt: "desc" },
+  });
+  return NextResponse.json({ records });
+}
+
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   const role = (session?.user as any)?.role;

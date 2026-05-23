@@ -194,6 +194,7 @@ model Player {
   verificationStatus PlayerVerificationStatus @default(UNVERIFIED)
   passportUrl        String?
   selfieUrl          String?
+  contractUrl        String?   // agent-submitted: signed contract between agent and player
   verificationNote   String?  @db.Text
   verifiedAt         DateTime?
   verifiedBy         String?  // admin userId

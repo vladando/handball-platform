@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import Link from "next/link";
 
 const POSITIONS = [
@@ -45,6 +45,15 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
   // Delete confirm
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Verification modal
+  const [verifyPlayer, setVerifyPlayer] = useState<{ id: string; name: string; status: string } | null>(null);
+  const [docFile, setDocFile] = useState<File | null>(null);
+  const [contractFile, setContractFile] = useState<File | null>(null);
+  const [verifying, setVerifying] = useState(false);
+  const [verifyMsg, setVerifyMsg] = useState("");
+  const docInputRef = useRef<HTMLInputElement>(null);
+  const contractInputRef = useRef<HTMLInputElement>(null);
 
   // Settings form
   const [settings, setSettings] = useState({
@@ -124,6 +133,27 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
     setDeleting(false);
     setPlayers(ps => ps.filter(p => p.id !== confirmDelete.id));
     setConfirmDelete(null);
+  }
+
+  async function handleVerifySubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!verifyPlayer) return;
+    if (!docFile) { setVerifyMsg("Player identity document is required."); return; }
+    if (!contractFile) { setVerifyMsg("Signed contract is required."); return; }
+    setVerifying(true); setVerifyMsg("");
+    const fd = new FormData();
+    fd.append("document", docFile);
+    fd.append("contract", contractFile);
+    const res = await fetch(`/api/agent/players/${verifyPlayer.id}/verify`, { method: "POST", body: fd });
+    const data = await res.json();
+    setVerifying(false);
+    if (res.ok) {
+      setPlayers(ps => ps.map(p => p.id === verifyPlayer.id ? { ...p, verificationStatus: "PENDING" } : p));
+      setVerifyPlayer(null);
+      setDocFile(null); setContractFile(null);
+    } else {
+      setVerifyMsg(data.error ?? "Upload failed. Please try again.");
+    }
   }
 
   async function handleSettingsSave(e: React.FormEvent) {
@@ -239,13 +269,24 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
                         Continue Setup →
                       </Link>
                     ) : (
-                      <Link href={`/players/${p.slug}`} target="_blank" className="btn btn-outline" style={{ fontSize: "0.75rem", padding: "6px 12px" }}>
-                        View ↗
-                      </Link>
+                      <>
+                        <Link href={`/players/${p.slug}`} target="_blank" className="btn btn-outline" style={{ fontSize: "0.75rem", padding: "6px 12px" }}>
+                          View ↗
+                        </Link>
+                        {p.verificationStatus !== "VERIFIED" && p.verificationStatus !== "PENDING" && (
+                          <button className="btn btn-primary" style={{ fontSize: "0.75rem", padding: "6px 12px" }}
+                            onClick={() => { setVerifyPlayer({ id: p.id, name: `${p.firstName} ${p.lastName}`, status: p.verificationStatus }); setDocFile(null); setContractFile(null); setVerifyMsg(""); }}>
+                            🔐 Verify
+                          </button>
+                        )}
+                        {p.verificationStatus === "PENDING" && (
+                          <span className="badge badge-accent" style={{ fontSize: "0.72rem", padding: "6px 10px" }}>⏳ Pending Review</span>
+                        )}
+                      </>
                     )}
-                    <button className="btn btn-outline" style={{ fontSize: "0.75rem", padding: "6px 12px" }} onClick={() => openEdit(p)}>
+                    <Link href={`/dashboard/agent/player/${p.id}/edit`} className="btn btn-outline" style={{ fontSize: "0.75rem", padding: "6px 12px" }}>
                       ✏️ Edit
-                    </button>
+                    </Link>
                     <button className="btn btn-danger" style={{ fontSize: "0.75rem", padding: "6px 10px" }} onClick={() => setConfirmDelete({ id: p.id, name: `${p.firstName} ${p.lastName}` })}>
                       🗑
                     </button>
@@ -455,6 +496,82 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
                   {editSaving ? <><span className="spinner" /> Saving…</> : "Save Changes"}
                 </button>
                 <button type="button" className="btn btn-outline" onClick={() => setEditingId(null)}>Cancel</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── Verification Modal ── */}
+      {verifyPlayer && (
+        <div className="modal-overlay" onClick={() => { setVerifyPlayer(null); setDocFile(null); setContractFile(null); setVerifyMsg(""); }}>
+          <div className="modal" style={{ maxWidth: 500, width: "100%" }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+              <h3 className="modal-title" style={{ margin: 0 }}>🔐 Verify Player</h3>
+              <button onClick={() => { setVerifyPlayer(null); setDocFile(null); setContractFile(null); setVerifyMsg(""); }} style={{ background: "none", border: "none", color: "var(--muted)", fontSize: "1.4rem", cursor: "pointer" }}>✕</button>
+            </div>
+
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: "1.05rem", textTransform: "uppercase", marginBottom: 6 }}>{verifyPlayer.name}</div>
+              <p style={{ color: "var(--muted)", fontSize: "0.85rem", lineHeight: 1.6, margin: 0 }}>
+                To verify this player, upload their identity document (passport or national ID) and the signed representation contract between you and the player. The admin will review and approve the verification.
+              </p>
+            </div>
+
+            <form onSubmit={handleVerifySubmit}>
+              {/* Document upload */}
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: "0.75rem", color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8, fontFamily: "var(--font-mono)" }}>
+                  Player Identity Document <span style={{ color: "var(--accent)" }}>*</span>
+                </div>
+                <div style={{ background: "var(--card2)", border: `2px dashed ${docFile ? "var(--accent)" : "var(--border)"}`, borderRadius: "var(--radius)", padding: "16px", textAlign: "center", cursor: "pointer" }}
+                  onClick={() => docInputRef.current?.click()}>
+                  <input ref={docInputRef} type="file" accept="image/jpeg,image/png,image/webp,application/pdf" style={{ display: "none" }}
+                    onChange={e => { const f = e.target.files?.[0]; if (f) setDocFile(f); }} />
+                  {docFile ? (
+                    <div style={{ fontSize: "0.85rem", color: "var(--white)" }}>✓ {docFile.name}</div>
+                  ) : (
+                    <>
+                      <div style={{ fontSize: "1.5rem", marginBottom: 6 }}>🪪</div>
+                      <div style={{ fontSize: "0.82rem", color: "var(--muted)" }}>Click to upload passport or ID card</div>
+                      <div style={{ fontSize: "0.7rem", color: "var(--muted)", marginTop: 4 }}>JPEG, PNG, WebP or PDF · max 15 MB</div>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Contract upload */}
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ fontSize: "0.75rem", color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8, fontFamily: "var(--font-mono)" }}>
+                  Signed Agent-Player Contract <span style={{ color: "var(--accent)" }}>*</span>
+                </div>
+                <div style={{ background: "var(--card2)", border: `2px dashed ${contractFile ? "var(--accent)" : "var(--border)"}`, borderRadius: "var(--radius)", padding: "16px", textAlign: "center", cursor: "pointer" }}
+                  onClick={() => contractInputRef.current?.click()}>
+                  <input ref={contractInputRef} type="file" accept="image/jpeg,image/png,image/webp,application/pdf" style={{ display: "none" }}
+                    onChange={e => { const f = e.target.files?.[0]; if (f) setContractFile(f); }} />
+                  {contractFile ? (
+                    <div style={{ fontSize: "0.85rem", color: "var(--white)" }}>✓ {contractFile.name}</div>
+                  ) : (
+                    <>
+                      <div style={{ fontSize: "1.5rem", marginBottom: 6 }}>📄</div>
+                      <div style={{ fontSize: "0.82rem", color: "var(--muted)" }}>Click to upload signed contract</div>
+                      <div style={{ fontSize: "0.7rem", color: "var(--muted)", marginTop: 4 }}>JPEG, PNG, WebP or PDF · max 15 MB</div>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {verifyMsg && (
+                <div style={{ background: "rgba(255,59,59,0.1)", border: "1px solid rgba(255,59,59,0.3)", borderRadius: "var(--radius)", padding: "10px 14px", fontSize: "0.85rem", color: "var(--red)", marginBottom: 16 }}>
+                  {verifyMsg}
+                </div>
+              )}
+
+              <div style={{ display: "flex", gap: 12 }}>
+                <button type="submit" className="btn btn-primary" style={{ flex: 1, justifyContent: "center" }} disabled={verifying}>
+                  {verifying ? <><span className="spinner" /> Submitting…</> : "Submit for Verification"}
+                </button>
+                <button type="button" className="btn btn-outline" onClick={() => { setVerifyPlayer(null); setDocFile(null); setContractFile(null); setVerifyMsg(""); }}>Cancel</button>
               </div>
             </form>
           </div>

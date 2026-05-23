@@ -294,7 +294,7 @@ export default function AdminClient({ clubs, players, interactions, users, stats
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-                {players.filter((p: any) => p.verificationStatus === "PENDING" || (p.verificationStatus === "REJECTED" && p.passportUrl)).map((p: any) => (
+                {players.filter((p: any) => p.verificationStatus === "PENDING" || (p.verificationStatus === "REJECTED" && (p.passportUrl || p.contractUrl))).map((p: any) => (
                   <div key={p.id} className="card">
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
                       <div>
@@ -312,19 +312,60 @@ export default function AdminClient({ clubs, players, interactions, users, stats
                       {p.photoUrl && <img src={p.photoUrl} alt="profile" style={{ width: 56, height: 56, borderRadius: "50%", objectFit: "cover", border: "2px solid var(--border)", cursor: "zoom-in" }} onClick={() => setLightbox({ src: p.photoUrl, label: "Profile Photo" })} />}
                     </div>
 
-                    <div className="admin-doc-grid">
-                      {[{ label: "Passport / ID", url: p.passportUrl }, { label: "Selfie with Passport", url: p.selfieUrl }].map(doc => (
-                        <div key={doc.label}>
-                          <div style={{ fontSize: "0.75rem", color: "var(--muted)", textTransform: "uppercase", marginBottom: 8 }}>{doc.label}</div>
-                          {doc.url ? (
-                            <div onClick={() => setLightbox({ src: doc.url!, label: doc.label })} style={{ cursor: "zoom-in", borderRadius: 8, overflow: "hidden", border: "1px solid var(--border)", height: 180 }}>
-                              <img src={doc.url} alt={doc.label} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                    {/* Agent-managed player indicator */}
+                    {p.agentId && (
+                      <div style={{ marginBottom: 16, padding: "10px 14px", background: "rgba(232,255,71,0.06)", border: "1px solid rgba(232,255,71,0.25)", borderRadius: "var(--radius)", fontSize: "0.82rem", color: "var(--accent)" }}>
+                        🤝 This player is managed by an agent. Documents below: player identity doc + signed agent-player contract.
+                      </div>
+                    )}
+
+                    <div className="admin-doc-grid" style={{ gridTemplateColumns: p.agentId && p.contractUrl ? "1fr 1fr 1fr" : "1fr 1fr" }}>
+                      {/* Document 1: Passport / ID (or agent-submitted player doc) */}
+                      <div>
+                        <div style={{ fontSize: "0.75rem", color: "var(--muted)", textTransform: "uppercase", marginBottom: 8 }}>
+                          {p.agentId ? "Player Identity Document" : "Passport / ID"}
+                        </div>
+                        {p.passportUrl ? (
+                          <div onClick={() => openLightbox(p.passportUrl, "Identity Document")} style={{ cursor: "zoom-in", borderRadius: 8, overflow: "hidden", border: "1px solid var(--border)", height: 180, background: "var(--card2)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                            {p.passportUrl.endsWith(".pdf") ? (
+                              <span style={{ fontSize: "3rem" }}>📄</span>
+                            ) : (
+                              <img src={p.passportUrl} alt="Identity Document" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                            )}
+                          </div>
+                        ) : (
+                          <div style={{ height: 180, borderRadius: 8, border: "2px dashed var(--border)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--muted)", fontSize: "0.8rem" }}>Not submitted</div>
+                        )}
+                        {p.passportUrl && <a href={p.passportUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: "0.7rem", color: "var(--accent)", display: "block", marginTop: 4 }}>Open ↗</a>}
+                      </div>
+
+                      {/* Document 2: Selfie (players) OR Contract (agent players) */}
+                      {p.agentId ? (
+                        p.contractUrl && (
+                          <div>
+                            <div style={{ fontSize: "0.75rem", color: "var(--muted)", textTransform: "uppercase", marginBottom: 8 }}>Signed Contract</div>
+                            <div onClick={() => openLightbox(p.contractUrl, "Signed Contract")} style={{ cursor: "zoom-in", borderRadius: 8, overflow: "hidden", border: "1px solid var(--border)", height: 180, background: "var(--card2)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                              {p.contractUrl.endsWith(".pdf") ? (
+                                <span style={{ fontSize: "3rem" }}>📄</span>
+                              ) : (
+                                <img src={p.contractUrl} alt="Contract" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                              )}
+                            </div>
+                            <a href={p.contractUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: "0.7rem", color: "var(--accent)", display: "block", marginTop: 4 }}>Open ↗</a>
+                          </div>
+                        )
+                      ) : (
+                        <div>
+                          <div style={{ fontSize: "0.75rem", color: "var(--muted)", textTransform: "uppercase", marginBottom: 8 }}>Selfie with Passport</div>
+                          {p.selfieUrl ? (
+                            <div onClick={() => openLightbox(p.selfieUrl, "Selfie with Passport")} style={{ cursor: "zoom-in", borderRadius: 8, overflow: "hidden", border: "1px solid var(--border)", height: 180 }}>
+                              <img src={p.selfieUrl} alt="Selfie" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                             </div>
                           ) : (
                             <div style={{ height: 180, borderRadius: 8, border: "2px dashed var(--border)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--muted)", fontSize: "0.8rem" }}>Not submitted</div>
                           )}
                         </div>
-                      ))}
+                      )}
                     </div>
 
                     <div className="form-group" style={{ marginBottom: 16 }}>

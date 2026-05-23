@@ -494,63 +494,6 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
               ))}
             </div>
 
-            {/* ── Players Roster ── */}
-            <div className="card" style={{ marginBottom: 20 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-                <h4 style={{ textTransform: "uppercase", fontSize: "0.88rem", margin: 0 }}>
-                  Players <span style={{ color: "var(--muted)", fontWeight: 400, textTransform: "none" }}>({players.length})</span>
-                </h4>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <button className="btn btn-outline" style={{ fontSize: "0.72rem", padding: "5px 10px" }} onClick={() => switchTab("players")}>Manage →</button>
-                  <button className="btn btn-primary" style={{ fontSize: "0.72rem", padding: "5px 10px" }}
-                    onClick={() => { setAddForm({ firstName: "", lastName: "" }); setAddError(""); setShowAddModal(true); }}>+ Add</button>
-                </div>
-              </div>
-              {players.length === 0 ? (
-                <div style={{ textAlign: "center", padding: "28px 0", color: "var(--muted)", fontSize: "0.85rem" }}>
-                  No players yet. Add your first player to get started.
-                </div>
-              ) : (
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 10 }}>
-                  {players.map((p: any) => {
-                    const pc = contracts.filter(c => c.playerId === p.id);
-                    const nc = pc[0];
-                    const cd = nc?.endDate ? daysLeft(nc.endDate) : null;
-                    return (
-                      <div key={p.id} style={{ background: "var(--card2)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "12px", display: "flex", gap: 10, alignItems: "flex-start" }}>
-                        <div style={{ width: 42, height: 42, borderRadius: "50%", background: "var(--card)", overflow: "hidden", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.1rem", border: "1px solid var(--border)" }}>
-                          {p.photoUrl ? <img src={p.photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : "👤"}
-                        </div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: "0.82rem", textTransform: "uppercase", lineHeight: 1.2 }}>
-                            {p.firstName} {p.lastName}
-                          </div>
-                          <div style={{ fontSize: "0.68rem", color: "var(--muted)", marginTop: 2 }}>
-                            {posLabel(p.position)}{p.nationality && p.nationality !== "Unknown" ? ` · ${p.nationality}` : ""}
-                          </div>
-                          <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 5 }}>
-                            <span className={`badge ${HEALTH_COLORS[p.healthStatus ?? "HEALTHY"]}`} style={{ fontSize: "0.55rem" }}>{p.healthStatus ?? "HEALTHY"}</span>
-                            <span className={`badge ${VERIF_COLORS[p.verificationStatus ?? "UNVERIFIED"]}`} style={{ fontSize: "0.55rem" }}>{p.verificationStatus ?? "UNVERIFIED"}</span>
-                          </div>
-                          {cd !== null && (
-                            <div style={{ fontSize: "0.62rem", marginTop: 4, color: cd < 0 ? "var(--muted)" : cd < 30 ? "var(--red)" : cd < 180 ? "var(--accent)" : "var(--muted)" }}>
-                              {cd < 0 ? "Contract expired" : `Contract: ${cd}d left`}
-                            </div>
-                          )}
-                          <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
-                            {p.slug && p.onboardingCompleted && (
-                              <Link href={`/players/${p.slug}`} target="_blank" style={{ fontSize: "0.6rem", color: "var(--accent)" }}>↗ Profile</Link>
-                            )}
-                            <Link href={`/dashboard/agent/player/${p.id}/edit`} style={{ fontSize: "0.6rem", color: "var(--muted)" }}>✏ Edit</Link>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
             {/* ── Contracts + Commissions ── */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 20 }}>
 
@@ -687,6 +630,63 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
               {transfers.length > 8 && (
                 <div style={{ fontSize: "0.72rem", color: "var(--muted)", textAlign: "center", paddingTop: 10 }}>
                   +{transfers.length - 8} more · <button onClick={() => switchTab("transfers")} style={{ background: "none", border: "none", color: "var(--accent)", cursor: "pointer", fontSize: "0.72rem", padding: 0 }}>view all</button>
+                </div>
+              )}
+            </div>
+
+            {/* ── Players Roster ── */}
+            <div className="card" style={{ marginTop: 20 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                <h4 style={{ textTransform: "uppercase", fontSize: "0.88rem", margin: 0 }}>
+                  Players <span style={{ color: "var(--muted)", fontWeight: 400, textTransform: "none" }}>({players.length})</span>
+                </h4>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button className="btn btn-outline" style={{ fontSize: "0.72rem", padding: "5px 10px" }} onClick={() => switchTab("players")}>Manage →</button>
+                  <button className="btn btn-primary" style={{ fontSize: "0.72rem", padding: "5px 10px" }}
+                    onClick={() => { setAddForm({ firstName: "", lastName: "" }); setAddError(""); setShowAddModal(true); }}>+ Add</button>
+                </div>
+              </div>
+              {players.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "28px 0", color: "var(--muted)", fontSize: "0.85rem" }}>
+                  No players yet. Add your first player to get started.
+                </div>
+              ) : (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 10 }}>
+                  {players.map((p: any) => {
+                    const pc = contracts.filter(c => c.playerId === p.id);
+                    const nc = pc[0];
+                    const cd = nc?.endDate ? daysLeft(nc.endDate) : null;
+                    return (
+                      <div key={p.id} style={{ background: "var(--card2)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "12px", display: "flex", gap: 10, alignItems: "flex-start" }}>
+                        <div style={{ width: 42, height: 42, borderRadius: "50%", background: "var(--card)", overflow: "hidden", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.1rem", border: "1px solid var(--border)" }}>
+                          {p.photoUrl ? <img src={p.photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : "👤"}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: "0.82rem", textTransform: "uppercase", lineHeight: 1.2 }}>
+                            {p.firstName} {p.lastName}
+                          </div>
+                          <div style={{ fontSize: "0.68rem", color: "var(--muted)", marginTop: 2 }}>
+                            {posLabel(p.position)}{p.nationality && p.nationality !== "Unknown" ? ` · ${p.nationality}` : ""}
+                          </div>
+                          <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 5 }}>
+                            <span className={`badge ${HEALTH_COLORS[p.healthStatus ?? "HEALTHY"]}`} style={{ fontSize: "0.55rem" }}>{p.healthStatus ?? "HEALTHY"}</span>
+                            <span className={`badge ${VERIF_COLORS[p.verificationStatus ?? "UNVERIFIED"]}`} style={{ fontSize: "0.55rem" }}>{p.verificationStatus ?? "UNVERIFIED"}</span>
+                          </div>
+                          {cd !== null && (
+                            <div style={{ fontSize: "0.62rem", marginTop: 4, color: cd < 0 ? "var(--muted)" : cd < 30 ? "var(--red)" : cd < 180 ? "var(--accent)" : "var(--muted)" }}>
+                              {cd < 0 ? "Contract expired" : `Contract: ${cd}d left`}
+                            </div>
+                          )}
+                          <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+                            {p.slug && p.onboardingCompleted && (
+                              <Link href={`/players/${p.slug}`} target="_blank" style={{ fontSize: "0.6rem", color: "var(--accent)" }}>↗ Profile</Link>
+                            )}
+                            <Link href={`/dashboard/agent/player/${p.id}/edit`} style={{ fontSize: "0.6rem", color: "var(--muted)" }}>✏ Edit</Link>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>

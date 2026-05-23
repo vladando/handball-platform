@@ -47,17 +47,23 @@ function fmtDate(d: string | Date | null | undefined): string {
 
 // ── DD/MM/YYYY date picker ────────────────────────────────────────
 // value is YYYY-MM-DD string (or ""); onChange emits YYYY-MM-DD or ""
+// Uses local state so user can fill fields independently before all are complete
 function DatePicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const parts = value ? value.split("-") : ["", "", ""];
-  const yyyy = parts[0] ?? "";
-  const mm   = parts[1] ?? "";
-  const dd   = parts[2] ?? "";
+  const parse = (v: string) => {
+    if (!v) return { d: "", m: "", y: "" };
+    const p = v.split("-");
+    return { d: p[2] ?? "", m: p[1] ?? "", y: p[0] ?? "" };
+  };
 
-  const emit = (d: string, m: string, y: string) => {
+  const [fields, setFields] = useState(() => parse(value));
+
+  // Sync when parent changes value externally (e.g. auto-fill)
+  useEffect(() => { setFields(parse(value)); }, [value]);
+
+  const update = (d: string, m: string, y: string) => {
+    setFields({ d, m, y });
     if (d && m && y && y.length === 4) {
-      const pd = d.padStart(2, "0");
-      const pm = m.padStart(2, "0");
-      onChange(`${y}-${pm}-${pd}`);
+      onChange(`${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`);
     } else {
       onChange("");
     }
@@ -66,9 +72,9 @@ function DatePicker({ value, onChange }: { value: string; onChange: (v: string) 
   const inp: React.CSSProperties = { textAlign: "center", padding: "10px 6px", fontSize: "0.9rem" };
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1.5fr", gap: 4 }}>
-      <input className="input" type="number" min={1} max={31} placeholder="DD"   value={dd}   style={inp} onChange={e => emit(e.target.value, mm, yyyy)} />
-      <input className="input" type="number" min={1} max={12} placeholder="MM"   value={mm}   style={inp} onChange={e => emit(dd, e.target.value, yyyy)} />
-      <input className="input" type="number" min={2020} max={2060} placeholder="YYYY" value={yyyy} style={inp} onChange={e => emit(dd, mm, e.target.value)} />
+      <input className="input" type="number" min={1} max={31}   placeholder="DD"   value={fields.d} style={inp} onChange={e => update(e.target.value, fields.m, fields.y)} />
+      <input className="input" type="number" min={1} max={12}   placeholder="MM"   value={fields.m} style={inp} onChange={e => update(fields.d, e.target.value, fields.y)} />
+      <input className="input" type="number" min={2020} max={2060} placeholder="YYYY" value={fields.y} style={inp} onChange={e => update(fields.d, fields.m, e.target.value)} />
     </div>
   );
 }
@@ -329,7 +335,7 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
 
   // Transfer modal
   const [showTransferModal, setShowTransferModal] = useState(false);
-  const [transferForm, setTransferForm] = useState({ playerId: "", fromClub: "", toClub: "", transferDate: "", salaryEur: "", contractStartDate: "", contractEndDate: "", commissionEur: "", commissionDueDate: "", commissionDescription: "", notes: "" });
+  const [transferForm, setTransferForm] = useState({ playerId: "", fromClub: "", toClub: "", transferDate: "", salaryEur: "", salaryMonths: "", contractStartDate: "", contractEndDate: "", commissionEur: "", commissionDueDate: "", commissionDescription: "", notes: "" });
   const [transferDocFile, setTransferDocFile] = useState<File | null>(null);
   const transferDocRef = useRef<HTMLInputElement>(null);
   const [transferSaving, setTransferSaving] = useState(false);
@@ -632,7 +638,7 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
     // Auto-append linked contract to contracts list
     if (data.contract) setContracts(cs => [...cs, data.contract].sort((a, b) => new Date(a.endDate).getTime() - new Date(b.endDate).getTime()));
     setShowTransferModal(false);
-    setTransferForm({ playerId: "", fromClub: "", toClub: "", transferDate: "", salaryEur: "", contractStartDate: "", contractEndDate: "", commissionEur: "", commissionDueDate: "", commissionDescription: "", notes: "" });
+    setTransferForm({ playerId: "", fromClub: "", toClub: "", transferDate: "", salaryEur: "", salaryMonths: "", contractStartDate: "", contractEndDate: "", commissionEur: "", commissionDueDate: "", commissionDescription: "", notes: "" });
     setTransferDocFile(null);
   }
 
@@ -1130,7 +1136,7 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
                 <div style={{ display: "flex", gap: 6 }}>
                   <button className="btn btn-outline" style={{ fontSize: "0.7rem", padding: "4px 8px" }} onClick={() => switchTab("transfers")}>All →</button>
                   <button className="btn btn-primary" style={{ fontSize: "0.7rem", padding: "4px 8px" }}
-                    onClick={() => { setTransferForm({ playerId: "", fromClub: "", toClub: "", transferDate: "", salaryEur: "", contractStartDate: "", contractEndDate: "", commissionEur: "", commissionDueDate: "", commissionDescription: "", notes: "" }); setTransferDocFile(null); setTransferError(""); setShowTransferModal(true); }}>+ Add</button>
+                    onClick={() => { setTransferForm({ playerId: "", fromClub: "", toClub: "", transferDate: "", salaryEur: "", salaryMonths: "", contractStartDate: "", contractEndDate: "", commissionEur: "", commissionDueDate: "", commissionDescription: "", notes: "" }); setTransferDocFile(null); setTransferError(""); setShowTransferModal(true); }}>+ Add</button>
                 </div>
               </div>
               {transfers.length === 0 ? (
@@ -1889,7 +1895,7 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
               <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.62rem", color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.18em" }}>
                 Transfers <span style={{ color: "var(--muted)", fontWeight: 400 }}>({transfers.length})</span>
               </span>
-              <button className="btn btn-primary" style={{ fontSize: "0.75rem", padding: "6px 14px" }} onClick={() => { setTransferForm({ playerId: "", fromClub: "", toClub: "", transferDate: "", salaryEur: "", contractStartDate: "", contractEndDate: "", commissionEur: "", commissionDueDate: "", commissionDescription: "", notes: "" }); setTransferDocFile(null); setTransferError(""); setShowTransferModal(true); }}>+ Add Transfer</button>
+              <button className="btn btn-primary" style={{ fontSize: "0.75rem", padding: "6px 14px" }} onClick={() => { setTransferForm({ playerId: "", fromClub: "", toClub: "", transferDate: "", salaryEur: "", salaryMonths: "", contractStartDate: "", contractEndDate: "", commissionEur: "", commissionDueDate: "", commissionDescription: "", notes: "" }); setTransferDocFile(null); setTransferError(""); setShowTransferModal(true); }}>+ Add Transfer</button>
             </div>
 
             {transfers.length > 0 && (() => {
@@ -1921,7 +1927,7 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
                 <div style={{ fontSize: "3rem", marginBottom: 16 }}>🔄</div>
                 <h4 style={{ marginBottom: 8 }}>No Transfers Yet</h4>
                 <p style={{ color: "var(--muted)", fontSize: "0.88rem", marginBottom: 24 }}>Record every move — fees, salaries, and contract length all in one place.</p>
-                <button className="btn btn-primary" onClick={() => { setTransferForm({ playerId: "", fromClub: "", toClub: "", transferDate: "", salaryEur: "", contractStartDate: "", contractEndDate: "", commissionEur: "", commissionDueDate: "", commissionDescription: "", notes: "" }); setTransferDocFile(null); setTransferError(""); setShowTransferModal(true); }}>+ Add First Transfer</button>
+                <button className="btn btn-primary" onClick={() => { setTransferForm({ playerId: "", fromClub: "", toClub: "", transferDate: "", salaryEur: "", salaryMonths: "", contractStartDate: "", contractEndDate: "", commissionEur: "", commissionDueDate: "", commissionDescription: "", notes: "" }); setTransferDocFile(null); setTransferError(""); setShowTransferModal(true); }}>+ Add First Transfer</button>
               </div>
             ) : (
               <div className="table-wrap">
@@ -2848,8 +2854,26 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
               </div>
               {/* Salary */}
               <div className="form-group">
-                <label className="label">Monthly Salary (€)</label>
-                <input className="input" type="number" value={transferForm.salaryEur} onChange={e => setTransferForm(f => ({ ...f, salaryEur: e.target.value }))} placeholder="0" />
+                <label className="label">Monthly Salary</label>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  <div>
+                    <label className="label" style={{ fontSize: "0.72rem", marginBottom: 4 }}>Amount (€/mo)</label>
+                    <input className="input" type="number" value={transferForm.salaryEur} onChange={e => setTransferForm(f => ({ ...f, salaryEur: e.target.value }))} placeholder="0" />
+                  </div>
+                  <div>
+                    <label className="label" style={{ fontSize: "0.72rem", marginBottom: 4 }}>Months paid / year</label>
+                    <input className="input" type="number" min={1} max={12} value={transferForm.salaryMonths} onChange={e => setTransferForm(f => ({ ...f, salaryMonths: e.target.value }))} placeholder="12" />
+                  </div>
+                </div>
+                {transferForm.salaryEur && transferForm.salaryMonths && (() => {
+                  const total = parseFloat(transferForm.salaryEur) * parseInt(transferForm.salaryMonths);
+                  return total > 0 ? (
+                    <div style={{ marginTop: 8, padding: "8px 12px", background: "rgba(0,200,100,0.06)", border: "1px solid rgba(0,200,100,0.2)", borderRadius: "var(--radius)", fontSize: "0.82rem", color: "#00c864" }}>
+                      Total annual salary: <strong>€{total.toLocaleString("de-DE")}</strong>
+                      <span style={{ color: "var(--muted)", marginLeft: 8 }}>({transferForm.salaryMonths} × €{parseFloat(transferForm.salaryEur).toLocaleString("de-DE")})</span>
+                    </div>
+                  ) : null;
+                })()}
               </div>
               {/* Contract period */}
               <div style={{ background: "rgba(0,150,255,0.05)", border: "1px solid rgba(0,150,255,0.15)", borderRadius: "var(--radius)", padding: "14px 16px", marginBottom: 16 }}>

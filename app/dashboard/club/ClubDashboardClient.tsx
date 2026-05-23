@@ -33,10 +33,6 @@ const POS_SHORT: Record<string, string> = {
   LEFT_WING: "LW", RIGHT_WING: "RW", CENTRE_BACK: "CB",
   PIVOT: "PV", CENTRE_FORWARD: "CF",
 };
-const STATUS_COLORS: Record<string, string> = {
-  PENDING: "badge-accent", INVOICED: "badge-blue",
-  PAID: "badge-green", DISPUTED: "badge-red", WAIVED: "badge-muted",
-};
 
 function SettingsForm({ club }: { club: any }) {
   const [form, setForm] = useState({
@@ -162,71 +158,10 @@ function SettingsForm({ club }: { club: any }) {
   );
 }
 
-export default function ClubDashboardClient({ club, stats, paypalClientId }: { club: any; stats: any; paypalClientId: string }) {
+export default function ClubDashboardClient({ club, stats }: { club: any; stats: any }) {
   const isVerified = club.verificationStatus === "VERIFIED";
-  const hasSubscription = club.subscriptionStatus === "ACTIVE";
-  const canAccess = isVerified && hasSubscription;
+  const canAccess = isVerified;
   const [tab, setTab] = useState("overview");
-  const [showCheckout, setShowCheckout] = useState(false);
-  const [ppLoading, setPpLoading] = useState(false);
-  const [ppError, setPpError] = useState<string | null>(null);
-  const [ppSuccess, setPpSuccess] = useState(false);
-  const ppButtonsRef = useRef<any>(null);
-
-  function openCheckout() {
-    setPpError(null);
-    setPpSuccess(false);
-    setShowCheckout(true);
-  }
-
-  // Load PayPal Hosted Button SDK when modal opens
-  useEffect(() => {
-    if (!showCheckout || ppSuccess) return;
-
-    function renderHostedButton() {
-      const paypal = (window as any).paypal;
-      if (!paypal?.HostedButtons) return;
-      const container = document.getElementById("paypal-button-container");
-      if (!container || container.children.length > 0) return;
-
-      paypal.HostedButtons({
-        hostedButtonId: "2ZUREDWYRXR8G",
-        onApprove: async (data: any) => {
-          setPpLoading(true); setPpError(null);
-          const res = await fetch("/api/club/paypal/activate", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ orderId: data.orderID }),
-          });
-          const result = await res.json();
-          setPpLoading(false);
-          if (!res.ok) { setPpError(result.error || "Payment failed."); return; }
-          setPpSuccess(true);
-          setTimeout(() => window.location.reload(), 2500);
-        },
-        onError: () => { setPpError("Payment error. Please try again."); setPpLoading(false); },
-        onCancel: () => { setPpError("Payment cancelled."); },
-      }).render("#paypal-button-container");
-    }
-
-    const existingScript = document.getElementById("paypal-sdk-script");
-    if ((window as any).paypal?.HostedButtons) {
-      setTimeout(renderHostedButton, 50);
-    } else if (!existingScript) {
-      const script = document.createElement("script");
-      script.id = "paypal-sdk-script";
-      script.src = "https://www.paypal.com/sdk/js?client-id=BAAxDIUtdudwpzA-ep4tXiBSuVsIp3n8gGVNMH_kBorn5A215RGNLEceFTolyK8gA-aNq_WpzELerqZB4Q&components=hosted-buttons&disable-funding=venmo&currency=EUR";
-      script.onload = () => setTimeout(renderHostedButton, 50);
-      document.body.appendChild(script);
-    } else {
-      existingScript.addEventListener("load", () => setTimeout(renderHostedButton, 50));
-    }
-
-    return () => {
-      const container = document.getElementById("paypal-button-container");
-      if (container) container.innerHTML = "";
-    };
-  }, [showCheckout, ppSuccess]);
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [filters, setFilters] = useState({ q: "", position: "", nationality: "", minH: "", maxH: "", minSalary: "" });
@@ -334,11 +269,10 @@ export default function ClubDashboardClient({ club, stats, paypalClientId }: { c
       {/* ── Overview ──────────────────────────────────────────── */}
       {tab === "overview" && (
         <div>
-          <div className="grid-3" style={{ marginBottom: 40 }}>
+          <div className="grid-2" style={{ marginBottom: 40 }}>
             {[
               { label: "Players on Watchlist", val: stats.watchlist, accent: true },
               { label: "Contacts Revealed", val: stats.reveals, accent: false },
-              { label: "Pending Commission", val: stats.pending, accent: false },
             ].map(s => (
               <div key={s.label} className="card" style={{ textAlign: "center" }}>
                 <div style={{ fontFamily: "var(--font-display)", fontWeight: 900, fontSize: "3rem", color: s.accent ? "var(--accent)" : "var(--white)", lineHeight: 1 }}>{s.val}</div>
@@ -347,76 +281,13 @@ export default function ClubDashboardClient({ club, stats, paypalClientId }: { c
             ))}
           </div>
 
-          {/* Subscription block */}
-          {hasSubscription ? (
-            <div className="card" style={{ marginBottom: 24, borderColor: "rgba(0,200,100,0.3)" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
-                <div>
-                  <div className="section-label" style={{ marginBottom: 4 }}>Subscription</div>
-                  <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "1.1rem", textTransform: "uppercase", color: "var(--white)" }}>
-                    Annual Plan — €1,000/year
-                  </div>
-                  {club.subscriptionEndsAt && (
-                    <div style={{ fontSize: "0.8rem", color: "var(--muted)", marginTop: 4 }}>
-                      Valid until {new Date(club.subscriptionEndsAt).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}
-                    </div>
-                  )}
-                </div>
-                <span className="badge badge-green" style={{ fontSize: "0.85rem", padding: "6px 14px" }}>✓ Active</span>
-              </div>
-            </div>
-          ) : isVerified ? (
-            /* Verified but no active subscription — show offer */
-            <div className="card" style={{ marginBottom: 24, borderColor: "rgba(232,255,71,0.35)", background: "rgba(232,255,71,0.03)" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
-                <div>
-                  <div className="section-label" style={{ marginBottom: 4 }}>Subscription Required</div>
-                  <div style={{ fontFamily: "var(--font-display)", fontWeight: 900, fontSize: "1.8rem", color: "var(--accent)", lineHeight: 1 }}>
-                    €1,000 <span style={{ fontSize: "0.9rem", color: "var(--muted)", fontWeight: 400 }}>/year</span>
-                  </div>
-                </div>
-                <span className="badge badge-muted" style={{ fontSize: "0.85rem", padding: "6px 14px" }}>Not Active</span>
-              </div>
-              <div style={{ fontSize: "0.85rem", color: "var(--muted)", lineHeight: 1.8, marginBottom: 20 }}>
-                Your club is verified. Subscribe to unlock full access to the player database and all platform features.
-              </div>
-              <div style={{ background: "var(--card2)", borderRadius: "var(--radius)", padding: "14px 18px", marginBottom: 20, fontSize: "0.83rem", color: "rgba(245,243,238,0.75)", lineHeight: 1.9 }}>
-                ✓ Unlimited player search with advanced filters<br/>
-                ✓ Reveal player contacts &amp; agent info<br/>
-                ✓ Watchlist, scouting notes &amp; messaging<br/>
-                ✓ Full transfer history &amp; interaction log
-              </div>
-              <div style={{ padding: "12px 16px", background: "rgba(255,255,255,0.03)", border: "1px solid var(--border)", borderRadius: "var(--radius)", fontSize: "0.82rem", color: "var(--muted)", marginBottom: 16, lineHeight: 1.7 }}>
-                💳 Secure payment via <strong style={{ color: "var(--white)" }}>Paddle</strong>. Pay by card — your subscription activates immediately after payment.
-              </div>
-              <button
-                className="btn btn-primary"
-                style={{ width: "100%", justifyContent: "center", fontSize: "1rem" }}
-                onClick={openCheckout}
-              >
-                💳 Subscribe Now — €1,000/year
-              </button>
-            </div>
-          ) : (
-            /* Not verified yet — show locked state */
-            <div className="card" style={{ marginBottom: 24 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
-                <div>
-                  <div className="section-label" style={{ marginBottom: 4 }}>Subscription</div>
-                  <div style={{ fontSize: "0.85rem", color: "var(--muted)" }}>Available after club verification</div>
-                </div>
-                <span className="badge badge-muted">Locked</span>
-              </div>
-            </div>
-          )}
-
           {/* Recent reveals */}
           {club.interactions?.length > 0 && (
             <div>
               <h4 style={{ textTransform: "uppercase", marginBottom: 16 }}>Recent Reveals</h4>
               <div className="card" style={{ padding: 0, overflow: "hidden" }}>
                 <div className="table-wrap"><table className="table">
-                  <thead><tr><th>Player</th><th>Revealed</th><th>Commission</th></tr></thead>
+                  <thead><tr><th>Player</th><th>Revealed</th></tr></thead>
                   <tbody>
                     {club.interactions.slice(0, 5).map((i: any) => (
                       <tr key={i.id}>
@@ -428,7 +299,6 @@ export default function ClubDashboardClient({ club, stats, paypalClientId }: { c
                         <td style={{ fontFamily: "var(--font-mono)", fontSize: "0.8rem", color: "var(--muted)" }}>
                           {new Date(i.createdAt).toLocaleDateString()}
                         </td>
-                        <td><span className={`badge ${STATUS_COLORS[i.commissionStatus]}`}>{i.commissionStatus}</span></td>
                       </tr>
                     ))}
                   </tbody>
@@ -446,16 +316,14 @@ export default function ClubDashboardClient({ club, stats, paypalClientId }: { c
             <div style={{ background: "rgba(232,255,71,0.06)", border: "1px solid rgba(232,255,71,0.25)", borderRadius: "var(--radius-lg)", padding: "24px", marginBottom: 20, textAlign: "center" }}>
               <div style={{ fontSize: "2.5rem", marginBottom: 12 }}>🔒</div>
               <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: "0.95rem", textTransform: "uppercase", color: "var(--accent)", marginBottom: 8 }}>
-                {!isVerified ? "Verification Required" : "Active Subscription Required"}
+                Verification Required
               </div>
               <div style={{ fontSize: "0.83rem", color: "var(--muted)", marginBottom: 16, lineHeight: 1.7 }}>
-                {!isVerified
-                  ? "Your club must be verified by an admin before you can search players."
-                  : "Your club is verified! Subscribe for €1,000/year to unlock the full player database."}
+                Your club must be verified by an admin before you can search players.
               </div>
-              <button className="btn btn-primary" onClick={() => setTab("overview")} style={{ fontSize: "0.85rem" }}>
-                {!isVerified ? "Check Verification Status →" : "View Subscription Offer →"}
-              </button>
+              <a href="/dashboard/club/verify" className="btn btn-primary" style={{ fontSize: "0.85rem" }}>
+                Submit Verification Documents →
+              </a>
             </div>
           )}
           {canAccess && (<>
@@ -597,7 +465,7 @@ export default function ClubDashboardClient({ club, stats, paypalClientId }: { c
           ) : (
             <div className="card" style={{ padding: 0, overflow: "hidden" }}>
               <table className="table">
-                <thead><tr><th>Player</th><th>Revealed At</th><th>ToS Version</th><th>Commission Rate</th><th>Status</th></tr></thead>
+                <thead><tr><th>Player</th><th>Revealed At</th><th>ToS Version</th></tr></thead>
                 <tbody>
                   {club.interactions?.map((i: any) => (
                     <tr key={i.id}>
@@ -610,8 +478,6 @@ export default function ClubDashboardClient({ club, stats, paypalClientId }: { c
                         {new Date(i.createdAt).toLocaleString()}
                       </td>
                       <td><span className="badge badge-muted">{i.acceptedTosVersion}</span></td>
-                      <td style={{ fontFamily: "var(--font-mono)", color: "var(--accent)" }}>{(parseFloat(i.commissionRate) * 100).toFixed(1)}%</td>
-                      <td><span className={`badge ${STATUS_COLORS[i.commissionStatus]}`}>{i.commissionStatus}</span></td>
                     </tr>
                   ))}
                 </tbody>
@@ -672,45 +538,6 @@ export default function ClubDashboardClient({ club, stats, paypalClientId }: { c
         </div>
         </div>
       </div>
-      {/* ── PayPal Checkout Modal ─────────────────────── */}
-      {showCheckout && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 9000, background: "rgba(0,0,0,0.78)", backdropFilter: "blur(4px)", overflowY: "auto", padding: "24px 16px" }}
-          onClick={e => { if (e.target === e.currentTarget && !ppLoading) { setShowCheckout(false); setPpError(null); } }}>
-          <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", padding: "32px 28px", maxWidth: 480, width: "100%", position: "relative", margin: "auto" }}>
-            <button onClick={() => { setShowCheckout(false); setPpError(null); }}
-              style={{ position: "absolute", top: 14, right: 16, background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: "1.3rem", lineHeight: 1 }}>✕</button>
-
-            <div className="section-label" style={{ marginBottom: 4 }}>Secure Checkout</div>
-            <h4 style={{ textTransform: "uppercase", marginBottom: 4 }}>Annual Subscription</h4>
-            <div style={{ fontFamily: "var(--font-display)", fontWeight: 900, fontSize: "2rem", color: "var(--accent)", marginBottom: 20 }}>
-              €1 <span style={{ fontSize: "0.85rem", color: "var(--muted)", fontWeight: 400 }}>/year (test)</span>
-            </div>
-
-            {ppSuccess ? (
-              <div style={{ textAlign: "center", padding: "24px 0" }}>
-                <div style={{ fontSize: "3rem", marginBottom: 12 }}>✅</div>
-                <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: "1.1rem", textTransform: "uppercase", color: "#00c864" }}>Payment Successful!</div>
-                <div style={{ fontSize: "0.85rem", color: "var(--muted)", marginTop: 8 }}>Your subscription is now active. Reloading…</div>
-              </div>
-            ) : (
-              <>
-                {ppLoading && (
-                  <div style={{ textAlign: "center", padding: "16px 0", color: "var(--muted)" }}><span className="spinner" style={{ marginRight: 8 }} /> Processing…</div>
-                )}
-                {ppError && (
-                  <div style={{ background: "rgba(255,59,59,0.08)", border: "1px solid rgba(255,59,59,0.3)", borderRadius: "var(--radius)", padding: "10px 14px", marginBottom: 16, fontSize: "0.83rem", color: "#ff6b6b" }}>
-                    {ppError}
-                  </div>
-                )}
-                <div id="paypal-button-container" style={{ minHeight: 50 }} />
-                <div style={{ textAlign: "center", marginTop: 12, fontSize: "0.75rem", color: "var(--muted)" }}>
-                  🔒 Secured by PayPal · Pay with card or PayPal account · <a href="/terms#refund" style={{ color: "var(--muted)" }}>Refund policy</a>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
     </main>
   );
 }

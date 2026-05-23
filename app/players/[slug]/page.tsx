@@ -72,6 +72,10 @@ export default async function PlayerProfilePage({
   }
   if (isAdmin) isVerifiedClub = true;
 
+  // Agent-managed players are restricted to logged-in clubs
+  const isAgentPlayer = !!(player as any).agentId;
+  const requiresClubLogin = isAgentPlayer && !isClub && !isAdmin;
+
   const age = new Date().getFullYear() - new Date(player.dateOfBirth).getFullYear();
 
   return (
@@ -168,6 +172,7 @@ export default async function PlayerProfilePage({
           alreadyRevealed={alreadyRevealed}
           initialInteractionId={existingInteractionId}
           initialContact={existingContact}
+          requiresClubLogin={requiresClubLogin}
         />
       </div>
     </main>

@@ -6,26 +6,22 @@ export default function ClubVerifyClient({ club }: { club: any }) {
   const [status, setStatus] = useState(club.verificationStatus ?? "PENDING");
   const [verificationNote] = useState(club.verificationNote ?? "");
   const [officialDoc, setOfficialDoc] = useState<File | null>(null);
-  const [authDoc, setAuthDoc] = useState<File | null>(null);
   const [passport, setPassport] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [msg, setMsg] = useState("");
   const [termsAccepted, setTermsAccepted] = useState(false);
 
   const officialRef  = useRef<HTMLInputElement>(null);
-  const authRef      = useRef<HTMLInputElement>(null);
   const passportRef  = useRef<HTMLInputElement>(null);
 
   async function submit() {
     if (!officialDoc)   { setMsg("Official club document is required."); return; }
-    if (!authDoc)       { setMsg("Authorization document is required."); return; }
     if (!passport)      { setMsg("Representative passport/ID is required."); return; }
     if (!termsAccepted) { setMsg("You must accept the Terms of Service."); return; }
 
     setSubmitting(true); setMsg("");
     const fd = new FormData();
     fd.append("officialDoc", officialDoc);
-    fd.append("authorizationDoc", authDoc);
     fd.append("representativePassport", passport);
 
     const res = await fetch("/api/club/verification", { method: "POST", body: fd });
@@ -150,7 +146,7 @@ export default function ClubVerifyClient({ club }: { club: any }) {
             <div className="card">
               <h4 style={{ textTransform: "uppercase", marginBottom: 6, fontSize: "0.9rem" }}>Submit Verification Documents</h4>
               <p style={{ fontSize: "0.82rem", color: "var(--muted)", marginBottom: 24, lineHeight: 1.6 }}>
-                All 3 documents are required. Accepted formats: JPEG, PNG, PDF. Max 5MB each.
+                Both documents are required. Accepted formats: JPEG, PNG, PDF. Max 5MB each.
                 Your documents are stored securely and only reviewed by HandballHub admins.
               </p>
 
@@ -177,25 +173,9 @@ export default function ClubVerifyClient({ club }: { club: any }) {
               </div>
 
               {/* Document 2 */}
-              <div style={{ background: "var(--card2)", borderRadius: "var(--radius)", padding: "16px", marginBottom: 12, border: "1px solid var(--border)" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                  <span style={{ background: "var(--accent)", color: "#000", borderRadius: "50%", width: 22, height: 22, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.75rem", fontWeight: 700, flexShrink: 0 }}>2</span>
-                  <span style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "0.88rem", textTransform: "uppercase" }}>Authorization Letter</span>
-                </div>
-                <FileInput
-                  label=""
-                  hint={`Official letter on club letterhead confirming that ${club.contactName || "the representative"} (${club.contactTitle || "authorized person"}) is authorized to represent the club on this platform. Must include club stamp/seal if applicable.`}
-                  file={authDoc}
-                  setFile={setAuthDoc}
-                  inputRef={authRef}
-                  accept="image/*,.pdf"
-                />
-              </div>
-
-              {/* Document 3 */}
               <div style={{ background: "var(--card2)", borderRadius: "var(--radius)", padding: "16px", marginBottom: 20, border: "1px solid var(--border)" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                  <span style={{ background: "var(--accent)", color: "#000", borderRadius: "50%", width: 22, height: 22, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.75rem", fontWeight: 700, flexShrink: 0 }}>3</span>
+                  <span style={{ background: "var(--accent)", color: "#000", borderRadius: "50%", width: 22, height: 22, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.75rem", fontWeight: 700, flexShrink: 0 }}>2</span>
                   <span style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "0.88rem", textTransform: "uppercase" }}>Representative Passport / ID</span>
                 </div>
                 <FileInput
@@ -227,7 +207,7 @@ export default function ClubVerifyClient({ club }: { club: any }) {
                 className="btn btn-primary"
                 style={{ width: "100%", justifyContent: "center", padding: "14px", fontSize: "1rem" }}
                 onClick={submit}
-                disabled={submitting || !officialDoc || !authDoc || !passport || !termsAccepted}
+                disabled={submitting || !officialDoc || !passport || !termsAccepted}
               >
                 {submitting ? <><span className="spinner" /> Submitting...</> : "Submit for Verification →"}
               </button>

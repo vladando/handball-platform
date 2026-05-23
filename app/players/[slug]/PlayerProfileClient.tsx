@@ -23,6 +23,7 @@ export default function PlayerProfileClient({
   alreadyRevealed,
   initialInteractionId,
   initialContact,
+  requiresClubLogin,
 }: {
   player: any;
   isClub: boolean;
@@ -30,6 +31,7 @@ export default function PlayerProfileClient({
   alreadyRevealed: boolean;
   initialInteractionId?: string | null;
   initialContact?: any | null;
+  requiresClubLogin?: boolean;
 }) {
   const [tab, setTab] = useState<Tab>("overview");
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
@@ -56,6 +58,44 @@ export default function PlayerProfileClient({
     ...(photoCount > 0 ? [{ id: "photos" as Tab, label: `Photos (${photoCount})` }] : []),
     { id: "medical", label: "Medical" },
   ];
+
+  // Agent-managed player — require club login
+  if (requiresClubLogin) {
+    return (
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 320, padding: "40px 20px" }}>
+        <div style={{
+          maxWidth: 480, width: "100%", textAlign: "center",
+          background: "var(--card)", border: "1px solid rgba(232,255,71,0.25)",
+          borderRadius: "var(--radius-lg)", padding: "40px 32px",
+        }}>
+          <div style={{ fontSize: "3rem", marginBottom: 16 }}>🔒</div>
+          <div style={{ fontFamily: "var(--font-display)", fontWeight: 900, fontSize: "1.1rem", textTransform: "uppercase", color: "var(--accent)", marginBottom: 12 }}>
+            Club Access Required
+          </div>
+          <p style={{ fontSize: "0.88rem", color: "var(--muted)", lineHeight: 1.7, marginBottom: 28 }}>
+            This player is represented by an agent. Only registered and verified clubs can view this profile.
+            Log in with your club account or register to access player details.
+          </p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <a
+              href={`/auth/login?callbackUrl=${encodeURIComponent(typeof window !== "undefined" ? window.location.href : "")}`}
+              className="btn btn-primary"
+              style={{ justifyContent: "center", fontSize: "0.95rem" }}
+            >
+              Log In as Club →
+            </a>
+            <a
+              href="/auth/register?role=CLUB"
+              className="btn btn-outline"
+              style={{ justifyContent: "center", fontSize: "0.95rem" }}
+            >
+              Register Your Club
+            </a>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>

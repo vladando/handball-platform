@@ -16,7 +16,6 @@ export async function POST(req: NextRequest) {
       id: true,
       verificationStatus: true,
       officialDocUrl: true,
-      authorizationDocUrl: true,
       representativePassportUrl: true,
     },
   });
@@ -32,14 +31,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid form data" }, { status: 400 });
   }
 
-  const officialDoc   = formData.get("officialDoc");
-  const authDoc       = formData.get("authorizationDoc");
-  const passport      = formData.get("representativePassport");
+  const officialDoc = formData.get("officialDoc");
+  const passport    = formData.get("representativePassport");
 
   if (!officialDoc || !(officialDoc instanceof File))
     return NextResponse.json({ error: "Official club document is required." }, { status: 422 });
-  if (!authDoc || !(authDoc instanceof File))
-    return NextResponse.json({ error: "Authorization document is required." }, { status: 422 });
   if (!passport || !(passport instanceof File))
     return NextResponse.json({ error: "Representative passport is required." }, { status: 422 });
 
@@ -48,29 +44,20 @@ export async function POST(req: NextRequest) {
   const officialResult = await saveVerificationDoc(userId, officialDoc, "club-official");
   if (officialResult.error) return NextResponse.json({ error: officialResult.error }, { status: 422 });
 
-  const authResult = await saveVerificationDoc(userId, authDoc, "club-auth");
-  if (authResult.error) {
-    deleteLocalFile(officialResult.url!);
-    return NextResponse.json({ error: authResult.error }, { status: 422 });
-  }
-
   const passportResult = await saveVerificationDoc(userId, passport, "club-passport");
   if (passportResult.error) {
     deleteLocalFile(officialResult.url!);
-    deleteLocalFile(authResult.url!);
     return NextResponse.json({ error: passportResult.error }, { status: 422 });
   }
 
   // Clean up old docs if resubmitting
   if (club.officialDocUrl)             deleteLocalFile(club.officialDocUrl);
-  if (club.authorizationDocUrl)        deleteLocalFile(club.authorizationDocUrl);
   if (club.representativePassportUrl)  deleteLocalFile(club.representativePassportUrl);
 
   const updatedClub = await prisma.club.update({
     where: { id: club.id },
     data: {
       officialDocUrl:            officialResult.url,
-      authorizationDocUrl:       authResult.url,
       representativePassportUrl: passportResult.url,
       verificationStatus:        "PENDING",
       verificationNote:          null,

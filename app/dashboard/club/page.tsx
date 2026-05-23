@@ -21,9 +21,7 @@ export default async function ClubDashboardPage() {
   const stats = {
     watchlist: club.watchlist.length,
     reveals: club.interactions.length,
-    pending: club.interactions.filter((i: any) => i.commissionStatus === "PENDING").length,
   };
 
-  const paypalClientId = process.env.PAYPAL_CLIENT_ID ?? "";
-  return <ClubDashboardClient club={club as any} stats={stats} paypalClientId={paypalClientId} />;
+  return <ClubDashboardClient club={club as any} stats={stats} />;
 }

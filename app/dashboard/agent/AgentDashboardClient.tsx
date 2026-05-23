@@ -1,6 +1,7 @@
 "use client";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 
 const POSITIONS = [
   "GOALKEEPER","LEFT_BACK","RIGHT_BACK","LEFT_WING","RIGHT_WING","CENTRE_BACK","PIVOT","CENTRE_FORWARD"
@@ -65,7 +66,26 @@ const NAV_ITEMS: { id: Tab; icon: string; label: string }[] = [
   { id: "settings",     icon: "⚙️", label: "Settings" },
 ];
 
+const STICKY_HEADER: React.CSSProperties = {
+  position: "sticky",
+  top: 0,
+  zIndex: 20,
+  background: "var(--bg, #0d0d0d)",
+  marginLeft: -24,
+  marginRight: -24,
+  paddingLeft: 24,
+  paddingRight: 24,
+  paddingTop: 20,
+  paddingBottom: 16,
+  marginTop: -20,
+  marginBottom: 8,
+  borderBottom: "1px solid var(--border)",
+};
+
 export default function AgentDashboardClient({ agent }: { agent: any }) {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
   const [tab, setTab] = useState<Tab>("overview");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [players, setPlayers] = useState<any[]>(agent.players ?? []);
@@ -73,7 +93,19 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
   const [commissions, setCommissions] = useState<any[]>(agent.commissions ?? []);
   const [transfers, setTransfers] = useState<any[]>(agent.transfers ?? []);
   const [pitchDecks, setPitchDecks] = useState<any[]>(agent.pitchDecks ?? []);
-  const [viewMode, setViewMode] = useState<"grid" | "list">("list");
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+
+  // URL tab sync on mount
+  useEffect(() => {
+    const t = searchParams.get("tab") as Tab;
+    if (t && NAV_ITEMS.some(n => n.id === t)) setTab(t);
+  }, []);
+
+  function switchTab(id: Tab) {
+    setTab(id);
+    setSidebarOpen(false);
+    router.replace(`?tab=${id}`, { scroll: false });
+  }
 
   // Add Player modal
   const [showAddModal, setShowAddModal] = useState(false);
@@ -97,18 +129,25 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
   // Contract modal
   const [showContractModal, setShowContractModal] = useState(false);
   const [contractForm, setContractForm] = useState({ playerId: "", clubName: "", startDate: "", endDate: "", salaryCents: "", bonusDetails: "", notes: "" });
+  const [contractDocFile, setContractDocFile] = useState<File | null>(null);
+  const contractDocRef = useRef<HTMLInputElement>(null);
   const [contractSaving, setContractSaving] = useState(false);
   const [contractError, setContractError] = useState("");
 
-  // Commission modal
+  // Commission modal — multi-installment
   const [showCommissionModal, setShowCommissionModal] = useState(false);
-  const [commissionForm, setCommissionForm] = useState({ playerId: "", description: "", amountEur: "", dueDate: "", notes: "" });
+  const [commissionPlayerId, setCommissionPlayerId] = useState("");
+  const [commissionInstallments, setCommissionInstallments] = useState([
+    { description: "", amountEur: "", dueDate: "", notes: "" },
+  ]);
   const [commissionSaving, setCommissionSaving] = useState(false);
   const [commissionError, setCommissionError] = useState("");
 
   // Transfer modal
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [transferForm, setTransferForm] = useState({ playerId: "", fromClub: "", toClub: "", transferDate: "", transferFeeEur: "", salaryEur: "", contractYears: "", notes: "" });
+  const [transferDocFile, setTransferDocFile] = useState<File | null>(null);
+  const transferDocRef = useRef<HTMLInputElement>(null);
   const [transferSaving, setTransferSaving] = useState(false);
   const [transferError, setTransferError] = useState("");
 
@@ -190,11 +229,23 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
   async function handleAddContract(e: React.FormEvent) {
     e.preventDefault();
     setContractSaving(true); setContractError("");
+
+    let contractFileUrl: string | null = null;
+    if (contractDocFile) {
+      const fd = new FormData();
+      fd.append("file", contractDocFile);
+      const upRes = await fetch("/api/agent/upload", { method: "POST", body: fd });
+      if (!upRes.ok) { setContractError("File upload failed. Please try again."); setContractSaving(false); return; }
+      const upData = await upRes.json();
+      contractFileUrl = upData.url ?? null;
+    }
+
     const res = await fetch("/api/agent/contracts", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         ...contractForm,
         salaryCents: contractForm.salaryCents ? Math.round(parseFloat(contractForm.salaryCents) * 100) : null,
+        contractFileUrl,
       }),
     });
     const data = await res.json();
@@ -203,6 +254,7 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
     setContracts(cs => [...cs, data.contract].sort((a, b) => new Date(a.endDate).getTime() - new Date(b.endDate).getTime()));
     setShowContractModal(false);
     setContractForm({ playerId: "", clubName: "", startDate: "", endDate: "", salaryCents: "", bonusDetails: "", notes: "" });
+    setContractDocFile(null);
   }
 
   async function handleDeleteContract(id: string) {
@@ -210,26 +262,44 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
     setContracts(cs => cs.filter(c => c.id !== id));
   }
 
+  // ── Commission helpers ───────────────────────────────────────────
+  function addInstallment() {
+    setCommissionInstallments(is => [...is, { description: "", amountEur: "", dueDate: "", notes: "" }]);
+  }
+  function removeInstallment(idx: number) {
+    setCommissionInstallments(is => is.filter((_, i) => i !== idx));
+  }
+  function updateInstallment(idx: number, field: string, value: string) {
+    setCommissionInstallments(is => is.map((item, i) => i === idx ? { ...item, [field]: value } : item));
+  }
+
   // ── Add Commission ───────────────────────────────────────────────
   async function handleAddCommission(e: React.FormEvent) {
     e.preventDefault();
+    if (!commissionPlayerId) { setCommissionError("Please select a player."); return; }
+    const hasEmpty = commissionInstallments.some(i => !i.description.trim() || !i.amountEur || !i.dueDate);
+    if (hasEmpty) { setCommissionError("Please fill in all installment fields."); return; }
     setCommissionSaving(true); setCommissionError("");
     const res = await fetch("/api/agent/commissions", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        playerId: commissionForm.playerId,
-        description: commissionForm.description,
-        amountCents: Math.round(parseFloat(commissionForm.amountEur) * 100),
-        dueDate: commissionForm.dueDate,
-        notes: commissionForm.notes,
+        playerId: commissionPlayerId,
+        installments: commissionInstallments.map(i => ({
+          description: i.description,
+          amountCents: Math.round(parseFloat(i.amountEur) * 100),
+          dueDate: i.dueDate,
+          notes: i.notes,
+        })),
       }),
     });
     const data = await res.json();
     setCommissionSaving(false);
     if (!res.ok) { setCommissionError(data.error ?? "Failed to save."); return; }
-    setCommissions(cs => [...cs, data.commission]);
+    const newItems: any[] = data.commissions ?? (data.commission ? [data.commission] : []);
+    setCommissions(cs => [...cs, ...newItems]);
     setShowCommissionModal(false);
-    setCommissionForm({ playerId: "", description: "", amountEur: "", dueDate: "", notes: "" });
+    setCommissionPlayerId("");
+    setCommissionInstallments([{ description: "", amountEur: "", dueDate: "", notes: "" }]);
   }
 
   async function handleMarkPaid(id: string) {
@@ -250,6 +320,17 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
   async function handleAddTransfer(e: React.FormEvent) {
     e.preventDefault();
     setTransferSaving(true); setTransferError("");
+
+    let contractFileUrl: string | null = null;
+    if (transferDocFile) {
+      const fd = new FormData();
+      fd.append("file", transferDocFile);
+      const upRes = await fetch("/api/agent/upload", { method: "POST", body: fd });
+      if (!upRes.ok) { setTransferError("File upload failed. Please try again."); setTransferSaving(false); return; }
+      const upData = await upRes.json();
+      contractFileUrl = upData.url ?? null;
+    }
+
     const res = await fetch("/api/agent/transfers", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -261,6 +342,7 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
         salaryCents: transferForm.salaryEur ? Math.round(parseFloat(transferForm.salaryEur) * 100) : null,
         contractYears: transferForm.contractYears ? parseInt(transferForm.contractYears) : null,
         notes: transferForm.notes,
+        contractFileUrl,
       }),
     });
     const data = await res.json();
@@ -269,6 +351,7 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
     setTransfers(ts => [data.transfer, ...ts]);
     setShowTransferModal(false);
     setTransferForm({ playerId: "", fromClub: "", toClub: "", transferDate: "", transferFeeEur: "", salaryEur: "", contractYears: "", notes: "" });
+    setTransferDocFile(null);
   }
 
   async function handleDeleteTransfer(id: string) {
@@ -302,7 +385,6 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
     const data = await res.json();
     setPitchSaving(false);
     if (!res.ok) { setPitchError(data.error ?? "Failed to create pitch."); return; }
-    // Enrich with player info
     const enriched = {
       ...data.pitchDeck,
       players: players.filter(p => pitchForm.selectedPlayerIds.includes(p.id)),
@@ -353,7 +435,7 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
           {NAV_ITEMS.map(item => (
             <li key={item.id}>
               <a href="#" className={tab === item.id ? "active" : ""}
-                onClick={e => { e.preventDefault(); setTab(item.id); setSidebarOpen(false); }}>
+                onClick={e => { e.preventDefault(); switchTab(item.id); }}>
                 <span style={{ fontSize: "1rem" }}>{item.icon}</span>
                 {item.label}
                 {item.id === "players" && <span style={{ marginLeft: "auto", fontSize: "0.7rem", color: "var(--muted)" }}>{players.length}</span>}
@@ -378,9 +460,11 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
         {/* ══════════════════ OVERVIEW ══════════════════ */}
         {tab === "overview" && (
           <div className="tab-content">
-            <div style={{ marginBottom: 28 }}>
-              <div className="section-label">Agent Dashboard</div>
-              <h2 style={{ margin: 0 }}>Overview</h2>
+            <div style={{ ...STICKY_HEADER, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <div className="section-label">Agent Dashboard</div>
+                <h2 style={{ margin: 0 }}>Overview</h2>
+              </div>
             </div>
 
             <div className="grid-4" style={{ marginBottom: 28 }}>
@@ -422,7 +506,7 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
                 <h4 style={{ textTransform: "uppercase", fontSize: "0.9rem", margin: 0 }}>My Players</h4>
                 <div style={{ display: "flex", gap: 8 }}>
-                  <button className="btn btn-outline" style={{ fontSize: "0.75rem", padding: "6px 12px" }} onClick={() => setTab("players")}>View All</button>
+                  <button className="btn btn-outline" style={{ fontSize: "0.75rem", padding: "6px 12px" }} onClick={() => switchTab("players")}>View All</button>
                   <button className="btn btn-primary" style={{ fontSize: "0.75rem", padding: "6px 12px" }} onClick={() => { setAddForm({ firstName: "", lastName: "" }); setAddError(""); setShowAddModal(true); }}>+ Add Player</button>
                 </div>
               </div>
@@ -437,6 +521,9 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
                   </div>
                   <span className={`badge ${HEALTH_COLORS[p.healthStatus ?? "HEALTHY"]}`} style={{ fontSize: "0.6rem" }}>{p.healthStatus ?? "HEALTHY"}</span>
                   <span className={`badge ${VERIF_COLORS[p.verificationStatus]}`} style={{ fontSize: "0.6rem" }}>{p.verificationStatus}</span>
+                  {p.slug && (
+                    <Link href={`/players/${p.slug}`} target="_blank" className="btn btn-outline" style={{ fontSize: "0.65rem", padding: "3px 7px", flexShrink: 0 }}>↗</Link>
+                  )}
                 </div>
               ))}
               {players.length > 5 && <div style={{ textAlign: "center", padding: "12px 0 0", fontSize: "0.8rem", color: "var(--muted)" }}>+{players.length - 5} more players</div>}
@@ -447,7 +534,7 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
         {/* ══════════════════ PLAYERS ══════════════════ */}
         {tab === "players" && (
           <div className="tab-content">
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
+            <div style={{ ...STICKY_HEADER, display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
               <div>
                 <div className="section-label">Roster</div>
                 <h2 style={{ margin: 0 }}>My Players ({players.length})</h2>
@@ -564,12 +651,12 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
         {/* ══════════════════ CONTRACTS ══════════════════ */}
         {tab === "contracts" && (
           <div className="tab-content">
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
+            <div style={{ ...STICKY_HEADER, display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
               <div>
                 <div className="section-label">Contract Management</div>
                 <h2 style={{ margin: 0 }}>Contracts ({contracts.length})</h2>
               </div>
-              <button className="btn btn-primary" style={{ fontSize: "0.82rem" }} onClick={() => { setContractForm({ playerId: "", clubName: "", startDate: "", endDate: "", salaryCents: "", bonusDetails: "", notes: "" }); setContractError(""); setShowContractModal(true); }}>+ Add Contract</button>
+              <button className="btn btn-primary" style={{ fontSize: "0.82rem" }} onClick={() => { setContractForm({ playerId: "", clubName: "", startDate: "", endDate: "", salaryCents: "", bonusDetails: "", notes: "" }); setContractDocFile(null); setContractError(""); setShowContractModal(true); }}>+ Add Contract</button>
             </div>
 
             {contracts.length === 0 ? (
@@ -589,6 +676,7 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
                       <th>Days Left</th>
                       <th>Salary/mo</th>
                       <th>Status</th>
+                      <th>File</th>
                       <th></th>
                     </tr>
                   </thead>
@@ -616,6 +704,11 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
                             </span>
                           </td>
                           <td>
+                            {c.contractFileUrl
+                              ? <a href={c.contractFileUrl} target="_blank" rel="noopener noreferrer" className="btn btn-outline" style={{ fontSize: "0.68rem", padding: "3px 8px" }}>📄 View</a>
+                              : <span style={{ color: "var(--muted)", fontSize: "0.78rem" }}>—</span>}
+                          </td>
+                          <td>
                             <button className="btn btn-danger" style={{ fontSize: "0.7rem", padding: "4px 8px" }} onClick={() => handleDeleteContract(c.id)}>🗑</button>
                           </td>
                         </tr>
@@ -631,12 +724,12 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
         {/* ══════════════════ COMMISSIONS ══════════════════ */}
         {tab === "commissions" && (
           <div className="tab-content">
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16, flexWrap: "wrap", gap: 12 }}>
+            <div style={{ ...STICKY_HEADER, display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
               <div>
                 <div className="section-label">Commission Tracker</div>
                 <h2 style={{ margin: 0 }}>Commissions</h2>
               </div>
-              <button className="btn btn-primary" style={{ fontSize: "0.82rem" }} onClick={() => { setCommissionForm({ playerId: "", description: "", amountEur: "", dueDate: "", notes: "" }); setCommissionError(""); setShowCommissionModal(true); }}>+ Add Commission</button>
+              <button className="btn btn-primary" style={{ fontSize: "0.82rem" }} onClick={() => { setCommissionPlayerId(""); setCommissionInstallments([{ description: "", amountEur: "", dueDate: "", notes: "" }]); setCommissionError(""); setShowCommissionModal(true); }}>+ Add Commission</button>
             </div>
 
             {stats.pendingCommissions > 0 && (
@@ -704,12 +797,12 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
         {/* ══════════════════ TRANSFERS ══════════════════ */}
         {tab === "transfers" && (
           <div className="tab-content">
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
+            <div style={{ ...STICKY_HEADER, display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
               <div>
                 <div className="section-label">Transfer Archive</div>
                 <h2 style={{ margin: 0 }}>Transfer History</h2>
               </div>
-              <button className="btn btn-primary" style={{ fontSize: "0.82rem" }} onClick={() => { setTransferForm({ playerId: "", fromClub: "", toClub: "", transferDate: "", transferFeeEur: "", salaryEur: "", contractYears: "", notes: "" }); setTransferError(""); setShowTransferModal(true); }}>+ Add Transfer</button>
+              <button className="btn btn-primary" style={{ fontSize: "0.82rem" }} onClick={() => { setTransferForm({ playerId: "", fromClub: "", toClub: "", transferDate: "", transferFeeEur: "", salaryEur: "", contractYears: "", notes: "" }); setTransferDocFile(null); setTransferError(""); setShowTransferModal(true); }}>+ Add Transfer</button>
             </div>
 
             {transfers.length === 0 ? (
@@ -729,6 +822,7 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
                       <th>Fee</th>
                       <th>Salary/mo</th>
                       <th>Years</th>
+                      <th>File</th>
                       <th></th>
                     </tr>
                   </thead>
@@ -745,6 +839,11 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
                         <td style={{ fontFamily: "var(--font-mono)", fontSize: "0.82rem" }}>{fmtCents(t.salaryCents)}</td>
                         <td style={{ fontSize: "0.82rem" }}>{t.contractYears ?? "—"}</td>
                         <td>
+                          {t.contractFileUrl
+                            ? <a href={t.contractFileUrl} target="_blank" rel="noopener noreferrer" className="btn btn-outline" style={{ fontSize: "0.68rem", padding: "3px 8px" }}>📄 View</a>
+                            : <span style={{ color: "var(--muted)", fontSize: "0.78rem" }}>—</span>}
+                        </td>
+                        <td>
                           <button className="btn btn-danger" style={{ fontSize: "0.7rem", padding: "4px 8px" }} onClick={() => handleDeleteTransfer(t.id)}>🗑</button>
                         </td>
                       </tr>
@@ -759,7 +858,7 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
         {/* ══════════════════ PITCH GENERATOR ══════════════════ */}
         {tab === "pitch" && (
           <div className="tab-content">
-            <div style={{ marginBottom: 24 }}>
+            <div style={{ ...STICKY_HEADER }}>
               <div className="section-label">Pitch Generator</div>
               <h2 style={{ margin: 0 }}>Player Pitch Links</h2>
             </div>
@@ -859,7 +958,7 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
         {/* ══════════════════ SETTINGS ══════════════════ */}
         {tab === "settings" && (
           <div className="tab-content">
-            <div style={{ marginBottom: 24 }}>
+            <div style={{ ...STICKY_HEADER }}>
               <div className="section-label">Settings</div>
               <h2 style={{ margin: 0 }}>Agent Profile</h2>
             </div>
@@ -1030,6 +1129,16 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
                 <input className="input" type="number" value={contractForm.salaryCents} onChange={e => setContractForm(f => ({ ...f, salaryCents: e.target.value }))} placeholder="3000" />
               </div>
               <div className="form-group">
+                <label className="label">Contract File <span style={{ color: "var(--muted)", fontWeight: 400 }}>(optional — PDF, Excel, image)</span></label>
+                <input ref={contractDocRef} type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv" style={{ display: "none" }} onChange={e => setContractDocFile(e.target.files?.[0] ?? null)} />
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <button type="button" className="btn btn-outline" style={{ fontSize: "0.82rem" }} onClick={() => contractDocRef.current?.click()}>📎 Choose File</button>
+                  <span style={{ fontSize: "0.78rem", color: contractDocFile ? "#00c864" : "var(--muted)" }}>
+                    {contractDocFile ? `✓ ${contractDocFile.name}` : "No file chosen"}
+                  </span>
+                </div>
+              </div>
+              <div className="form-group">
                 <label className="label">Notes</label>
                 <textarea className="input" rows={2} value={contractForm.notes} onChange={e => setContractForm(f => ({ ...f, notes: e.target.value }))} style={{ resize: "vertical" }} />
               </div>
@@ -1045,10 +1154,10 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
         </div>
       )}
 
-      {/* Add Commission Modal */}
+      {/* Add Commission Modal — multi-installment */}
       {showCommissionModal && (
         <div className="modal-overlay" onClick={() => setShowCommissionModal(false)}>
-          <div className="modal" style={{ maxWidth: 520 }} onClick={e => e.stopPropagation()}>
+          <div className="modal" style={{ maxWidth: 580 }} onClick={e => e.stopPropagation()}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
               <h3 className="modal-title" style={{ margin: 0 }}>Add Commission</h3>
               <button onClick={() => setShowCommissionModal(false)} style={{ background: "none", border: "none", color: "var(--muted)", fontSize: "1.4rem", cursor: "pointer" }}>✕</button>
@@ -1056,33 +1165,66 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
             <form onSubmit={handleAddCommission}>
               <div className="form-group">
                 <label className="label">Player <span style={{ color: "var(--accent)" }}>*</span></label>
-                <select className="input" value={commissionForm.playerId} onChange={e => setCommissionForm(f => ({ ...f, playerId: e.target.value }))}>
+                <select className="input" value={commissionPlayerId} onChange={e => setCommissionPlayerId(e.target.value)}>
                   <option value="">Select player…</option>
                   {players.map(p => <option key={p.id} value={p.id}>{p.firstName} {p.lastName}</option>)}
                 </select>
               </div>
-              <div className="form-group">
-                <label className="label">Description <span style={{ color: "var(--accent)" }}>*</span></label>
-                <input className="input" value={commissionForm.description} onChange={e => setCommissionForm(f => ({ ...f, description: e.target.value }))} placeholder="Transfer commission – RK Zagreb deal" />
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
-                <div className="form-group" style={{ margin: 0 }}>
-                  <label className="label">Amount (€) <span style={{ color: "var(--accent)" }}>*</span></label>
-                  <input className="input" type="number" value={commissionForm.amountEur} onChange={e => setCommissionForm(f => ({ ...f, amountEur: e.target.value }))} placeholder="5000" />
+
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                  <label className="label" style={{ margin: 0 }}>
+                    Installments <span style={{ color: "var(--accent)" }}>*</span>
+                  </label>
+                  <button type="button" className="btn btn-outline" style={{ fontSize: "0.72rem", padding: "4px 10px" }} onClick={addInstallment}>
+                    + Add Installment
+                  </button>
                 </div>
-                <div className="form-group" style={{ margin: 0 }}>
-                  <label className="label">Due Date <span style={{ color: "var(--accent)" }}>*</span></label>
-                  <input className="input" type="date" value={commissionForm.dueDate} onChange={e => setCommissionForm(f => ({ ...f, dueDate: e.target.value }))} />
+
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  {commissionInstallments.map((inst, idx) => (
+                    <div key={idx} style={{ background: "var(--card2)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: 14 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                        <span style={{ fontSize: "0.72rem", fontFamily: "var(--font-mono)", color: "var(--accent)", textTransform: "uppercase" }}>
+                          Installment {idx + 1}
+                        </span>
+                        {commissionInstallments.length > 1 && (
+                          <button type="button" style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: "1rem", lineHeight: 1 }} onClick={() => removeInstallment(idx)}>✕</button>
+                        )}
+                      </div>
+                      <div className="form-group" style={{ marginBottom: 10 }}>
+                        <label className="label" style={{ fontSize: "0.72rem" }}>Description <span style={{ color: "var(--accent)" }}>*</span></label>
+                        <input className="input" style={{ fontSize: "0.85rem", padding: "8px 12px" }} value={inst.description} onChange={e => updateInstallment(idx, "description", e.target.value)} placeholder="Transfer commission – RK Zagreb" />
+                      </div>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 10 }}>
+                        <div className="form-group" style={{ margin: 0 }}>
+                          <label className="label" style={{ fontSize: "0.72rem" }}>Amount (€) <span style={{ color: "var(--accent)" }}>*</span></label>
+                          <input className="input" type="number" style={{ fontSize: "0.85rem", padding: "8px 12px" }} value={inst.amountEur} onChange={e => updateInstallment(idx, "amountEur", e.target.value)} placeholder="5000" />
+                        </div>
+                        <div className="form-group" style={{ margin: 0 }}>
+                          <label className="label" style={{ fontSize: "0.72rem" }}>Due Date <span style={{ color: "var(--accent)" }}>*</span></label>
+                          <input className="input" type="date" style={{ fontSize: "0.85rem", padding: "8px 12px" }} value={inst.dueDate} onChange={e => updateInstallment(idx, "dueDate", e.target.value)} />
+                        </div>
+                      </div>
+                      <div className="form-group" style={{ margin: 0 }}>
+                        <label className="label" style={{ fontSize: "0.72rem" }}>Notes</label>
+                        <input className="input" style={{ fontSize: "0.85rem", padding: "8px 12px" }} value={inst.notes} onChange={e => updateInstallment(idx, "notes", e.target.value)} placeholder="Optional note…" />
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
-              <div className="form-group">
-                <label className="label">Notes</label>
-                <textarea className="input" rows={2} value={commissionForm.notes} onChange={e => setCommissionForm(f => ({ ...f, notes: e.target.value }))} style={{ resize: "vertical" }} />
-              </div>
+
+              {commissionInstallments.length > 1 && (
+                <div style={{ padding: "10px 14px", borderRadius: "var(--radius)", background: "rgba(232,255,71,0.05)", border: "1px solid rgba(232,255,71,0.15)", fontSize: "0.8rem", color: "var(--muted)", marginBottom: 16 }}>
+                  Total: <strong style={{ color: "var(--accent)" }}>{fmtCents(commissionInstallments.reduce((s, i) => s + (parseFloat(i.amountEur || "0") * 100), 0))}</strong> across {commissionInstallments.length} installments
+                </div>
+              )}
+
               {commissionError && <div style={{ background: "rgba(255,59,59,0.1)", border: "1px solid rgba(255,59,59,0.3)", borderRadius: "var(--radius)", padding: "10px 14px", fontSize: "0.85rem", color: "var(--red)", marginBottom: 16 }}>{commissionError}</div>}
               <div style={{ display: "flex", gap: 12 }}>
                 <button type="submit" className="btn btn-primary" style={{ flex: 1, justifyContent: "center" }} disabled={commissionSaving}>
-                  {commissionSaving ? <><span className="spinner" /> Saving…</> : "Add Commission"}
+                  {commissionSaving ? <><span className="spinner" /> Saving…</> : `Add ${commissionInstallments.length > 1 ? `${commissionInstallments.length} Installments` : "Commission"}`}
                 </button>
                 <button type="button" className="btn btn-outline" onClick={() => setShowCommissionModal(false)}>Cancel</button>
               </div>
@@ -1133,6 +1275,16 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
                 <div className="form-group" style={{ margin: 0 }}>
                   <label className="label">Contract Years</label>
                   <input className="input" type="number" value={transferForm.contractYears} onChange={e => setTransferForm(f => ({ ...f, contractYears: e.target.value }))} placeholder="2" />
+                </div>
+              </div>
+              <div className="form-group">
+                <label className="label">Contract File <span style={{ color: "var(--muted)", fontWeight: 400 }}>(optional — PDF, Excel, image)</span></label>
+                <input ref={transferDocRef} type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv" style={{ display: "none" }} onChange={e => setTransferDocFile(e.target.files?.[0] ?? null)} />
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <button type="button" className="btn btn-outline" style={{ fontSize: "0.82rem" }} onClick={() => transferDocRef.current?.click()}>📎 Choose File</button>
+                  <span style={{ fontSize: "0.78rem", color: transferDocFile ? "#00c864" : "var(--muted)" }}>
+                    {transferDocFile ? `✓ ${transferDocFile.name}` : "No file chosen"}
+                  </span>
                 </div>
               </div>
               <div className="form-group">

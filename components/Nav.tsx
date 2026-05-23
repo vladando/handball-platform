@@ -59,6 +59,16 @@ export default function Nav({ session, playerSlug, unreadCount: initialUnread = 
     : role === "AGENT" ? "/dashboard/agent?tab=settings"
     : null;
 
+  const agentTabs = [
+    { id: "overview",    icon: "⊞",  label: "Overview" },
+    { id: "players",     icon: "👥", label: "Players" },
+    { id: "contracts",   icon: "📄", label: "Contracts" },
+    { id: "commissions", icon: "💰", label: "Commissions" },
+    { id: "transfers",   icon: "🔄", label: "Transfers" },
+    { id: "pitch",       icon: "🚀", label: "Pitch" },
+    { id: "settings",    icon: "⚙️", label: "Settings" },
+  ];
+
   const navLinks = (
     <>
       <li><Link href="/players" className={path.startsWith("/players") ? "active" : ""}>🏐 Players</Link></li>
@@ -72,7 +82,13 @@ export default function Nav({ session, playerSlug, unreadCount: initialUnread = 
           </Link>
         </li>
       )}
-      {role === "AGENT" && <li><Link href="/dashboard/agent" className={path.startsWith("/dashboard/agent") ? "active" : ""}>🤝 My Players</Link></li>}
+      {role === "AGENT" && agentTabs.map(t => (
+        <li key={t.id}>
+          <Link href={`/dashboard/agent?tab=${t.id}`} className={path.startsWith("/dashboard/agent") && (path.includes(`tab=${t.id}`) || (t.id === "overview" && !path.includes("tab="))) ? "active" : ""}>
+            {t.icon} {t.label}
+          </Link>
+        </li>
+      ))}
       {role === "ADMIN" && <li><Link href="/admin" className={path.startsWith("/admin") ? "active" : ""}>⚙️ Admin</Link></li>}
     </>
   );
@@ -81,13 +97,13 @@ export default function Nav({ session, playerSlug, unreadCount: initialUnread = 
     <>
       <nav className="nav">
         <div className="nav-inner">
-          <Link href="/" className="nav-logo">
+          <Link href={role === "AGENT" ? "/dashboard/agent" : "/"} className="nav-logo">
             Handball<span>Hub</span>
           </Link>
 
           {/* Desktop links */}
           <ul className="nav-links">
-            <li><Link href="/players" className={path.startsWith("/players") ? "active" : ""}>Players</Link></li>
+            {role !== "AGENT" && <li><Link href="/players" className={path.startsWith("/players") ? "active" : ""}>Players</Link></li>}
             {role === "CLUB" && <li><Link href="/dashboard/club" className={path.startsWith("/dashboard/club") ? "active" : ""}>Dashboard</Link></li>}
             {role === "PLAYER" && <li><Link href={profileHref} className={path.startsWith("/players/") ? "active" : ""}>My Profile</Link></li>}
             {role === "PLAYER" && <li><Link href="/dashboard/player?tab=profile" className={path === "/dashboard/player" ? "active" : ""}>Edit Profile</Link></li>}
@@ -98,6 +114,13 @@ export default function Nav({ session, playerSlug, unreadCount: initialUnread = 
                 </Link>
               </li>
             )}
+            {role === "AGENT" && agentTabs.map(t => (
+              <li key={t.id}>
+                <Link href={`/dashboard/agent?tab=${t.id}`} className={path.startsWith("/dashboard/agent") ? "active" : ""}>
+                  {t.icon} {t.label}
+                </Link>
+              </li>
+            ))}
             {role === "ADMIN" && <li><Link href="/admin" className={path.startsWith("/admin") ? "active" : ""}>Admin</Link></li>}
 
             {/* More dropdown */}

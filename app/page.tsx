@@ -99,6 +99,14 @@ export default async function HomePage() {
                   💬 Messages{unreadCount > 0 && <span className="nav-badge" style={{ fontSize:"0.7rem", padding:"2px 7px", height:"20px" }}>{unreadCount > 99 ? "99+" : unreadCount}</span>}
                 </Link>
               </>
+            ) : role === "AGENT" ? (
+              <>
+                <Link href="/dashboard/agent?tab=overview" className="btn btn-primary" style={{ fontSize:"1rem", padding:"14px 32px" }}>⊞ Overview</Link>
+                <Link href="/dashboard/agent?tab=players" className="btn btn-outline" style={{ fontSize:"1rem", padding:"14px 28px" }}>👥 My Players</Link>
+                <Link href="/dashboard/agent?tab=contracts" className="btn btn-outline" style={{ fontSize:"1rem", padding:"14px 28px" }}>📄 Contracts</Link>
+                <Link href="/dashboard/agent?tab=commissions" className="btn btn-outline" style={{ fontSize:"1rem", padding:"14px 28px" }}>💰 Commissions</Link>
+                <Link href="/dashboard/agent?tab=pitch" className="btn btn-outline" style={{ fontSize:"1rem", padding:"14px 28px" }}>🚀 Pitch Generator</Link>
+              </>
             ) : (
               <Link href="/admin" className="btn btn-primary" style={{ fontSize:"1rem", padding:"14px 32px" }}>⚙ Admin Panel</Link>
             )}

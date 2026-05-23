@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;700;800;900&family=Barlow:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { width: 1080px; height: 1080px; overflow: hidden; background: #090909; font-family: 'Barlow Condensed', sans-serif; }
+
+  .wrap {
+    width: 1080px; height: 1080px;
+    display: flex; flex-direction: column;
+    justify-content: space-between;
+    padding: 72px 90px;
+    position: relative; overflow: hidden;
+  }
+
+  /* Feature steps visual */
+  .steps-bg {
+    position: absolute; right: -20px; top: 50%;
+    transform: translateY(-50%);
+    width: 460px;
+    display: flex; flex-direction: column; gap: 16px;
+    opacity: 0.15;
+  }
+  .step-bar {
+    height: 48px; background: #e8ff47; border-radius: 4px;
+  }
+
+  /* Accent glow bottom left */
+  .glow {
+    position: absolute; bottom: -100px; left: -100px;
+    width: 500px; height: 500px;
+    background: radial-gradient(circle, rgba(232,255,71,0.08) 0%, transparent 70%);
+  }
+
+  .header {
+    display: flex; justify-content: space-between; align-items: center;
+    position: relative; z-index: 2;
+  }
+  .logo { font-weight: 900; font-size: 28px; letter-spacing: 0.08em; text-transform: uppercase; color: #f5f3ee; }
+  .logo span { color: #e8ff47; }
+  .step-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; letter-spacing: 0.2em;
+    text-transform: uppercase; color: #e8ff47;
+    background: rgba(232,255,71,0.1);
+    padding: 6px 14px; border-radius: 2px;
+    border: 1px solid rgba(232,255,71,0.25);
+  }
+
+  .main {
+    flex: 1; display: flex; flex-direction: column;
+    justify-content: center;
+    position: relative; z-index: 2;
+    max-width: 600px;
+  }
+
+  .eyebrow {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px; letter-spacing: 0.2em;
+    text-transform: uppercase; color: #6b6b6b;
+    margin-bottom: 24px;
+  }
+
+  h2 {
+    font-weight: 900; font-size: 82px;
+    text-transform: uppercase; color: #f5f3ee;
+    line-height: 0.92; letter-spacing: -0.01em;
+    margin-bottom: 40px;
+  }
+  h2 em { color: #e8ff47; font-style: normal; }
+
+  /* Step cards */
+  .steps {
+    display: flex; flex-direction: column; gap: 2px;
+    margin-bottom: 48px;
+  }
+  .step {
+    display: flex; align-items: center; gap: 20px;
+    padding: 16px 20px;
+    background: #111111;
+    border: 1px solid rgba(245,243,238,0.08);
+  }
+  .step:first-child { border-radius: 8px 8px 0 0; }
+  .step:last-child { border-radius: 0 0 8px 8px; }
+  .step-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 500; font-size: 13px;
+    color: #e8ff47; min-width: 24px;
+  }
+  .step-text {
+    font-family: 'Barlow', sans-serif;
+    font-size: 18px; color: rgba(245,243,238,0.8);
+    font-weight: 500;
+  }
+  .step-arrow {
+    margin-left: auto;
+    color: rgba(232,255,71,0.4); font-size: 18px;
+  }
+
+  .sub {
+    font-family: 'Barlow', sans-serif;
+    font-size: 18px; color: rgba(245,243,238,0.45);
+    line-height: 1.5;
+  }
+
+  .footer {
+    display: flex; justify-content: space-between; align-items: center;
+    position: relative; z-index: 2;
+  }
+  .cta {
+    display: inline-flex; align-items: center; gap: 12px;
+    background: #e8ff47; color: #090909;
+    font-weight: 800; font-size: 20px;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    padding: 18px 36px; border-radius: 4px;
+  }
+  .url {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 15px; color: rgba(245,243,238,0.25);
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="glow"></div>
+
+  <div class="steps-bg">
+    <div class="step-bar" style="width: 100%"></div>
+    <div class="step-bar" style="width: 80%"></div>
+    <div class="step-bar" style="width: 90%"></div>
+    <div class="step-bar" style="width: 70%"></div>
+  </div>
+
+  <div class="header">
+    <div class="logo">Handball<span>Hub</span></div>
+    <div class="step-label">How It Works</div>
+  </div>
+
+  <div class="main">
+    <div class="eyebrow">// Start in 3 steps</div>
+    <h2>Get Found<br>By The<br><em>Right Club.</em></h2>
+
+    <div class="steps">
+      <div class="step">
+        <span class="step-num">01</span>
+        <span class="step-text">Create your free player profile</span>
+        <span class="step-arrow">→</span>
+      </div>
+      <div class="step">
+        <span class="step-num">02</span>
+        <span class="step-text">Add stats, videos & career history</span>
+        <span class="step-arrow">→</span>
+      </div>
+      <div class="step">
+        <span class="step-num">03</span>
+        <span class="step-text">Get discovered by verified clubs</span>
+        <span class="step-arrow">→</span>
+      </div>
+    </div>
+
+    <p class="sub">No agent needed. No cold calls.<br>Just your profile — working for you 24/7.</p>
+  </div>
+
+  <div class="footer">
+    <div class="cta">Start Now — Free →</div>
+    <div class="url">handballhub.net</div>
+  </div>
+</div>
+</body>
+</html>

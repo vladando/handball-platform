@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;700;800;900&family=Barlow:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { width: 1080px; height: 1080px; overflow: hidden; background: #090909; font-family: 'Barlow Condensed', sans-serif; }
+
+  .wrap {
+    width: 1080px; height: 1080px;
+    display: flex; flex-direction: column;
+    justify-content: space-between;
+    padding: 72px 90px;
+    position: relative; overflow: hidden;
+  }
+
+  .noise {
+    position: absolute; inset: 0;
+    background:
+      repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(255,255,255,0.008) 2px,
+        rgba(255,255,255,0.008) 4px
+      );
+  }
+
+  .accent-bar {
+    position: absolute; left: 0; top: 0; bottom: 0;
+    width: 6px; background: #e8ff47;
+  }
+
+  .header {
+    display: flex; justify-content: space-between; align-items: center;
+    position: relative;
+  }
+  .logo {
+    font-weight: 900; font-size: 28px;
+    letter-spacing: 0.08em; text-transform: uppercase; color: #f5f3ee;
+  }
+  .logo span { color: #e8ff47; }
+  .badge {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; letter-spacing: 0.15em;
+    text-transform: uppercase; color: #090909;
+    background: #e8ff47; padding: 6px 14px; border-radius: 2px;
+  }
+
+  .center { flex: 1; display: flex; flex-direction: column; justify-content: center; position: relative; }
+
+  /* Profile card mockup */
+  .profile-card {
+    background: #111111;
+    border: 1px solid rgba(245,243,238,0.1);
+    border-radius: 10px;
+    padding: 36px 40px;
+    margin-bottom: 48px;
+    position: relative;
+    max-width: 860px;
+  }
+  .profile-card::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0;
+    height: 3px; background: linear-gradient(90deg, #e8ff47, transparent);
+    border-radius: 10px 10px 0 0;
+  }
+
+  .profile-top {
+    display: flex; align-items: center; gap: 32px; margin-bottom: 28px;
+  }
+  .avatar {
+    width: 88px; height: 88px; border-radius: 8px;
+    background: linear-gradient(135deg, #1a1a1a, #222);
+    border: 2px solid rgba(232,255,71,0.3);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 36px;
+  }
+  .profile-name {
+    font-weight: 900; font-size: 38px;
+    text-transform: uppercase; color: #f5f3ee;
+    letter-spacing: 0.02em; line-height: 1;
+    margin-bottom: 8px;
+  }
+  .profile-meta {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px; color: #6b6b6b;
+    letter-spacing: 0.08em;
+  }
+  .profile-meta span { color: #e8ff47; margin: 0 6px; }
+
+  .stats-row {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;
+  }
+  .stat {
+    background: #161616;
+    border: 1px solid rgba(245,243,238,0.08);
+    border-radius: 6px; padding: 14px 16px;
+  }
+  .stat-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: 0.15em;
+    text-transform: uppercase; color: #6b6b6b; margin-bottom: 6px;
+  }
+  .stat-value {
+    font-weight: 900; font-size: 24px;
+    color: #f5f3ee; line-height: 1;
+  }
+  .stat-value.accent { color: #e8ff47; }
+
+  h2 {
+    font-weight: 900; font-size: 72px;
+    text-transform: uppercase; color: #f5f3ee;
+    line-height: 0.95; letter-spacing: -0.01em;
+    margin-bottom: 20px;
+  }
+  h2 em { color: #e8ff47; font-style: normal; }
+
+  .sub {
+    font-family: 'Barlow', sans-serif;
+    font-size: 20px; color: rgba(245,243,238,0.5);
+    margin-bottom: 0;
+  }
+
+  .footer {
+    display: flex; justify-content: space-between; align-items: center;
+    position: relative;
+  }
+  .cta {
+    display: inline-flex; align-items: center; gap: 12px;
+    background: #e8ff47; color: #090909;
+    font-weight: 800; font-size: 20px;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    padding: 18px 36px; border-radius: 4px;
+  }
+  .url {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 15px; color: rgba(245,243,238,0.25);
+    letter-spacing: 0.06em;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="noise"></div>
+  <div class="accent-bar"></div>
+
+  <div class="header">
+    <div class="logo">Handball<span>Hub</span></div>
+    <div class="badge">Player Profile</div>
+  </div>
+
+  <div class="center">
+    <div class="profile-card">
+      <div class="profile-top">
+        <div class="avatar">🏐</div>
+        <div>
+          <div class="profile-name">Ivan Petrović</div>
+          <div class="profile-meta">Left Back <span>·</span> 193cm <span>·</span> Croatia <span>·</span> 24 yrs</div>
+        </div>
+      </div>
+      <div class="stats-row">
+        <div class="stat">
+          <div class="stat-label">Position</div>
+          <div class="stat-value accent">LB</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Height</div>
+          <div class="stat-value">193<span style="font-size:14px;color:#6b6b6b"> cm</span></div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Status</div>
+          <div class="stat-value" style="font-size:16px;color:#00c864">Available</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Videos</div>
+          <div class="stat-value">6</div>
+        </div>
+      </div>
+    </div>
+
+    <h2>Your Profile.<br><em>Your Career.</em></h2>
+    <p class="sub">Build it once. Let clubs find you.</p>
+  </div>
+
+  <div class="footer">
+    <div class="cta">Create Your Profile →</div>
+    <div class="url">handballhub.net</div>
+  </div>
+</div>
+</body>
+</html>

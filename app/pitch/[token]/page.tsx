@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import PitchPrintButton from "./PitchPrintButton";
 
 function posLabel(p: string) {
   return p?.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase()) ?? "—";
@@ -76,6 +77,22 @@ export default async function PitchPage({ params }: { params: Promise<{ token: s
           .pitch-container { padding: 32px 16px; }
           .player-grid { grid-template-columns: 1fr; }
         }
+        @media print {
+          .no-print { display: none !important; }
+          body { background: #fff !important; color: #000 !important; }
+          .pitch-header { background: #f5f5f5 !important; border-bottom: 2px solid #000 !important; break-inside: avoid; }
+          .pitch-container { padding: 20px !important; }
+          .player-grid { grid-template-columns: repeat(3, 1fr) !important; gap: 12px !important; }
+          .player-card { background: #fff !important; border: 1px solid #ccc !important; break-inside: avoid; page-break-inside: avoid; }
+          .player-body { padding: 10px !important; }
+          .badge-green { background: #d4f7e5 !important; color: #007a3c !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          .badge-accent { background: #feffd4 !important; color: #5a6000 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          .badge-muted { background: #eee !important; color: #555 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          .badge-blue { background: #dce9ff !important; color: #003399 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          h1, h2, h3, h4 { color: #000 !important; }
+          * { color-adjust: exact; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          @page { margin: 15mm; size: A4; }
+        }
       `}</style>
 
       {/* Header */}
@@ -96,8 +113,11 @@ export default async function PitchPage({ params }: { params: Promise<{ token: s
                 </div>
               )}
             </div>
-            <div style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 800, fontSize: "1.4rem", color: "#e8ff47", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-              HH<span style={{ color: "#f5f3ee" }}>.</span>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 12 }}>
+              <div style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 800, fontSize: "1.4rem", color: "#e8ff47", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                HH<span style={{ color: "#f5f3ee" }}>.</span>
+              </div>
+              <PitchPrintButton />
             </div>
           </div>
 

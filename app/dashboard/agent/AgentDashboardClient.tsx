@@ -809,32 +809,39 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
         </div>
         <ul className="sidebar-nav">
           {NAV_ITEMS.map(item => (
-            <li key={item.id}>
-              <a href="#" className={tab === item.id ? "active" : ""}
-                onClick={e => { e.preventDefault(); switchTab(item.id); }}>
-                <span style={{ fontSize: "1rem" }}>{item.icon}</span>
-                {item.label}
-                {item.id === "players" && <span style={{ marginLeft: "auto", fontSize: "0.7rem", color: "var(--muted)" }}>{players.length}</span>}
-                {item.id === "contracts" && contracts.length > 0 && (
-                  <span style={{ marginLeft: "auto", background: "rgba(232,255,71,0.2)", color: "var(--accent)", fontSize: "0.65rem", padding: "1px 6px", borderRadius: 2 }}>{contracts.length}</span>
-                )}
-                {item.id === "commissions" && stats.pendingCommissions > 0 && (
-                  <span style={{ marginLeft: "auto", background: "rgba(232,255,71,0.2)", color: "var(--accent)", fontSize: "0.65rem", padding: "1px 6px", borderRadius: 2 }}>{stats.pendingCommissions}</span>
-                )}
-                {item.id === "messages" && unreadMessages > 0 && (
-                  <span style={{ marginLeft: "auto", background: "rgba(255,59,59,0.25)", color: "var(--red)", fontSize: "0.65rem", padding: "1px 6px", borderRadius: 2 }}>{unreadMessages > 99 ? "99+" : unreadMessages}</span>
-                )}
-              </a>
-            </li>
+            <>
+              <li key={item.id}>
+                <a href="#" className={tab === item.id ? "active" : ""}
+                  onClick={e => { e.preventDefault(); switchTab(item.id); }}>
+                  <span style={{ fontSize: "1rem" }}>{item.icon}</span>
+                  {item.label}
+                  {item.id === "players" && <span style={{ marginLeft: "auto", fontSize: "0.7rem", color: "var(--muted)" }}>{players.length}</span>}
+                  {item.id === "contracts" && contracts.length > 0 && (
+                    <span style={{ marginLeft: "auto", background: "rgba(232,255,71,0.2)", color: "var(--accent)", fontSize: "0.65rem", padding: "1px 6px", borderRadius: 2 }}>{contracts.length}</span>
+                  )}
+                  {item.id === "commissions" && stats.pendingCommissions > 0 && (
+                    <span style={{ marginLeft: "auto", background: "rgba(232,255,71,0.2)", color: "var(--accent)", fontSize: "0.65rem", padding: "1px 6px", borderRadius: 2 }}>{stats.pendingCommissions}</span>
+                  )}
+                  {item.id === "messages" && unreadMessages > 0 && (
+                    <span style={{ marginLeft: "auto", background: "rgba(255,59,59,0.25)", color: "var(--red)", fontSize: "0.65rem", padding: "1px 6px", borderRadius: 2 }}>{unreadMessages > 99 ? "99+" : unreadMessages}</span>
+                  )}
+                </a>
+              </li>
+              {/* Free Players sub-link right below Players */}
+              {item.id === "players" && (
+                <li key="free-players-link">
+                  <a href="/players" target="_blank" rel="noopener noreferrer"
+                    style={{ paddingLeft: 36, fontSize: "0.8rem", color: "var(--muted)", display: "flex", alignItems: "center", gap: 8 }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "var(--accent)"; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "var(--muted)"; }}>
+                    <span style={{ fontSize: "0.85rem" }}>🆓</span>
+                    Free Players
+                    <span style={{ marginLeft: "auto", fontSize: "0.6rem", opacity: 0.5 }}>↗</span>
+                  </a>
+                </li>
+              )}
+            </>
           ))}
-          {/* External link: Free Players (public listing) */}
-          <li>
-            <a href="/players" target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span style={{ fontSize: "1rem" }}>🆓</span>
-              Free Players
-              <span style={{ marginLeft: "auto", fontSize: "0.6rem", color: "var(--muted)" }}>↗</span>
-            </a>
-          </li>
         </ul>
       </aside>
 
@@ -1164,7 +1171,7 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
               <div style={{ display: "flex", gap: 0, border: "1px solid var(--border)", borderRadius: "var(--radius)", overflow: "hidden", marginBottom: 16, maxWidth: 480 }}>
                 {([
                   { id: "roster", label: `👥 My Roster${players.length ? ` (${players.length})` : ""}` },
-                  { id: "free",   label: "🔍 Free Agents" },
+                  { id: "free",   label: "🆓 Free Players" },
                   { id: "requests", label: `📨 My Requests${repRequests.filter(r => r.status === "ACCEPTED").length ? ` ✓${repRequests.filter(r => r.status === "ACCEPTED").length}` : ""}` },
                 ] as const).map(st => (
                   <button key={st.id} onClick={() => setPlayersSubTab(st.id)} style={{
@@ -1413,7 +1420,7 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
               </div>
             ))}
 
-            {/* ══ Free Agents sub-tab ══ */}
+            {/* ══ Free Players sub-tab ══ */}
             {playersSubTab === "free" && (() => {
               const filtered = freeAgents.filter(p => {
                 if (faSearch && !`${p.firstName} ${p.lastName}`.toLowerCase().includes(faSearch.toLowerCase())) return false;
@@ -1444,7 +1451,7 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
                   ) : filtered.length === 0 ? (
                     <div className="card" style={{ textAlign: "center", padding: "60px 24px" }}>
                       <div style={{ fontSize: "3rem", marginBottom: 16 }}>🔍</div>
-                      <h4 style={{ marginBottom: 8 }}>No Free Agents Found</h4>
+                      <h4 style={{ marginBottom: 8 }}>No Free Players Found</h4>
                       <p style={{ color: "var(--muted)" }}>All available players are currently represented or no players match your filters.</p>
                     </div>
                   ) : (

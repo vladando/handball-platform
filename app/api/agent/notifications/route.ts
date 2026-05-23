@@ -73,7 +73,34 @@ export async function GET() {
     take: 30,
   });
 
+  // Calendar event reminders — events happening in the next 5 hours
+  const now = new Date();
+  const fiveHoursFromNow = new Date(Date.now() + 5 * 3600 * 1000);
+  const upcomingEvents = await (prisma as any).agentCalendarEvent.findMany({
+    where: {
+      agentId: agent.id,
+      eventAt: { gte: now, lte: fiveHoursFromNow },
+    },
+    orderBy: { eventAt: "asc" },
+    take: 10,
+  });
+
   const notifications = [
+    // Calendar reminders (highest priority - show first)
+    ...upcomingEvents.map((e: any) => {
+      const minutesUntil = Math.round((new Date(e.eventAt).getTime() - now.getTime()) / 60000);
+      const timeStr = minutesUntil < 60
+        ? `in ${minutesUntil} min`
+        : `in ${Math.round(minutesUntil / 60)}h`;
+      return {
+        id: `cal_${e.id}`,
+        type: "calendar_reminder" as const,
+        title: `⏰ Reminder: ${e.title}`,
+        body: `${e.description ? e.description + " · " : ""}Starting ${timeStr}`,
+        createdAt: now.toISOString(),
+        link: null,
+      };
+    }),
     ...interactions.map((i) => ({
       id: `unlock_${i.id}`,
       type: "club_unlock" as const,

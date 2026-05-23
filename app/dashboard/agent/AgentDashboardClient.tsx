@@ -156,7 +156,20 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
   const [commissions, setCommissions] = useState<any[]>(agent.commissions ?? []);
   const [transfers, setTransfers] = useState<any[]>(agent.transfers ?? []);
   const [pitchDecks, setPitchDecks] = useState<any[]>(agent.pitchDecks ?? []);
+  const [calendarEvents, setCalendarEvents] = useState<any[]>(agent.calendarEvents ?? []);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+
+  // Detail modal (for transfer/commission/contract rows)
+  const [detailModal, setDetailModal] = useState<{ type: "transfer" | "commission" | "contract"; item: any } | null>(null);
+
+  // Calendar planner state
+  const [calYear, setCalYear] = useState(new Date().getFullYear());
+  const [calMonth, setCalMonth] = useState(new Date().getMonth());
+  const [selectedDay, setSelectedDay] = useState<Date | null>(null);
+  const [showEventModal, setShowEventModal] = useState(false);
+  const [eventForm, setEventForm] = useState({ title: "", hour: "09", minute: "00", description: "" });
+  const [eventSaving, setEventSaving] = useState(false);
+  const [eventError, setEventError] = useState("");
 
   // Sync tab when URL changes (nav-bar links like ?tab=settings)
   useEffect(() => {
@@ -645,6 +658,30 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
   async function handleDeleteTransfer(id: string) {
     await fetch(`/api/agent/transfers/${id}`, { method: "DELETE" });
     setTransfers(ts => ts.filter(t => t.id !== id));
+  }
+
+  // ── Calendar events ─────────────────────────────────────────────
+  async function handleAddEvent(e: React.FormEvent) {
+    e.preventDefault();
+    if (!selectedDay || !eventForm.title.trim()) return;
+    setEventSaving(true); setEventError("");
+    const eventAt = new Date(selectedDay);
+    eventAt.setHours(parseInt(eventForm.hour), parseInt(eventForm.minute), 0, 0);
+    const res = await fetch("/api/agent/calendar-events", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: eventForm.title, description: eventForm.description, eventAt: eventAt.toISOString() }),
+    });
+    const data = await res.json();
+    setEventSaving(false);
+    if (!res.ok) { setEventError(data.error ?? "Failed to save."); return; }
+    setCalendarEvents(evs => [...evs, data.event].sort((a, b) => new Date(a.eventAt).getTime() - new Date(b.eventAt).getTime()));
+    setShowEventModal(false);
+    setEventForm({ title: "", hour: "09", minute: "00", description: "" });
+  }
+
+  async function handleDeleteEvent(id: string) {
+    await fetch(`/api/agent/calendar-events/${id}`, { method: "DELETE" });
+    setCalendarEvents(evs => evs.filter(e => e.id !== id));
   }
 
   async function handleHealthSubmit(e: React.FormEvent) {
@@ -1762,7 +1799,7 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
                       const days = daysLeft(c.endDate);
                       const expired = days < 0;
                       return (
-                        <tr key={c.id} style={{ background: expired ? "rgba(255,59,59,0.04)" : contractRowColor(days) }}>
+                        <tr key={c.id} style={{ background: expired ? "rgba(255,59,59,0.04)" : contractRowColor(days), cursor: "pointer" }} onClick={() => setDetailModal({ type: "contract", item: c })}>
                           <td style={{ fontFamily: "var(--font-display)", fontWeight: 700, textTransform: "uppercase" }}>
                             {c.player.firstName} {c.player.lastName}
                           </td>
@@ -1785,7 +1822,7 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
                               ? <a href={c.contractFileUrl} target="_blank" rel="noopener noreferrer" className="btn btn-outline" style={{ fontSize: "0.68rem", padding: "3px 8px" }}>📄 View</a>
                               : <span style={{ color: "var(--muted)", fontSize: "0.78rem" }}>—</span>}
                           </td>
-                          <td>
+                          <td onClick={e => e.stopPropagation()}>
                             <button className="btn btn-outline" style={{ fontSize: "0.7rem", padding: "4px 8px" }} onClick={() => {
                               setEditContract(c);
                               const toDate = (d: any) => d ? new Date(d).toISOString().split("T")[0] : "";
@@ -1854,7 +1891,7 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
                       const od = c.status === "PENDING" ? overdueLevel(c.dueDate) : { days: -1, label: "", color: "", bg: "" };
                       const isOverdue = od.days >= 0;
                       return (
-                      <tr key={c.id} style={{ background: isOverdue ? od.bg : "transparent" }}>
+                      <tr key={c.id} style={{ background: isOverdue ? od.bg : "transparent", cursor: "pointer" }} onClick={() => setDetailModal({ type: "commission", item: c })}>
                         <td style={{ fontFamily: "var(--font-display)", fontWeight: 700, textTransform: "uppercase" }}>
                           {c.player.firstName} {c.player.lastName}
                         </td>
@@ -1870,7 +1907,7 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
                             <span className={`badge ${COMMISSION_STATUS_COLORS[c.status] ?? "badge-muted"}`} style={{ fontSize: "0.6rem" }}>{c.status}</span>
                           )}
                         </td>
-                        <td>
+                        <td onClick={e => e.stopPropagation()}>
                           <div style={{ display: "flex", gap: 6 }}>
                             {c.status === "PENDING" && (
                               <button className="btn btn-primary" style={{ fontSize: "0.68rem", padding: "4px 8px" }} onClick={() => handleMarkPaid(c.id)}>✓ Mark Paid</button>
@@ -1948,7 +1985,7 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
                   </thead>
                   <tbody>
                     {sortItems(transfers, transferSort.key, transferSort.dir).map((t: any) => (
-                      <tr key={t.id}>
+                      <tr key={t.id} style={{ cursor: "pointer" }} onClick={() => setDetailModal({ type: "transfer", item: t })}>
                         <td style={{ fontFamily: "var(--font-display)", fontWeight: 700, textTransform: "uppercase" }}>
                           {t.player.firstName} {t.player.lastName}
                         </td>
@@ -1966,7 +2003,7 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
                             ? <a href={t.contractFileUrl} target="_blank" rel="noopener noreferrer" className="btn btn-outline" style={{ fontSize: "0.68rem", padding: "3px 8px" }}>📄 View</a>
                             : <span style={{ color: "var(--muted)", fontSize: "0.78rem" }}>—</span>}
                         </td>
-                        <td>
+                        <td onClick={e => e.stopPropagation()}>
                           <button className="btn btn-danger" style={{ fontSize: "0.7rem", padding: "4px 8px" }} onClick={() => handleDeleteTransfer(t.id)}>🗑</button>
                         </td>
                       </tr>
@@ -2146,15 +2183,156 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
           const TYPE_COLORS = { contract: "var(--accent)", commission: "#00c864", transfer: "var(--muted)" };
           const TYPE_ICONS = { contract: "📄", commission: "💰", transfer: "🔄" };
 
+          // ── Monthly planner grid ─────────────────────────────────
+          const firstOfMonth = new Date(calYear, calMonth, 1);
+          const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+          const startDow = (firstOfMonth.getDay() + 6) % 7; // Mon=0 … Sun=6
+          const totalCells = Math.ceil((startDow + daysInMonth) / 7) * 7;
+          const calDays: (Date | null)[] = [];
+          for (let i = 0; i < totalCells; i++) {
+            const dn = i - startDow + 1;
+            calDays.push(dn < 1 || dn > daysInMonth ? null : new Date(calYear, calMonth, dn));
+          }
+          const todayMid = new Date(); todayMid.setHours(0, 0, 0, 0);
+          const DOW_LABELS = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+          const monthLabel = firstOfMonth.toLocaleDateString("en-GB", { month: "long", year: "numeric" });
+
+          // events keyed by day-of-month for this month
+          const eventsByDay: Record<number, any[]> = {};
+          calendarEvents.forEach(ev => {
+            const d = new Date(ev.eventAt);
+            if (d.getFullYear() === calYear && d.getMonth() === calMonth) {
+              const dn = d.getDate();
+              if (!eventsByDay[dn]) eventsByDay[dn] = [];
+              eventsByDay[dn].push(ev);
+            }
+          });
+
+          // selected day events
+          const selDayEvents = selectedDay
+            ? calendarEvents.filter(ev => {
+                const d = new Date(ev.eventAt);
+                return d.getFullYear() === selectedDay.getFullYear()
+                  && d.getMonth() === selectedDay.getMonth()
+                  && d.getDate() === selectedDay.getDate();
+              })
+            : [];
+
+          const goPrev = () => { if (calMonth === 0) { setCalYear(y => y - 1); setCalMonth(11); } else { setCalMonth(m => m - 1); } };
+          const goNext = () => { if (calMonth === 11) { setCalYear(y => y + 1); setCalMonth(0); } else { setCalMonth(m => m + 1); } };
+
           return (
             <div className="tab-content">
               <div style={{ ...STICKY_HEADER, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.62rem", color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.18em" }}>Calendar</span>
+                <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.62rem", color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.18em" }}>Calendar Planner</span>
                 <span style={{ fontSize: "0.7rem", color: "var(--muted)" }}>{upcoming.length} upcoming · {past.length} past</span>
               </div>
 
+              {/* ── Month grid ── */}
+              <div className="card" style={{ marginBottom: 24, padding: "16px 16px 20px" }}>
+                {/* Month navigation */}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                  <button onClick={goPrev} style={{ background: "none", border: "1px solid var(--border)", color: "var(--white)", borderRadius: "var(--radius)", width: 32, height: 32, cursor: "pointer", fontSize: "1rem", display: "flex", alignItems: "center", justifyContent: "center" }}>‹</button>
+                  <span style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "0.95rem", textTransform: "uppercase", letterSpacing: "0.06em" }}>{monthLabel}</span>
+                  <button onClick={goNext} style={{ background: "none", border: "1px solid var(--border)", color: "var(--white)", borderRadius: "var(--radius)", width: 32, height: 32, cursor: "pointer", fontSize: "1rem", display: "flex", alignItems: "center", justifyContent: "center" }}>›</button>
+                </div>
+
+                {/* Day-of-week headers */}
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2, marginBottom: 2 }}>
+                  {DOW_LABELS.map(d => (
+                    <div key={d} style={{ textAlign: "center", fontSize: "0.62rem", color: "var(--muted)", fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.08em", paddingBottom: 6 }}>{d}</div>
+                  ))}
+                </div>
+
+                {/* Day cells */}
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2 }}>
+                  {calDays.map((day, idx) => {
+                    if (!day) return <div key={idx} />;
+                    const dn = day.getDate();
+                    const isToday = day.getTime() === todayMid.getTime();
+                    const isSelected = selectedDay && day.getTime() === new Date(selectedDay.getFullYear(), selectedDay.getMonth(), selectedDay.getDate()).getTime();
+                    const dayEvs = eventsByDay[dn] ?? [];
+                    const hasEvents = dayEvs.length > 0;
+                    return (
+                      <div
+                        key={idx}
+                        onClick={() => { setSelectedDay(day); }}
+                        style={{
+                          minHeight: 44,
+                          borderRadius: "var(--radius)",
+                          border: isSelected ? "1px solid var(--accent)" : isToday ? "1px solid rgba(232,255,71,0.35)" : "1px solid transparent",
+                          background: isSelected ? "rgba(232,255,71,0.08)" : isToday ? "rgba(232,255,71,0.04)" : "var(--card2)",
+                          cursor: "pointer",
+                          padding: "6px 4px 4px",
+                          display: "flex",
+                          flexDirection: "column",
+                          alignItems: "center",
+                          gap: 3,
+                          transition: "border-color 0.12s, background 0.12s",
+                        }}
+                      >
+                        <span style={{ fontSize: "0.78rem", fontFamily: "var(--font-mono)", color: isToday ? "var(--accent)" : isSelected ? "var(--accent)" : "var(--white)", fontWeight: isToday || isSelected ? 700 : 400 }}>{dn}</span>
+                        {/* event dots */}
+                        {hasEvents && (
+                          <div style={{ display: "flex", gap: 2, flexWrap: "wrap", justifyContent: "center" }}>
+                            {dayEvs.slice(0, 3).map((_, i) => (
+                              <div key={i} style={{ width: 5, height: 5, borderRadius: "50%", background: "var(--accent)" }} />
+                            ))}
+                            {dayEvs.length > 3 && <div style={{ width: 5, height: 5, borderRadius: "50%", background: "var(--muted)" }} />}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* ── Selected day panel ── */}
+              {selectedDay && (
+                <div className="card" style={{ marginBottom: 24, padding: "16px 20px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                    <div>
+                      <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "0.92rem", textTransform: "uppercase" }}>
+                        {selectedDay.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}
+                      </div>
+                      <div style={{ fontSize: "0.7rem", color: "var(--muted)", marginTop: 2 }}>{selDayEvents.length} event{selDayEvents.length !== 1 ? "s" : ""}</div>
+                    </div>
+                    <button
+                      onClick={() => { setEventForm({ title: "", hour: "09", minute: "00", description: "" }); setEventError(""); setShowEventModal(true); }}
+                      className="btn btn-primary"
+                      style={{ fontSize: "0.78rem", padding: "6px 14px" }}
+                    >+ Add Event</button>
+                  </div>
+                  {selDayEvents.length === 0 ? (
+                    <div style={{ textAlign: "center", padding: "20px 0", color: "var(--muted)", fontSize: "0.82rem" }}>No events — click <strong>+ Add Event</strong> to create one.</div>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      {selDayEvents.map(ev => {
+                        const t = new Date(ev.eventAt);
+                        const hhmm = t.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+                        return (
+                          <div key={ev.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: "var(--card2)", borderRadius: "var(--radius)", border: "1px solid var(--border)" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                              <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.72rem", color: "var(--accent)", minWidth: 38 }}>{hhmm}</div>
+                              <div>
+                                <div style={{ fontWeight: 600, fontSize: "0.88rem" }}>{ev.title}</div>
+                                {ev.description && <div style={{ fontSize: "0.72rem", color: "var(--muted)", marginTop: 2 }}>{ev.description}</div>}
+                              </div>
+                            </div>
+                            <button onClick={() => handleDeleteEvent(ev.id)} title="Delete event" style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: "1rem", padding: "4px 6px", borderRadius: "var(--radius)" }}>🗑</button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ── Upcoming / Past timeline ── */}
+              <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.62rem", color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.18em", marginBottom: 12 }}>Deadlines &amp; Events</div>
+
               {items.length === 0 ? (
-                <div className="card" style={{ textAlign: "center", padding: "60px 24px" }}>
+                <div className="card" style={{ textAlign: "center", padding: "40px 24px" }}>
                   <div style={{ fontSize: "3rem", marginBottom: 16 }}>📅</div>
                   <h4 style={{ marginBottom: 8 }}>No Deadlines Yet</h4>
                   <p style={{ color: "var(--muted)", fontSize: "0.88rem" }}>Add contracts, commissions, and transfers to see your schedule here.</p>
@@ -3133,6 +3311,119 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
             </div>
           </div>
         </>
+      )}
+
+      {/* ══ DETAIL MODAL (Transfer / Commission / Contract) ══ */}
+      {detailModal && (
+        <div className="modal-overlay" onClick={() => setDetailModal(null)}>
+          <div className="modal" style={{ maxWidth: 520 }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+              <h3 className="modal-title" style={{ margin: 0 }}>
+                {detailModal.type === "transfer" ? "🔄 Transfer Details"
+                  : detailModal.type === "commission" ? "💰 Commission Details"
+                  : "📄 Contract Details"}
+              </h3>
+              <button onClick={() => setDetailModal(null)} style={{ background: "none", border: "none", color: "var(--muted)", fontSize: "1.4rem", cursor: "pointer" }}>✕</button>
+            </div>
+            {(() => {
+              const item = detailModal.item;
+              const row = (label: string, val: React.ReactNode) => val ? (
+                <div key={label} style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid var(--border)" }}>
+                  <span style={{ fontSize: "0.78rem", color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.06em" }}>{label}</span>
+                  <span style={{ fontSize: "0.88rem", fontFamily: "var(--font-mono)", textAlign: "right", maxWidth: "60%" }}>{val}</span>
+                </div>
+              ) : null;
+              if (detailModal.type === "transfer") return (
+                <div>
+                  {row("Player", `${item.player.firstName} ${item.player.lastName}`)}
+                  {row("From", item.fromClub ?? "Free Agent")}
+                  {row("To", item.toClub)}
+                  {row("Transfer Date", fmtDate(item.transferDate))}
+                  {row("Salary/mo", item.salaryCents ? fmtCents(item.salaryCents) : null)}
+                  {row("Contract Start", item.contractStartDate ? fmtDate(item.contractStartDate) : null)}
+                  {row("Contract End", item.contractEndDate ? fmtDate(item.contractEndDate) : null)}
+                  {item.contractMonths ? row("Duration", `${item.contractMonths} months`) : null}
+                  {row("Notes", item.notes)}
+                  {row("Created", fmtDate(item.createdAt))}
+                </div>
+              );
+              if (detailModal.type === "commission") return (
+                <div>
+                  {row("Player", `${item.player.firstName} ${item.player.lastName}`)}
+                  {row("Description", item.description)}
+                  {row("Amount", fmtCents(item.amountCents))}
+                  {row("Due Date", fmtDate(item.dueDate))}
+                  {row("Status", item.status)}
+                  {item.paidAt ? row("Paid At", fmtDate(item.paidAt)) : null}
+                  {row("Notes", item.notes)}
+                  {row("Created", fmtDate(item.createdAt))}
+                </div>
+              );
+              // contract
+              return (
+                <div>
+                  {row("Player", `${item.player.firstName} ${item.player.lastName}`)}
+                  {row("Club", item.clubName)}
+                  {row("Start Date", fmtDate(item.startDate))}
+                  {row("End Date", fmtDate(item.endDate))}
+                  {row("Days Left", item.endDate ? `${daysLeft(item.endDate)}d` : null)}
+                  {row("Salary/mo", item.salaryCents ? fmtCents(item.salaryCents) : null)}
+                  {item.bonusDetails ? row("Bonus", item.bonusDetails) : null}
+                  {row("Notes", item.notes)}
+                  {item.contractFileUrl ? row("File", <a href={item.contractFileUrl} target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent)" }}>📄 View file</a>) : null}
+                  {row("Created", fmtDate(item.createdAt))}
+                </div>
+              );
+            })()}
+          </div>
+        </div>
+      )}
+
+      {/* ══ ADD CALENDAR EVENT MODAL ══ */}
+      {showEventModal && selectedDay && (
+        <div className="modal-overlay" onClick={() => setShowEventModal(false)}>
+          <div className="modal" style={{ maxWidth: 440 }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+              <h3 className="modal-title" style={{ margin: 0 }}>📅 Add Event</h3>
+              <button onClick={() => setShowEventModal(false)} style={{ background: "none", border: "none", color: "var(--muted)", fontSize: "1.4rem", cursor: "pointer" }}>✕</button>
+            </div>
+            <div style={{ fontSize: "0.78rem", color: "var(--accent)", fontFamily: "var(--font-mono)", marginBottom: 16 }}>
+              {selectedDay.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+            </div>
+            <form onSubmit={handleAddEvent}>
+              <div className="form-group">
+                <label className="label">Title <span style={{ color: "var(--accent)" }}>*</span></label>
+                <input className="input" value={eventForm.title} onChange={e => setEventForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g. Meeting with player, Contract negotiation…" autoFocus />
+              </div>
+              <div className="form-group">
+                <label className="label">Time</label>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", gap: 8, alignItems: "center" }}>
+                  <select className="input" value={eventForm.hour} onChange={e => setEventForm(f => ({ ...f, hour: e.target.value }))}>
+                    {Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0")).map(h => <option key={h} value={h}>{h}:00</option>)}
+                  </select>
+                  <span style={{ color: "var(--muted)", fontSize: "1.2rem" }}>:</span>
+                  <select className="input" value={eventForm.minute} onChange={e => setEventForm(f => ({ ...f, minute: e.target.value }))}>
+                    {["00", "15", "30", "45"].map(m => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="form-group">
+                <label className="label">Description <span style={{ fontSize: "0.72rem", color: "var(--muted)", fontWeight: 400 }}>(optional)</span></label>
+                <textarea className="input" rows={2} value={eventForm.description} onChange={e => setEventForm(f => ({ ...f, description: e.target.value }))} placeholder="Additional details…" style={{ resize: "vertical" }} />
+              </div>
+              <div style={{ fontSize: "0.72rem", color: "var(--muted)", marginBottom: 14, padding: "8px 12px", background: "rgba(232,255,71,0.04)", border: "1px solid rgba(232,255,71,0.12)", borderRadius: "var(--radius)" }}>
+                ⏰ You will receive a reminder notification <strong>5 hours before</strong> this event.
+              </div>
+              {eventError && <div style={{ background: "rgba(255,59,59,0.1)", border: "1px solid rgba(255,59,59,0.3)", borderRadius: "var(--radius)", padding: "10px 14px", fontSize: "0.85rem", color: "var(--red)", marginBottom: 16 }}>{eventError}</div>}
+              <div style={{ display: "flex", gap: 12 }}>
+                <button type="submit" className="btn btn-primary" style={{ flex: 1, justifyContent: "center" }} disabled={eventSaving}>
+                  {eventSaving ? <><span className="spinner" /> Saving…</> : "Save Event"}
+                </button>
+                <button type="button" className="btn btn-outline" onClick={() => setShowEventModal(false)}>Cancel</button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
     </div>

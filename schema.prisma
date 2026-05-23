@@ -495,6 +495,7 @@ model Agent {
   contracts               AgentContract[]
   commissions             AgentCommission[]
   transfers               TransferRecord[]
+  calendarEvents          AgentCalendarEvent[]
   pitchDecks              PitchDeck[]
   representationRequests  RepresentationRequest[]
   contactReveals          AgentContactReveal[]
@@ -571,6 +572,18 @@ model TransferRecord {
   createdAt            DateTime @default(now())
   @@index([agentId])
   @@map("transfer_records")
+}
+
+model AgentCalendarEvent {
+  id          String   @id @default(cuid())
+  agentId     String
+  agent       Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  title       String
+  description String?  @db.Text
+  eventAt     DateTime
+  createdAt   DateTime @default(now())
+  @@index([agentId])
+  @@map("agent_calendar_events")
 }
 
 model PitchDeck {

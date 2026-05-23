@@ -40,6 +40,9 @@ export default async function AgentDashboardPage() {
       pitchDecks: {
         orderBy: { createdAt: "desc" },
       },
+      calendarEvents: {
+        orderBy: { eventAt: "asc" },
+      },
     },
   });
 

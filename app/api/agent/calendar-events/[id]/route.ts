@@ -1,0 +1,23 @@
+import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+
+export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const session = await getServerSession(authOptions);
+  if (!session || (session.user as any).role !== "AGENT")
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { id } = await params;
+  const agent = await prisma.agent.findUnique({
+    where: { userId: (session.user as any).id },
+    select: { id: true },
+  });
+  if (!agent) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  await (prisma as any).agentCalendarEvent.deleteMany({
+    where: { id, agentId: agent.id },
+  });
+
+  return NextResponse.json({ ok: true });
+}

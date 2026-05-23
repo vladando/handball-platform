@@ -1,5 +1,5 @@
 "use client";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
@@ -198,6 +198,10 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
       .filter(c => c.status === "PAID")
       .reduce((s: number, c: any) => s + (c.amountCents ?? 0), 0),
   };
+
+  // ── Random 5 players for overview (re-randomised on each mount) ─
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const overviewPlayers = useMemo(() => [...players].sort(() => Math.random() - 0.5).slice(0, 5), []);
 
   // ── Filtered players (Players tab) ──────────────────────────────
   const filteredPlayers = players.filter(p => {
@@ -568,14 +572,31 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
               ) : (
                 <>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 10 }}>
-                    {players.slice(0, 5).map((p: any) => {
+                    {overviewPlayers.map((p: any) => {
                       const pc = contracts.filter(c => c.playerId === p.id);
                       const nc = pc[0];
                       const cd = nc?.endDate ? daysLeft(nc.endDate) : null;
+                      const salaryText = p.expectedSalaryMin && p.expectedSalaryMax
+                        ? `€${Math.round(p.expectedSalaryMin / 100).toLocaleString()} – €${Math.round(p.expectedSalaryMax / 100).toLocaleString()}/yr`
+                        : p.expectedSalaryMin ? `from €${Math.round(p.expectedSalaryMin / 100).toLocaleString()}/yr`
+                        : p.expectedSalaryMax ? `up to €${Math.round(p.expectedSalaryMax / 100).toLocaleString()}/yr`
+                        : null;
                       return (
-                        <div key={p.id} style={{ background: "var(--card2)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "12px", display: "flex", gap: 10, alignItems: "flex-start" }}>
-                          <div style={{ width: 42, height: 42, borderRadius: "50%", background: "var(--card)", overflow: "hidden", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.1rem", border: "1px solid var(--border)" }}>
-                            {p.photoUrl ? <img src={p.photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : "👤"}
+                        <div key={p.id}
+                          style={{ background: "var(--card2)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "12px", display: "flex", gap: 10, alignItems: "flex-start", cursor: p.slug && p.onboardingCompleted ? "pointer" : "default", transition: "border-color 0.15s" }}
+                          onClick={e => { if ((e.target as HTMLElement).closest("button,a")) return; if (p.slug && p.onboardingCompleted) window.open(`/players/${p.slug}`, "_blank"); }}
+                          onMouseEnter={e => { if (p.slug && p.onboardingCompleted) e.currentTarget.style.borderColor = "rgba(232,255,71,0.3)"; }}
+                          onMouseLeave={e => { e.currentTarget.style.borderColor = ""; }}
+                        >
+                          <div style={{ flexShrink: 0, textAlign: "center" }}>
+                            <div style={{ width: 42, height: 42, borderRadius: "50%", background: "var(--card)", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.1rem", border: "1px solid var(--border)" }}>
+                              {p.photoUrl ? <img src={p.photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : "👤"}
+                            </div>
+                            {p.currentClub && (
+                              <div style={{ fontSize: "0.52rem", color: "var(--muted)", marginTop: 3, maxWidth: 48, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={p.currentClub}>
+                                {p.currentClub}
+                              </div>
+                            )}
                           </div>
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: "0.82rem", textTransform: "uppercase", lineHeight: 1.2 }}>
@@ -584,20 +605,26 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
                             <div style={{ fontSize: "0.68rem", color: "var(--muted)", marginTop: 2 }}>
                               {posLabel(p.position)}{p.nationality && p.nationality !== "Unknown" ? ` · ${p.nationality}` : ""}
                             </div>
-                            <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 5 }}>
+                            <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 5, alignItems: "center" }}>
                               <span className={`badge ${HEALTH_COLORS[p.healthStatus ?? "HEALTHY"]}`} style={{ fontSize: "0.55rem" }}>{p.healthStatus ?? "HEALTHY"}</span>
-                              <span className={`badge ${VERIF_COLORS[p.verificationStatus ?? "UNVERIFIED"]}`} style={{ fontSize: "0.55rem" }}>{p.verificationStatus ?? "UNVERIFIED"}</span>
+                              <span className={`badge ${p.isAvailable ? "badge-green" : "badge-muted"}`} style={{ fontSize: "0.55rem" }}>{p.isAvailable ? "Available" : "N/A"}</span>
                             </div>
+                            {salaryText && (
+                              <div style={{ fontSize: "0.6rem", color: "var(--accent)", fontFamily: "var(--font-mono)", marginTop: 4 }}>{salaryText}</div>
+                            )}
                             {cd !== null && (
-                              <div style={{ fontSize: "0.62rem", marginTop: 4, color: cd < 0 ? "var(--muted)" : cd < 30 ? "var(--red)" : cd < 180 ? "var(--accent)" : "var(--muted)" }}>
+                              <div style={{ fontSize: "0.62rem", marginTop: 3, color: cd < 0 ? "var(--muted)" : cd < 30 ? "var(--red)" : cd < 180 ? "var(--accent)" : "var(--muted)" }}>
                                 {cd < 0 ? "Contract expired" : `Contract: ${cd}d left`}
                               </div>
                             )}
-                            <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
-                              {p.slug && p.onboardingCompleted && (
-                                <Link href={`/players/${p.slug}`} target="_blank" style={{ fontSize: "0.6rem", color: "var(--accent)" }}>↗ Profile</Link>
+                            <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
+                              {p.onboardingCompleted && p.verificationStatus !== "VERIFIED" && p.verificationStatus !== "PENDING" && (
+                                <button className="btn btn-primary" style={{ fontSize: "0.55rem", padding: "3px 7px" }}
+                                  onClick={e => { e.stopPropagation(); setVerifyPlayer({ id: p.id, name: `${p.firstName} ${p.lastName}`, status: p.verificationStatus }); setDocFile(null); setContractFile(null); setVerifyMsg(""); }}>
+                                  🔐 Verify
+                                </button>
                               )}
-                              <Link href={`/dashboard/agent/player/${p.id}/edit`} style={{ fontSize: "0.6rem", color: "var(--muted)" }}>✏ Edit</Link>
+                              <Link href={`/dashboard/agent/player/${p.id}/edit`} style={{ fontSize: "0.6rem", color: "var(--muted)" }} onClick={e => e.stopPropagation()}>✏ Edit</Link>
                             </div>
                           </div>
                         </div>
@@ -931,16 +958,29 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
                         <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginBottom: 8 }}>
                           {posLabel(p.position)} · {p.nationality === "Unknown" ? "—" : (p.nationality ?? "—")}
                         </div>
-                        <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 10 }}>
-                          <span className={`badge ${VERIF_COLORS[p.verificationStatus]}`} style={{ fontSize: "0.58rem" }}>{p.verificationStatus}</span>
+                        <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 6 }}>
                           <span className={`badge ${p.isAvailable ? "badge-green" : "badge-muted"}`} style={{ fontSize: "0.58rem" }}>{p.isAvailable ? "Available" : "N/A"}</span>
                         </div>
+                        {(() => {
+                          const sal = p.expectedSalaryMin && p.expectedSalaryMax
+                            ? `€${Math.round(p.expectedSalaryMin/100).toLocaleString()} – €${Math.round(p.expectedSalaryMax/100).toLocaleString()}/yr`
+                            : p.expectedSalaryMin ? `from €${Math.round(p.expectedSalaryMin/100).toLocaleString()}/yr`
+                            : p.expectedSalaryMax ? `up to €${Math.round(p.expectedSalaryMax/100).toLocaleString()}/yr`
+                            : null;
+                          return sal ? <div style={{ fontSize: "0.68rem", color: "var(--accent)", fontFamily: "var(--font-mono)", marginBottom: 8 }}>{sal}</div> : <div style={{ marginBottom: 8 }} />;
+                        })()}
                         {contractDays !== null && (
                           <div style={{ fontSize: "0.72rem", color: contractDays < 30 ? "var(--red)" : contractDays < 180 ? "var(--accent)" : "var(--muted)", marginBottom: 10 }}>
                             📄 Contract: {contractDays}d left
                           </div>
                         )}
-                        <div style={{ display: "flex", gap: 6 }}>
+                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                          {p.onboardingCompleted && p.verificationStatus !== "VERIFIED" && p.verificationStatus !== "PENDING" && (
+                            <button className="btn btn-primary" style={{ fontSize: "0.62rem", padding: "3px 7px" }}
+                              onClick={e => { e.stopPropagation(); setVerifyPlayer({ id: p.id, name: `${p.firstName} ${p.lastName}`, status: p.verificationStatus }); setDocFile(null); setContractFile(null); setVerifyMsg(""); }}>
+                              🔐 Verify
+                            </button>
+                          )}
                           <Link href={`/dashboard/agent/player/${p.id}/edit`} className="btn btn-outline" style={{ fontSize: "0.68rem", padding: "4px 8px", flex: 1, justifyContent: "center" }} onClick={e => e.stopPropagation()}>✏️ Edit</Link>
                           {p.slug && (
                             <div style={{ position: "relative" }} data-share-dropdown>

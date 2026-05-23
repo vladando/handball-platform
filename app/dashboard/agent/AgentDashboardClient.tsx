@@ -169,11 +169,16 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
   // ── Computed stats ───────────────────────────────────────────────
   const stats = {
     total: players.length,
-    verified: players.filter(p => p.verificationStatus === "VERIFIED").length,
-    available: players.filter(p => p.isAvailable).length,
-    contractsExpiringSoon: contracts.filter(c => { const d = daysLeft(c.endDate); return d > 0 && d < 180; }).length,
+    available: players.filter(p => p.isAvailable === true).length,
+    contractsExpiringSoon: contracts.filter(c => {
+      if (!c.endDate) return false;
+      const d = daysLeft(c.endDate);
+      return d > 0 && d < 180;
+    }).length,
     pendingCommissions: commissions.filter(c => c.status === "PENDING").length,
-    totalPendingCents: commissions.filter(c => c.status === "PENDING").reduce((s: number, c: any) => s + c.amountCents, 0),
+    totalPendingCents: commissions
+      .filter(c => c.status === "PENDING")
+      .reduce((s: number, c: any) => s + (c.amountCents ?? 0), 0),
   };
 
   // ── Add Player ───────────────────────────────────────────────────
@@ -455,73 +460,230 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
         {/* ══════════════════ OVERVIEW ══════════════════ */}
         {tab === "overview" && (
           <div className="tab-content">
+            {/* Sticky header */}
             <div style={{ ...STICKY_HEADER, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div>
                 <div className="section-label">Agent Dashboard</div>
                 <h2 style={{ margin: 0 }}>Overview</h2>
               </div>
+              <button className="btn btn-primary" style={{ fontSize: "0.82rem" }}
+                onClick={() => { setAddForm({ firstName: "", lastName: "" }); setAddError(""); setShowAddModal(true); }}>
+                + Add Player
+              </button>
             </div>
 
-            <div className="grid-4" style={{ marginBottom: 28 }}>
+            {/* ── Stats ── */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12, marginBottom: 24 }}>
               {[
-                { label: "Total Players", val: stats.total, color: "var(--white)" },
-                { label: "Verified", val: stats.verified, color: "#00c864" },
-                { label: "Available", val: stats.available, color: "var(--accent)" },
-                { label: "Contracts Expiring <6mo", val: stats.contractsExpiringSoon, color: stats.contractsExpiringSoon > 0 ? "var(--accent)" : "var(--white)" },
-                { label: "Pending Commissions", val: stats.pendingCommissions, color: stats.pendingCommissions > 0 ? "var(--accent)" : "var(--white)" },
-                { label: "Total Pending Value", val: fmtCents(stats.totalPendingCents), color: "var(--white)" },
+                { label: "Total Players", val: stats.total, sub: "in roster", color: "var(--white)" },
+                { label: "Available", val: stats.available, sub: "for transfer", color: stats.available > 0 ? "#00c864" : "var(--muted)" },
+                { label: "Contracts Expiring", val: stats.contractsExpiringSoon, sub: "< 6 months", color: stats.contractsExpiringSoon > 0 ? "var(--accent)" : "var(--muted)" },
+                { label: "Pending Commissions", val: stats.pendingCommissions, sub: "awaiting payment", color: stats.pendingCommissions > 0 ? "var(--accent)" : "var(--muted)" },
+                { label: "Pending Value", val: fmtCents(stats.totalPendingCents), sub: "total outstanding", color: stats.totalPendingCents > 0 ? "var(--white)" : "var(--muted)" },
               ].map(s => (
-                <div key={s.label} className="card" style={{ textAlign: "center" }}>
-                  <div style={{ fontFamily: "var(--font-display)", fontWeight: 900, fontSize: "1.8rem", color: s.color, lineHeight: 1 }}>{s.val}</div>
-                  <div style={{ fontSize: "0.7rem", color: "var(--muted)", marginTop: 8, textTransform: "uppercase", letterSpacing: "0.08em" }}>{s.label}</div>
+                <div key={s.label} className="card" style={{ textAlign: "center", padding: "16px 12px" }}>
+                  <div style={{ fontFamily: "var(--font-display)", fontWeight: 900, fontSize: "1.6rem", color: s.color, lineHeight: 1 }}>{s.val}</div>
+                  <div style={{ fontSize: "0.65rem", color: "var(--muted)", marginTop: 6, textTransform: "uppercase", letterSpacing: "0.06em", lineHeight: 1.3 }}>{s.label}</div>
+                  <div style={{ fontSize: "0.6rem", color: "rgba(107,107,107,0.6)", marginTop: 2 }}>{s.sub}</div>
                 </div>
               ))}
             </div>
 
-            {/* Recent contracts expiring */}
-            {stats.contractsExpiringSoon > 0 && (
-              <div className="card" style={{ marginBottom: 20, borderColor: "rgba(232,255,71,0.2)" }}>
-                <h4 style={{ textTransform: "uppercase", marginBottom: 16, color: "var(--accent)", fontSize: "0.9rem" }}>⚠ Contracts Expiring Soon</h4>
-                {contracts.filter(c => { const d = daysLeft(c.endDate); return d > 0 && d < 180; }).map((c: any) => (
-                  <div key={c.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: "1px solid var(--border)" }}>
-                    <div>
-                      <span style={{ fontFamily: "var(--font-display)", fontWeight: 700 }}>{c.player.firstName} {c.player.lastName}</span>
-                      <span style={{ fontSize: "0.8rem", color: "var(--muted)", marginLeft: 8 }}>{c.clubName}</span>
-                    </div>
-                    <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.8rem", color: daysLeft(c.endDate) < 30 ? "var(--red)" : "var(--accent)" }}>
-                      {daysLeft(c.endDate)}d left
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Players quick list */}
-            <div className="card">
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-                <h4 style={{ textTransform: "uppercase", fontSize: "0.9rem", margin: 0 }}>My Players</h4>
+            {/* ── Players Roster ── */}
+            <div className="card" style={{ marginBottom: 20 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                <h4 style={{ textTransform: "uppercase", fontSize: "0.88rem", margin: 0 }}>
+                  Players <span style={{ color: "var(--muted)", fontWeight: 400, textTransform: "none" }}>({players.length})</span>
+                </h4>
                 <div style={{ display: "flex", gap: 8 }}>
-                  <button className="btn btn-outline" style={{ fontSize: "0.75rem", padding: "6px 12px" }} onClick={() => switchTab("players")}>View All</button>
-                  <button className="btn btn-primary" style={{ fontSize: "0.75rem", padding: "6px 12px" }} onClick={() => { setAddForm({ firstName: "", lastName: "" }); setAddError(""); setShowAddModal(true); }}>+ Add Player</button>
+                  <button className="btn btn-outline" style={{ fontSize: "0.72rem", padding: "5px 10px" }} onClick={() => switchTab("players")}>Manage →</button>
+                  <button className="btn btn-primary" style={{ fontSize: "0.72rem", padding: "5px 10px" }}
+                    onClick={() => { setAddForm({ firstName: "", lastName: "" }); setAddError(""); setShowAddModal(true); }}>+ Add</button>
                 </div>
               </div>
-              {players.slice(0, 5).map((p: any) => (
-                <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: "1px solid var(--border)" }}>
-                  <div style={{ width: 36, height: 36, borderRadius: "50%", background: "var(--card2)", overflow: "hidden", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.9rem" }}>
-                    {p.photoUrl ? <img src={p.photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : "👤"}
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "0.9rem", textTransform: "uppercase" }}>{p.firstName} {p.lastName}</div>
-                    <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>{posLabel(p.position)} · {p.nationality}</div>
-                  </div>
-                  <span className={`badge ${HEALTH_COLORS[p.healthStatus ?? "HEALTHY"]}`} style={{ fontSize: "0.6rem" }}>{p.healthStatus ?? "HEALTHY"}</span>
-                  <span className={`badge ${VERIF_COLORS[p.verificationStatus]}`} style={{ fontSize: "0.6rem" }}>{p.verificationStatus}</span>
-                  {p.slug && (
-                    <Link href={`/players/${p.slug}`} target="_blank" className="btn btn-outline" style={{ fontSize: "0.65rem", padding: "3px 7px", flexShrink: 0 }}>↗</Link>
-                  )}
+              {players.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "28px 0", color: "var(--muted)", fontSize: "0.85rem" }}>
+                  No players yet. Add your first player to get started.
                 </div>
-              ))}
-              {players.length > 5 && <div style={{ textAlign: "center", padding: "12px 0 0", fontSize: "0.8rem", color: "var(--muted)" }}>+{players.length - 5} more players</div>}
+              ) : (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 10 }}>
+                  {players.map((p: any) => {
+                    const pc = contracts.filter(c => c.playerId === p.id);
+                    const nc = pc[0];
+                    const cd = nc?.endDate ? daysLeft(nc.endDate) : null;
+                    return (
+                      <div key={p.id} style={{ background: "var(--card2)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "12px", display: "flex", gap: 10, alignItems: "flex-start" }}>
+                        <div style={{ width: 42, height: 42, borderRadius: "50%", background: "var(--card)", overflow: "hidden", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.1rem", border: "1px solid var(--border)" }}>
+                          {p.photoUrl ? <img src={p.photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : "👤"}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: "0.82rem", textTransform: "uppercase", lineHeight: 1.2 }}>
+                            {p.firstName} {p.lastName}
+                          </div>
+                          <div style={{ fontSize: "0.68rem", color: "var(--muted)", marginTop: 2 }}>
+                            {posLabel(p.position)}{p.nationality && p.nationality !== "Unknown" ? ` · ${p.nationality}` : ""}
+                          </div>
+                          <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 5 }}>
+                            <span className={`badge ${HEALTH_COLORS[p.healthStatus ?? "HEALTHY"]}`} style={{ fontSize: "0.55rem" }}>{p.healthStatus ?? "HEALTHY"}</span>
+                            <span className={`badge ${VERIF_COLORS[p.verificationStatus ?? "UNVERIFIED"]}`} style={{ fontSize: "0.55rem" }}>{p.verificationStatus ?? "UNVERIFIED"}</span>
+                          </div>
+                          {cd !== null && (
+                            <div style={{ fontSize: "0.62rem", marginTop: 4, color: cd < 0 ? "var(--muted)" : cd < 30 ? "var(--red)" : cd < 180 ? "var(--accent)" : "var(--muted)" }}>
+                              {cd < 0 ? "Contract expired" : `Contract: ${cd}d left`}
+                            </div>
+                          )}
+                          <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+                            {p.slug && p.onboardingCompleted && (
+                              <Link href={`/players/${p.slug}`} target="_blank" style={{ fontSize: "0.6rem", color: "var(--accent)" }}>↗ Profile</Link>
+                            )}
+                            <Link href={`/dashboard/agent/player/${p.id}/edit`} style={{ fontSize: "0.6rem", color: "var(--muted)" }}>✏ Edit</Link>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* ── Contracts + Commissions ── */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 20 }}>
+
+              {/* Contracts */}
+              <div className="card">
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                  <h4 style={{ textTransform: "uppercase", fontSize: "0.88rem", margin: 0 }}>
+                    Contracts <span style={{ color: "var(--muted)", fontWeight: 400, textTransform: "none" }}>({contracts.length})</span>
+                  </h4>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <button className="btn btn-outline" style={{ fontSize: "0.7rem", padding: "4px 8px" }} onClick={() => switchTab("contracts")}>All →</button>
+                    <button className="btn btn-primary" style={{ fontSize: "0.7rem", padding: "4px 8px" }}
+                      onClick={() => { setContractForm({ playerId: "", clubName: "", startDate: "", endDate: "", salaryCents: "", bonusDetails: "", notes: "" }); setContractDocFile(null); setContractError(""); setShowContractModal(true); }}>+ Add</button>
+                  </div>
+                </div>
+                {contracts.length === 0 ? (
+                  <div style={{ color: "var(--muted)", fontSize: "0.82rem", textAlign: "center", padding: "20px 0" }}>No contracts recorded</div>
+                ) : (
+                  <div>
+                    {contracts.slice(0, 7).map((c: any) => {
+                      if (!c.endDate) return null;
+                      const d = daysLeft(c.endDate);
+                      const expired = d < 0;
+                      return (
+                        <div key={c.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 0", borderBottom: "1px solid var(--border)" }}>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "0.82rem", textTransform: "uppercase" }}>
+                              {c.player.firstName} {c.player.lastName}
+                            </div>
+                            <div style={{ fontSize: "0.68rem", color: "var(--muted)" }}>{c.clubName}</div>
+                          </div>
+                          <div style={{ textAlign: "right", flexShrink: 0 }}>
+                            <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.78rem", color: expired ? "var(--muted)" : d < 30 ? "var(--red)" : d < 180 ? "var(--accent)" : "#00c864" }}>
+                              {expired ? "Expired" : `${d}d left`}
+                            </div>
+                            <div style={{ fontSize: "0.62rem", color: "var(--muted)" }}>{fmtDate(c.endDate)}</div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {contracts.length > 7 && (
+                      <div style={{ fontSize: "0.72rem", color: "var(--muted)", textAlign: "center", paddingTop: 8 }}>
+                        +{contracts.length - 7} more · <button onClick={() => switchTab("contracts")} style={{ background: "none", border: "none", color: "var(--accent)", cursor: "pointer", fontSize: "0.72rem", padding: 0 }}>view all</button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Commissions */}
+              <div className="card">
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                  <h4 style={{ textTransform: "uppercase", fontSize: "0.88rem", margin: 0 }}>
+                    Commissions <span style={{ color: "var(--muted)", fontWeight: 400, textTransform: "none" }}>({commissions.length})</span>
+                  </h4>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <button className="btn btn-outline" style={{ fontSize: "0.7rem", padding: "4px 8px" }} onClick={() => switchTab("commissions")}>All →</button>
+                    <button className="btn btn-primary" style={{ fontSize: "0.7rem", padding: "4px 8px" }}
+                      onClick={() => { setCommissionPlayerId(""); setCommissionInstallments([{ description: "", amountEur: "", dueDate: "", notes: "" }]); setCommissionError(""); setShowCommissionModal(true); }}>+ Add</button>
+                  </div>
+                </div>
+                {stats.totalPendingCents > 0 && (
+                  <div style={{ padding: "8px 12px", background: "rgba(232,255,71,0.05)", border: "1px solid rgba(232,255,71,0.15)", borderRadius: "var(--radius)", marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span style={{ fontSize: "0.68rem", color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.06em" }}>Pending</span>
+                    <span style={{ fontFamily: "var(--font-display)", fontWeight: 900, color: "var(--accent)", fontSize: "1.1rem" }}>{fmtCents(stats.totalPendingCents)}</span>
+                  </div>
+                )}
+                {commissions.length === 0 ? (
+                  <div style={{ color: "var(--muted)", fontSize: "0.82rem", textAlign: "center", padding: "20px 0" }}>No commissions tracked</div>
+                ) : (
+                  <div>
+                    {commissions.slice(0, 7).map((c: any) => (
+                      <div key={c.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 0", borderBottom: "1px solid var(--border)" }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "0.82rem", textTransform: "uppercase" }}>
+                            {c.player.firstName} {c.player.lastName}
+                          </div>
+                          <div style={{ fontSize: "0.68rem", color: "var(--muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.description}</div>
+                        </div>
+                        <div style={{ textAlign: "right", flexShrink: 0, marginLeft: 8 }}>
+                          <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.8rem" }}>{fmtCents(c.amountCents)}</div>
+                          <span className={`badge ${COMMISSION_STATUS_COLORS[c.status] ?? "badge-muted"}`} style={{ fontSize: "0.52rem" }}>{c.status}</span>
+                        </div>
+                      </div>
+                    ))}
+                    {commissions.length > 7 && (
+                      <div style={{ fontSize: "0.72rem", color: "var(--muted)", textAlign: "center", paddingTop: 8 }}>
+                        +{commissions.length - 7} more · <button onClick={() => switchTab("commissions")} style={{ background: "none", border: "none", color: "var(--accent)", cursor: "pointer", fontSize: "0.72rem", padding: 0 }}>view all</button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* ── Transfer History ── */}
+            <div className="card">
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                <h4 style={{ textTransform: "uppercase", fontSize: "0.88rem", margin: 0 }}>
+                  Transfer History <span style={{ color: "var(--muted)", fontWeight: 400, textTransform: "none" }}>({transfers.length})</span>
+                </h4>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button className="btn btn-outline" style={{ fontSize: "0.7rem", padding: "4px 8px" }} onClick={() => switchTab("transfers")}>All →</button>
+                  <button className="btn btn-primary" style={{ fontSize: "0.7rem", padding: "4px 8px" }}
+                    onClick={() => { setTransferForm({ playerId: "", fromClub: "", toClub: "", transferDate: "", transferFeeEur: "", salaryEur: "", contractYears: "", notes: "" }); setTransferDocFile(null); setTransferError(""); setShowTransferModal(true); }}>+ Add</button>
+                </div>
+              </div>
+              {transfers.length === 0 ? (
+                <div style={{ color: "var(--muted)", fontSize: "0.82rem", textAlign: "center", padding: "20px 0" }}>No transfer records yet</div>
+              ) : (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 0 }}>
+                  {transfers.slice(0, 8).map((t: any) => (
+                    <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: "1px solid var(--border)" }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "0.85rem", textTransform: "uppercase" }}>
+                          {t.player.firstName} {t.player.lastName}
+                        </div>
+                        <div style={{ fontSize: "0.7rem", color: "var(--muted)", marginTop: 2 }}>
+                          {t.fromClub ? `${t.fromClub}` : "Free Agent"} → {t.toClub}
+                        </div>
+                      </div>
+                      <div style={{ textAlign: "right", flexShrink: 0 }}>
+                        {t.transferFeeCents ? (
+                          <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.78rem" }}>{fmtCents(t.transferFeeCents)}</div>
+                        ) : t.salaryCents ? (
+                          <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.78rem", color: "var(--muted)" }}>{fmtCents(t.salaryCents)}/mo</div>
+                        ) : null}
+                        <div style={{ fontSize: "0.62rem", color: "var(--muted)" }}>{fmtDate(t.transferDate)}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {transfers.length > 8 && (
+                <div style={{ fontSize: "0.72rem", color: "var(--muted)", textAlign: "center", paddingTop: 10 }}>
+                  +{transfers.length - 8} more · <button onClick={() => switchTab("transfers")} style={{ background: "none", border: "none", color: "var(--accent)", cursor: "pointer", fontSize: "0.72rem", padding: 0 }}>view all</button>
+                </div>
+              )}
             </div>
           </div>
         )}

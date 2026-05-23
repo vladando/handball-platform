@@ -2827,15 +2827,15 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
               {/* Contract period */}
               <div style={{ background: "rgba(0,150,255,0.05)", border: "1px solid rgba(0,150,255,0.15)", borderRadius: "var(--radius)", padding: "14px 16px", marginBottom: 16 }}>
                 <div style={{ fontSize: "0.78rem", fontFamily: "var(--font-display)", fontWeight: 700, textTransform: "uppercase", color: "#5bc4ff", marginBottom: 10 }}>
-                  📋 Ugovor — Period trajanja
+                  📋 Contract Period
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                   <div className="form-group" style={{ margin: 0 }}>
-                    <label className="label">Od (From)</label>
+                    <label className="label">Start Date</label>
                     <input className="input" type="date" value={transferForm.contractStartDate} onChange={e => setTransferForm(f => ({ ...f, contractStartDate: e.target.value }))} />
                   </div>
                   <div className="form-group" style={{ margin: 0 }}>
-                    <label className="label">Do (To)</label>
+                    <label className="label">End Date</label>
                     <input className="input" type="date" value={transferForm.contractEndDate} onChange={e => setTransferForm(f => ({ ...f, contractEndDate: e.target.value }))} />
                   </div>
                 </div>
@@ -2844,7 +2844,7 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
                   const months = Math.round(ms / (1000 * 60 * 60 * 24 * 30.44));
                   return months > 0 ? (
                     <div style={{ fontSize: "0.75rem", color: "#5bc4ff", marginTop: 8 }}>
-                      ≈ {months} {months === 1 ? "month" : "months"} ({(months / 12).toFixed(1)} years)
+                      ≈ {months} {months === 1 ? "month" : "months"} ({(months / 12).toFixed(1)} yrs)
                     </div>
                   ) : null;
                 })()}
@@ -2852,21 +2852,21 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
               {/* Commission auto-create section */}
               <div style={{ background: "rgba(255,200,0,0.05)", border: "1px solid rgba(255,200,0,0.15)", borderRadius: "var(--radius)", padding: "14px 16px", marginBottom: 16 }}>
                 <div style={{ fontSize: "0.78rem", fontFamily: "var(--font-display)", fontWeight: 700, textTransform: "uppercase", color: "var(--accent)", marginBottom: 10 }}>
-                  💰 Komisija (auto-dodaje u sekciju Komisije)
+                  💰 Commission (auto-creates in Commissions section)
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 10 }}>
                   <div className="form-group" style={{ margin: 0 }}>
-                    <label className="label">Iznos komisije (€)</label>
+                    <label className="label">Commission Amount (€)</label>
                     <input className="input" type="number" value={transferForm.commissionEur} onChange={e => setTransferForm(f => ({ ...f, commissionEur: e.target.value }))} placeholder="0" />
                   </div>
                   <div className="form-group" style={{ margin: 0 }}>
-                    <label className="label">Datum dospijeća</label>
+                    <label className="label">Due Date</label>
                     <input className="input" type="date" value={transferForm.commissionDueDate} onChange={e => setTransferForm(f => ({ ...f, commissionDueDate: e.target.value }))} />
                   </div>
                 </div>
                 <div className="form-group" style={{ margin: 0 }}>
-                  <label className="label">Opis komisije</label>
-                  <input className="input" value={transferForm.commissionDescription} onChange={e => setTransferForm(f => ({ ...f, commissionDescription: e.target.value }))} placeholder="npr. 5% od transferne naknade" />
+                  <label className="label">Description</label>
+                  <input className="input" value={transferForm.commissionDescription} onChange={e => setTransferForm(f => ({ ...f, commissionDescription: e.target.value }))} placeholder="e.g. 5% of transfer fee" />
                 </div>
               </div>
               <div className="form-group">

@@ -1,5 +1,5 @@
 "use client";
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
@@ -80,12 +80,7 @@ const STICKY_HEADER: React.CSSProperties = {
 export default function AgentDashboardClient({ agent }: { agent: any }) {
   const searchParams = useSearchParams();
 
-  const [tab, setTab] = useState<Tab>(
-    (searchParams.get("tab") as Tab | null) &&
-    NAV_ITEMS.some(n => n.id === searchParams.get("tab"))
-      ? (searchParams.get("tab") as Tab)
-      : "overview"
-  );
+  const [tab, setTab] = useState<Tab>(searchParams.get("tab") as Tab ?? "overview");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [players, setPlayers] = useState<any[]>(agent.players ?? []);
   const [contracts, setContracts] = useState<any[]>(agent.contracts ?? []);
@@ -97,16 +92,12 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
   // Sync tab when URL changes (nav-bar links like ?tab=settings)
   useEffect(() => {
     const t = searchParams.get("tab");
-    if (t && NAV_ITEMS.some(n => n.id === t)) setTab(t as Tab);
+    if (t) setTab(t as Tab);
   }, [searchParams]);
 
   function switchTab(id: Tab) {
     setTab(id);
     setSidebarOpen(false);
-    // Use history API directly — no React navigation triggered, no state reset
-    if (typeof window !== "undefined") {
-      window.history.replaceState(null, "", `?tab=${id}`);
-    }
   }
 
   // Add Player modal
@@ -426,7 +417,8 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
   }
 
   return (
-    <div className="sidebar-layout" style={{ minHeight: "100vh", paddingTop: 64 }}>
+    <main className="page">
+    <div className="sidebar-layout">
       {sidebarOpen && <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 50, background: "rgba(0,0,0,0.6)" }} />}
 
       {/* ── Sidebar ── */}
@@ -1468,5 +1460,6 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
         </div>
       )}
     </div>
+    </main>
   );
 }

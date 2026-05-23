@@ -16,22 +16,24 @@ async function getAgentPlayer(session: any, playerId: string) {
   return player;
 }
 
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getServerSession(authOptions);
   if (!session || (session.user as any).role !== "AGENT") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  const player = await getAgentPlayer(session, params.id);
+  const { id } = await params;
+  const player = await getAgentPlayer(session, id);
   if (!player) return NextResponse.json({ error: "Not found" }, { status: 404 });
   return NextResponse.json({ player });
 }
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getServerSession(authOptions);
   if (!session || (session.user as any).role !== "AGENT") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  const existing = await getAgentPlayer(session, params.id);
+  const { id } = await params;
+  const existing = await getAgentPlayer(session, id);
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const data = await req.json();
@@ -53,18 +55,19 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 
   const player = await prisma.player.update({
-    where: { id: params.id },
+    where: { id },
     data: update,
   });
   return NextResponse.json({ player });
 }
 
-export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getServerSession(authOptions);
   if (!session || (session.user as any).role !== "AGENT") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  const existing = await getAgentPlayer(session, params.id);
+  const { id } = await params;
+  const existing = await getAgentPlayer(session, id);
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   // Delete the placeholder user (cascades to player)

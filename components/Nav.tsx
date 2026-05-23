@@ -28,7 +28,7 @@ export default function Nav({ session, playerSlug, unreadCount: initialUnread = 
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
 
-  // Sync server-rendered initial value whenever it changes (Next.js layout re-renders)
+  // Sync server-rendered initial value whenever it changes
   useEffect(() => { setUnread(initialUnread); }, [initialUnread]);
 
   // Close menu on route change
@@ -40,9 +40,9 @@ export default function Nav({ session, playerSlug, unreadCount: initialUnread = 
     return () => { document.body.style.overflow = ""; };
   }, [menuOpen]);
 
-  // Refresh unread count on every route change + poll every 30s
+  // Refresh unread count for PLAYER, CLUB and AGENT
   useEffect(() => {
-    if (role !== "PLAYER" && role !== "CLUB") return;
+    if (role !== "PLAYER" && role !== "CLUB" && role !== "AGENT") return;
     const fetchCount = () =>
       fetch("/api/messages/unread-count")
         .then(r => r.json())
@@ -59,37 +59,37 @@ export default function Nav({ session, playerSlug, unreadCount: initialUnread = 
     : role === "AGENT" ? "/dashboard/agent?tab=settings"
     : null;
 
-  const agentTabs = [
-    { id: "overview",    icon: "⊞",  label: "Overview" },
-    { id: "players",     icon: "👥", label: "Players" },
-    { id: "contracts",   icon: "📄", label: "Contracts" },
-    { id: "commissions", icon: "💰", label: "Commissions" },
-    { id: "transfers",   icon: "🔄", label: "Transfers" },
-    { id: "pitch",       icon: "🚀", label: "Pitch" },
-    { id: "settings",    icon: "⚙️", label: "Settings" },
-  ];
+  // Shared dropdown link style
+  const dropStyle: React.CSSProperties = {
+    display: "flex", alignItems: "center", gap: 10,
+    padding: "12px 16px", fontSize: "0.88rem",
+    color: "var(--white)", borderBottom: "1px solid var(--border)",
+    transition: "background 0.15s",
+  };
 
   const navLinks = (
     <>
-      <li><Link href="/players" className={path.startsWith("/players") ? "active" : ""}>🏐 Players</Link></li>
-      {role === "CLUB" && <li><Link href="/dashboard/club" className={path.startsWith("/dashboard/club") ? "active" : ""}>🏟 Dashboard</Link></li>}
-      {role === "PLAYER" && <li><Link href={profileHref} className={path.startsWith("/players/") ? "active" : ""}>👤 My Profile</Link></li>}
-      {role === "PLAYER" && <li><Link href="/dashboard/player?tab=profile" className={path === "/dashboard/player" ? "active" : ""}>✏️ Edit Profile</Link></li>}
+      {role !== "AGENT" && <li><Link href="/players" className={path.startsWith("/players") ? "active" : ""}>Players</Link></li>}
+      {role === "CLUB" && <li><Link href="/dashboard/club" className={path.startsWith("/dashboard/club") ? "active" : ""}>Dashboard</Link></li>}
+      {role === "PLAYER" && <li><Link href={profileHref} className={path.startsWith("/players/") ? "active" : ""}>My Profile</Link></li>}
+      {role === "PLAYER" && <li><Link href="/dashboard/player?tab=profile" className={path === "/dashboard/player" ? "active" : ""}>Edit Profile</Link></li>}
       {(role === "CLUB" || role === "PLAYER") && (
         <li>
           <Link href="/messages" className={path.startsWith("/messages") ? "active" : ""}>
-            💬 Messages{unread > 0 && <span className="nav-badge">{unread > 99 ? "99+" : unread}</span>}
+            Messages{unread > 0 && <span className="nav-badge">{unread > 99 ? "99+" : unread}</span>}
           </Link>
         </li>
       )}
-      {role === "AGENT" && agentTabs.map(t => (
-        <li key={t.id}>
-          <Link href={`/dashboard/agent?tab=${t.id}`} className={path.startsWith("/dashboard/agent") && (path.includes(`tab=${t.id}`) || (t.id === "overview" && !path.includes("tab="))) ? "active" : ""}>
-            {t.icon} {t.label}
+      {role === "AGENT" && <>
+        <li><Link href="/dashboard/agent?tab=overview" className={path.startsWith("/dashboard/agent") ? "active" : ""}>Dashboard</Link></li>
+        <li><Link href="/dashboard/agent?tab=players" className={path.startsWith("/dashboard/agent") ? "active" : ""}>My Players</Link></li>
+        <li>
+          <Link href="/messages" className={path.startsWith("/messages") ? "active" : ""}>
+            Messages{unread > 0 && <span className="nav-badge">{unread > 99 ? "99+" : unread}</span>}
           </Link>
         </li>
-      ))}
-      {role === "ADMIN" && <li><Link href="/admin" className={path.startsWith("/admin") ? "active" : ""}>⚙️ Admin</Link></li>}
+      </>}
+      {role === "ADMIN" && <li><Link href="/admin" className={path.startsWith("/admin") ? "active" : ""}>Admin</Link></li>}
     </>
   );
 
@@ -114,13 +114,15 @@ export default function Nav({ session, playerSlug, unreadCount: initialUnread = 
                 </Link>
               </li>
             )}
-            {role === "AGENT" && agentTabs.map(t => (
-              <li key={t.id}>
-                <Link href={`/dashboard/agent?tab=${t.id}`} className={path.startsWith("/dashboard/agent") ? "active" : ""}>
-                  {t.icon} {t.label}
+            {role === "AGENT" && <>
+              <li><Link href="/dashboard/agent?tab=overview" className={path.startsWith("/dashboard/agent") ? "active" : ""}>Dashboard</Link></li>
+              <li><Link href="/dashboard/agent?tab=players" className={path.startsWith("/dashboard/agent") ? "active" : ""}>My Players</Link></li>
+              <li>
+                <Link href="/messages" className={path.startsWith("/messages") ? "active" : ""}>
+                  Messages{unread > 0 && <span className="nav-badge">{unread > 99 ? "99+" : unread}</span>}
                 </Link>
               </li>
-            ))}
+            </>}
             {role === "ADMIN" && <li><Link href="/admin" className={path.startsWith("/admin") ? "active" : ""}>Admin</Link></li>}
 
             {/* More dropdown */}
@@ -135,29 +137,29 @@ export default function Nav({ session, playerSlug, unreadCount: initialUnread = 
                 <div style={{
                   position: "absolute", top: "calc(100% + 10px)", right: 0,
                   background: "var(--card)", border: "1px solid var(--border)",
-                  borderRadius: "var(--radius)", minWidth: 180,
+                  borderRadius: "var(--radius)", minWidth: 200,
                   boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
                   zIndex: 1000, overflow: "hidden",
                 }}>
                   {settingsHref && (
-                    <Link href={settingsHref} onClick={() => setDropdownOpen(false)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", fontSize: "0.88rem", color: "var(--white)", borderBottom: "1px solid var(--border)", transition: "background 0.15s" }}
+                    <Link href={settingsHref} onClick={() => setDropdownOpen(false)} style={dropStyle}
                       onMouseEnter={e => (e.currentTarget.style.background = "var(--card2)")}
                       onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
                     >
-                      ⚙️ <span>Settings</span>
+                      Settings
                     </Link>
                   )}
-                  <Link href="/contact" onClick={() => setDropdownOpen(false)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", fontSize: "0.88rem", color: "var(--white)", borderBottom: "1px solid var(--border)", transition: "background 0.15s" }}
+                  <Link href="/contact" onClick={() => setDropdownOpen(false)} style={dropStyle}
                     onMouseEnter={e => (e.currentTarget.style.background = "var(--card2)")}
                     onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
                   >
-                    ✉️ <span>Contact</span>
+                    Contact
                   </Link>
-                  <Link href="/terms" onClick={() => setDropdownOpen(false)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", fontSize: "0.88rem", color: "var(--white)", transition: "background 0.15s" }}
+                  <Link href="/terms" onClick={() => setDropdownOpen(false)} style={{ ...dropStyle, borderBottom: "none" }}
                     onMouseEnter={e => (e.currentTarget.style.background = "var(--card2)")}
                     onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
                   >
-                    📄 <span>Terms & Privacy</span>
+                    Terms &amp; Privacy
                   </Link>
                 </div>
               )}
@@ -206,10 +208,10 @@ export default function Nav({ session, playerSlug, unreadCount: initialUnread = 
           <ul>
             {navLinks}
             {settingsHref && (
-              <li><Link href={settingsHref} className={path.includes("tab=settings") ? "active" : ""}>⚙️ Settings</Link></li>
+              <li><Link href={settingsHref} className={path.includes("tab=settings") ? "active" : ""}>Settings</Link></li>
             )}
-            <li><Link href="/contact" className={path === "/contact" ? "active" : ""}>✉️ Contact</Link></li>
-            <li><Link href="/terms" className={path === "/terms" ? "active" : ""}>📄 Terms & Privacy</Link></li>
+            <li><Link href="/contact" className={path === "/contact" ? "active" : ""}>Contact</Link></li>
+            <li><Link href="/terms" className={path === "/terms" ? "active" : ""}>Terms &amp; Privacy</Link></li>
             <div className="mobile-menu-divider" />
             {session ? (
               <li>
@@ -218,13 +220,13 @@ export default function Nav({ session, playerSlug, unreadCount: initialUnread = 
                   onClick={() => { setMenuOpen(false); signOut({ callbackUrl: "/" }); }}
                   style={{ color: "var(--red)" }}
                 >
-                  🚪 Sign Out
+                  Sign Out
                 </button>
               </li>
             ) : (
               <>
-                <li><Link href="/auth/login">🔑 Login</Link></li>
-                <li><Link href="/auth/register" style={{ color: "var(--accent)" }}>⚡ Join Free</Link></li>
+                <li><Link href="/auth/login">Login</Link></li>
+                <li><Link href="/auth/register" style={{ color: "var(--accent)" }}>Join Free</Link></li>
               </>
             )}
           </ul>

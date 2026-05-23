@@ -68,18 +68,13 @@ const NAV_ITEMS: { id: Tab; icon: string; label: string }[] = [
 
 const STICKY_HEADER: React.CSSProperties = {
   position: "sticky",
-  top: 0,
-  zIndex: 20,
-  background: "var(--bg, #0d0d0d)",
-  marginLeft: -24,
-  marginRight: -24,
-  paddingLeft: 24,
-  paddingRight: 24,
+  top: 64,
+  zIndex: 80,
+  background: "#090909",
   paddingTop: 20,
   paddingBottom: 16,
-  marginTop: -20,
   marginBottom: 8,
-  borderBottom: "1px solid var(--border)",
+  borderBottom: "1px solid rgba(245,243,238,0.08)",
 };
 
 export default function AgentDashboardClient({ agent }: { agent: any }) {

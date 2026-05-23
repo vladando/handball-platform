@@ -83,21 +83,21 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  // Auto-create contract record
+  // Auto-create contract record (linked to this transfer)
   let contractRecord: any = null;
   if (contractStartDate && contractEndDate) {
-    contractRecord = await (prisma as any).agentContract.create({
+    contractRecord = await prisma.agentContract.create({
       data: {
         agentId: agent.id,
         playerId,
         clubName: toClub.trim(),
         startDate: new Date(contractStartDate),
         endDate: new Date(contractEndDate),
-        salary: salaryCents ? parseInt(salaryCents) : null,
-        contractFileUrl: contractFileUrl ?? null,
+        salaryCents: salaryCents ? parseInt(salaryCents) : null,
         isActive: true,
       },
-    }).catch(() => null); // contract might not exist yet, skip gracefully
+      include: { player: { select: { id: true, firstName: true, lastName: true } } },
+    }).catch(() => null);
   }
 
   // Create the transfer record (no contractFileUrl field in schema)
@@ -146,5 +146,5 @@ export async function POST(req: NextRequest) {
     data: { currentClub: toClub.trim() },
   });
 
-  return NextResponse.json({ transfer, commission }, { status: 201 });
+  return NextResponse.json({ transfer, commission, contract: contractRecord }, { status: 201 });
 }

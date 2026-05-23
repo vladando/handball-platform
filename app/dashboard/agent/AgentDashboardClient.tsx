@@ -45,6 +45,34 @@ function fmtDate(d: string | Date | null | undefined): string {
   return `${dd}/${mm}/${yy}`;
 }
 
+// ── DD/MM/YYYY date picker ────────────────────────────────────────
+// value is YYYY-MM-DD string (or ""); onChange emits YYYY-MM-DD or ""
+function DatePicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const parts = value ? value.split("-") : ["", "", ""];
+  const yyyy = parts[0] ?? "";
+  const mm   = parts[1] ?? "";
+  const dd   = parts[2] ?? "";
+
+  const emit = (d: string, m: string, y: string) => {
+    if (d && m && y && y.length === 4) {
+      const pd = d.padStart(2, "0");
+      const pm = m.padStart(2, "0");
+      onChange(`${y}-${pm}-${pd}`);
+    } else {
+      onChange("");
+    }
+  };
+
+  const inp: React.CSSProperties = { textAlign: "center", padding: "10px 6px", fontSize: "0.9rem" };
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1.5fr", gap: 4 }}>
+      <input className="input" type="number" min={1} max={31} placeholder="DD"   value={dd}   style={inp} onChange={e => emit(e.target.value, mm, yyyy)} />
+      <input className="input" type="number" min={1} max={12} placeholder="MM"   value={mm}   style={inp} onChange={e => emit(dd, e.target.value, yyyy)} />
+      <input className="input" type="number" min={2020} max={2060} placeholder="YYYY" value={yyyy} style={inp} onChange={e => emit(dd, mm, e.target.value)} />
+    </div>
+  );
+}
+
 function contractRowColor(days: number): string {
   if (days < 0)  return "rgba(255,59,59,0.08)";
   if (days < 30) return "rgba(255,59,59,0.06)";
@@ -601,6 +629,8 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
     setTransfers(ts => [data.transfer, ...ts]);
     // Auto-append linked commission to commissions list
     if (data.commission) setCommissions(cs => [data.commission, ...cs]);
+    // Auto-append linked contract to contracts list
+    if (data.contract) setContracts(cs => [...cs, data.contract].sort((a, b) => new Date(a.endDate).getTime() - new Date(b.endDate).getTime()));
     setShowTransferModal(false);
     setTransferForm({ playerId: "", fromClub: "", toClub: "", transferDate: "", salaryEur: "", contractStartDate: "", contractEndDate: "", commissionEur: "", commissionDueDate: "", commissionDescription: "", notes: "" });
     setTransferDocFile(null);
@@ -2813,11 +2843,8 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
               </div>
               {/* Transfer Date */}
               <div className="form-group">
-                <label className="label">Transfer Date <span style={{ color: "var(--accent)" }}>*</span></label>
-                <input className="input" type="date" value={transferForm.transferDate} onChange={e => {
-                  const d = e.target.value;
-                  setTransferForm(f => ({ ...f, transferDate: d, contractStartDate: f.contractStartDate || d }));
-                }} />
+                <label className="label" style={{ marginBottom: 6 }}>Transfer Date <span style={{ color: "var(--accent)" }}>*</span> <span style={{ fontSize: "0.7rem", color: "var(--muted)", fontWeight: 400 }}>DD / MM / YYYY</span></label>
+                <DatePicker value={transferForm.transferDate} onChange={d => setTransferForm(f => ({ ...f, transferDate: d, contractStartDate: f.contractStartDate || d }))} />
               </div>
               {/* Salary */}
               <div className="form-group">
@@ -2827,16 +2854,16 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
               {/* Contract period */}
               <div style={{ background: "rgba(0,150,255,0.05)", border: "1px solid rgba(0,150,255,0.15)", borderRadius: "var(--radius)", padding: "14px 16px", marginBottom: 16 }}>
                 <div style={{ fontSize: "0.78rem", fontFamily: "var(--font-display)", fontWeight: 700, textTransform: "uppercase", color: "#5bc4ff", marginBottom: 10 }}>
-                  📋 Contract Period
+                  📋 Contract Period <span style={{ fontSize: "0.65rem", fontWeight: 400, color: "var(--muted)", textTransform: "none" }}>DD / MM / YYYY</span>
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                   <div className="form-group" style={{ margin: 0 }}>
                     <label className="label">Start Date</label>
-                    <input className="input" type="date" value={transferForm.contractStartDate} onChange={e => setTransferForm(f => ({ ...f, contractStartDate: e.target.value }))} />
+                    <DatePicker value={transferForm.contractStartDate} onChange={d => setTransferForm(f => ({ ...f, contractStartDate: d }))} />
                   </div>
                   <div className="form-group" style={{ margin: 0 }}>
                     <label className="label">End Date</label>
-                    <input className="input" type="date" value={transferForm.contractEndDate} onChange={e => setTransferForm(f => ({ ...f, contractEndDate: e.target.value }))} />
+                    <DatePicker value={transferForm.contractEndDate} onChange={d => setTransferForm(f => ({ ...f, contractEndDate: d }))} />
                   </div>
                 </div>
                 {transferForm.contractStartDate && transferForm.contractEndDate && (() => {
@@ -2860,8 +2887,8 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
                     <input className="input" type="number" value={transferForm.commissionEur} onChange={e => setTransferForm(f => ({ ...f, commissionEur: e.target.value }))} placeholder="0" />
                   </div>
                   <div className="form-group" style={{ margin: 0 }}>
-                    <label className="label">Due Date</label>
-                    <input className="input" type="date" value={transferForm.commissionDueDate} onChange={e => setTransferForm(f => ({ ...f, commissionDueDate: e.target.value }))} />
+                    <label className="label">Due Date <span style={{ fontSize: "0.7rem", color: "var(--muted)", fontWeight: 400 }}>DD/MM/YYYY</span></label>
+                    <DatePicker value={transferForm.commissionDueDate} onChange={d => setTransferForm(f => ({ ...f, commissionDueDate: d }))} />
                   </div>
                 </div>
                 <div className="form-group" style={{ margin: 0 }}>

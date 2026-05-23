@@ -54,7 +54,7 @@ function getAge(dob: string | Date | null | undefined): string {
   return String(Math.floor((Date.now() - d.getTime()) / (365.25 * 24 * 3600 * 1000)));
 }
 
-type Tab = "overview" | "players" | "contracts" | "commissions" | "transfers" | "pitch" | "settings";
+type Tab = "overview" | "players" | "contracts" | "commissions" | "transfers" | "pitch" | "messages" | "settings";
 
 const NAV_ITEMS: { id: Tab; icon: string; label: string }[] = [
   { id: "overview",     icon: "⊞",  label: "Overview" },
@@ -63,6 +63,7 @@ const NAV_ITEMS: { id: Tab; icon: string; label: string }[] = [
   { id: "commissions",  icon: "💰", label: "Commissions" },
   { id: "transfers",    icon: "🔄", label: "Transfers" },
   { id: "pitch",        icon: "🚀", label: "Pitch Generator" },
+  { id: "messages",     icon: "💬", label: "Messages" },
   { id: "settings",     icon: "⚙️", label: "Settings" },
 ];
 
@@ -99,6 +100,16 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
     setTab(id);
     setSidebarOpen(false);
   }
+
+  // Unread messages count
+  const [unreadMessages, setUnreadMessages] = useState(0);
+  useEffect(() => {
+    fetch("/api/messages/unread-count").then(r => r.json()).then(d => { if (typeof d.count === "number") setUnreadMessages(d.count); }).catch(() => {});
+    const id = setInterval(() => {
+      fetch("/api/messages/unread-count").then(r => r.json()).then(d => { if (typeof d.count === "number") setUnreadMessages(d.count); }).catch(() => {});
+    }, 30_000);
+    return () => clearInterval(id);
+  }, []);
 
   // Add Player modal
   const [showAddModal, setShowAddModal] = useState(false);
@@ -177,6 +188,14 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
   const [healthSaving, setHealthSaving] = useState(false);
   const [healthError, setHealthError] = useState("");
 
+  // Notes modal
+  const [notesModal, setNotesModal] = useState<any | null>(null);
+  const [notesList, setNotesList] = useState<any[]>([]);
+  const [noteContent, setNoteContent] = useState("");
+  const [noteCategory, setNoteCategory] = useState("general");
+  const [notesLoading, setNotesLoading] = useState(false);
+  const [notesSaving, setNotesSaving] = useState(false);
+
   // Pitch form
   const [pitchForm, setPitchForm] = useState({ title: "", selectedPlayerIds: [] as string[], message: "", expiresAt: "" });
   const [pitchSaving, setPitchSaving] = useState(false);
@@ -196,6 +215,16 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
   });
   const [settingsSaving, setSettingsSaving] = useState(false);
   const [settingsSaved, setSettingsSaved] = useState(false);
+
+  // Avatar upload
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(agent.photoUrl ?? null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+
+  // ── Table sort state ─────────────────────────────────────────────
+  const [contractSort, setContractSort] = useState({ key: "endDate", dir: "asc" as "asc" | "desc" });
+  const [commissionSort, setCommissionSort] = useState({ key: "dueDate", dir: "asc" as "asc" | "desc" });
+  const [transferSort, setTransferSort] = useState({ key: "transferDate", dir: "desc" as "asc" | "desc" });
 
   // ── Computed stats ───────────────────────────────────────────────
   const stats = {
@@ -505,6 +534,28 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
     setPitchDecks(ds => ds.filter(d => d.token !== token));
   }
 
+  const [editPitch, setEditPitch] = useState<any | null>(null);
+  const [editPitchPlayerIds, setEditPitchPlayerIds] = useState<string[]>([]);
+  const [editPitchSaving, setEditPitchSaving] = useState(false);
+  const [editPitchError, setEditPitchError] = useState("");
+
+  async function handleEditPitchSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editPitch || editPitchPlayerIds.length === 0) { setEditPitchError("Select at least one player."); return; }
+    setEditPitchSaving(true); setEditPitchError("");
+    const res = await fetch(`/api/agent/pitch/${editPitch.token}`, {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ playerIds: editPitchPlayerIds }),
+    });
+    const data = await res.json();
+    setEditPitchSaving(false);
+    if (!res.ok) { setEditPitchError(data.error ?? "Failed to update."); return; }
+    setPitchDecks(ds => ds.map(d => d.token === editPitch.token
+      ? { ...d, playerIds: JSON.stringify(editPitchPlayerIds), players: players.filter(p => editPitchPlayerIds.includes(p.id)) }
+      : d));
+    setEditPitch(null);
+  }
+
   async function copyPitchLink(token: string) {
     const url = `${window.location.origin}/pitch/${token}`;
     await navigator.clipboard.writeText(url);
@@ -513,6 +564,43 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
   }
 
   // ── Settings ─────────────────────────────────────────────────────
+  async function openNotesModal(p: any) {
+    setNotesModal(p); setNoteContent(""); setNoteCategory("general"); setNotesList([]);
+    setNotesLoading(true);
+    const res = await fetch(`/api/agent/notes?playerId=${p.id}`).catch(() => null);
+    setNotesLoading(false);
+    if (res?.ok) { const d = await res.json(); setNotesList(d.notes ?? []); }
+  }
+
+  async function handleAddNote(e: React.FormEvent) {
+    e.preventDefault();
+    if (!notesModal || !noteContent.trim()) return;
+    setNotesSaving(true);
+    const res = await fetch("/api/agent/notes", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ playerId: notesModal.id, content: noteContent.trim(), category: noteCategory }),
+    });
+    const data = await res.json();
+    setNotesSaving(false);
+    if (res.ok) { setNotesList(ns => [data.note, ...ns]); setNoteContent(""); }
+  }
+
+  async function handleDeleteNote(id: string) {
+    await fetch(`/api/agent/notes/${id}`, { method: "DELETE" });
+    setNotesList(ns => ns.filter(n => n.id !== id));
+  }
+
+  async function handleAvatarUpload(file: File) {
+    setAvatarUploading(true);
+    const fd = new FormData(); fd.append("file", file);
+    const upRes = await fetch("/api/agent/upload", { method: "POST", body: fd });
+    if (!upRes.ok) { setAvatarUploading(false); return; }
+    const { url } = await upRes.json();
+    await fetch("/api/agent/profile", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ photoUrl: url }) });
+    setAvatarUrl(url);
+    setAvatarUploading(false);
+  }
+
   function exportPlayersCSV() {
     const headers = ["Name", "Position", "Nationality", "Age", "Height (cm)", "Weight (kg)", "Club", "Available", "Health", "Verified", "Salary Min €/yr", "Salary Max €/yr"];
     const rows = players.map(p => [
@@ -535,6 +623,23 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
     const a = document.createElement("a"); a.href = url; a.download = "roster.csv"; a.click();
     URL.revokeObjectURL(url);
   }
+
+  function sortItems<T>(arr: T[], key: string, dir: "asc" | "desc"): T[] {
+    return [...arr].sort((a: any, b: any) => {
+      let av = a[key], bv = b[key];
+      if (av == null) return 1; if (bv == null) return -1;
+      if (typeof av === "string" && !isNaN(Date.parse(av))) { av = new Date(av).getTime(); bv = new Date(bv).getTime(); }
+      if (av < bv) return dir === "asc" ? -1 : 1;
+      if (av > bv) return dir === "asc" ? 1 : -1;
+      return 0;
+    });
+  }
+
+  function SortIcon({ current, k }: { current: { key: string; dir: "asc" | "desc" }; k: string }) {
+    if (current.key !== k) return <span style={{ color: "rgba(107,107,107,0.4)", fontSize: "0.6rem", marginLeft: 3 }}>⇅</span>;
+    return <span style={{ color: "var(--accent)", fontSize: "0.6rem", marginLeft: 3 }}>{current.dir === "asc" ? "↑" : "↓"}</span>;
+  }
+
 
   async function handleSettingsSave(e: React.FormEvent) {
     e.preventDefault();
@@ -573,6 +678,9 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
                 )}
                 {item.id === "commissions" && stats.pendingCommissions > 0 && (
                   <span style={{ marginLeft: "auto", background: "rgba(232,255,71,0.2)", color: "var(--accent)", fontSize: "0.65rem", padding: "1px 6px", borderRadius: 2 }}>{stats.pendingCommissions}</span>
+                )}
+                {item.id === "messages" && unreadMessages > 0 && (
+                  <span style={{ marginLeft: "auto", background: "rgba(255,59,59,0.25)", color: "var(--red)", fontSize: "0.65rem", padding: "1px 6px", borderRadius: 2 }}>{unreadMessages > 99 ? "99+" : unreadMessages}</span>
                 )}
               </a>
             </li>
@@ -1066,6 +1174,7 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
                         </>
                       )}
                       <button className="btn btn-outline" style={{ fontSize: "0.72rem", padding: "5px 10px" }} onClick={e => { e.stopPropagation(); setHealthModal(p); setHealthForm({ healthStatus: p.healthStatus ?? "HEALTHY", rehabNote: p.rehabNote ?? "", rehabReturnDate: p.rehabReturnDate ? new Date(p.rehabReturnDate).toISOString().split("T")[0] : "" }); setHealthError(""); }}>🏥 Health</button>
+                      <button className="btn btn-outline" style={{ fontSize: "0.72rem", padding: "5px 10px" }} onClick={e => { e.stopPropagation(); openNotesModal(p); }}>📝 Notes</button>
                       <Link href={`/dashboard/agent/player/${p.id}/edit`} className="btn btn-outline" style={{ fontSize: "0.72rem", padding: "5px 10px" }} onClick={e => e.stopPropagation()}>✏️ Edit</Link>
                       <button className="btn btn-danger" style={{ fontSize: "0.72rem", padding: "5px 8px" }} onClick={e => { e.stopPropagation(); setConfirmDelete({ id: p.id, name: `${p.firstName} ${p.lastName}` }); }}>🗑</button>
                     </div>
@@ -1183,19 +1292,19 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
                 <table className="table">
                   <thead>
                     <tr>
-                      <th>Player</th>
-                      <th>Club</th>
+                      <th style={{ cursor: "pointer" }} onClick={() => setContractSort(s => ({ key: "endDate", dir: s.key === "endDate" && s.dir === "asc" ? "desc" : "asc" }))}>Player</th>
+                      <th style={{ cursor: "pointer" }} onClick={() => setContractSort(s => ({ key: "clubName", dir: s.key === "clubName" && s.dir === "asc" ? "desc" : "asc" }))}>Club <SortIcon current={contractSort} k="clubName" /></th>
                       <th>Start</th>
-                      <th>End</th>
+                      <th style={{ cursor: "pointer" }} onClick={() => setContractSort(s => ({ key: "endDate", dir: s.key === "endDate" && s.dir === "asc" ? "desc" : "asc" }))}>End <SortIcon current={contractSort} k="endDate" /></th>
                       <th>Days Left</th>
-                      <th>Salary/mo</th>
+                      <th style={{ cursor: "pointer" }} onClick={() => setContractSort(s => ({ key: "salaryCents", dir: s.key === "salaryCents" && s.dir === "asc" ? "desc" : "asc" }))}>Salary/mo <SortIcon current={contractSort} k="salaryCents" /></th>
                       <th>Status</th>
                       <th>File</th>
                       <th></th>
                     </tr>
                   </thead>
                   <tbody>
-                    {contracts.map((c: any) => {
+                    {sortItems(contracts, contractSort.key, contractSort.dir).map((c: any) => {
                       const days = daysLeft(c.endDate);
                       const expired = days < 0;
                       return (
@@ -1278,14 +1387,14 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
                     <tr>
                       <th>Player</th>
                       <th>Description</th>
-                      <th>Amount</th>
-                      <th>Due Date</th>
+                      <th style={{ cursor: "pointer" }} onClick={() => setCommissionSort(s => ({ key: "amountCents", dir: s.key === "amountCents" && s.dir === "asc" ? "desc" : "asc" }))}>Amount <SortIcon current={commissionSort} k="amountCents" /></th>
+                      <th style={{ cursor: "pointer" }} onClick={() => setCommissionSort(s => ({ key: "dueDate", dir: s.key === "dueDate" && s.dir === "asc" ? "desc" : "asc" }))}>Due Date <SortIcon current={commissionSort} k="dueDate" /></th>
                       <th>Status</th>
                       <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {commissions.map((c: any) => {
+                    {sortItems(commissions, commissionSort.key, commissionSort.dir).map((c: any) => {
                       const overdue = c.status === "PENDING" && c.dueDate && new Date(c.dueDate) < new Date();
                       return (
                       <tr key={c.id} style={{ background: overdue ? "rgba(255,59,59,0.06)" : "transparent" }}>
@@ -1366,9 +1475,9 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
                     <tr>
                       <th>Player</th>
                       <th>From</th>
-                      <th>To</th>
-                      <th>Date</th>
-                      <th>Fee</th>
+                      <th style={{ cursor: "pointer" }} onClick={() => setTransferSort(s => ({ key: "toClub", dir: s.key === "toClub" && s.dir === "asc" ? "desc" : "asc" }))}>To <SortIcon current={transferSort} k="toClub" /></th>
+                      <th style={{ cursor: "pointer" }} onClick={() => setTransferSort(s => ({ key: "transferDate", dir: s.key === "transferDate" && s.dir === "asc" ? "desc" : "asc" }))}>Date <SortIcon current={transferSort} k="transferDate" /></th>
+                      <th style={{ cursor: "pointer" }} onClick={() => setTransferSort(s => ({ key: "transferFeeCents", dir: s.key === "transferFeeCents" && s.dir === "asc" ? "desc" : "asc" }))}>Fee <SortIcon current={transferSort} k="transferFeeCents" /></th>
                       <th>Salary/mo</th>
                       <th>Years</th>
                       <th>File</th>
@@ -1376,7 +1485,7 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {transfers.map((t: any) => (
+                    {sortItems(transfers, transferSort.key, transferSort.dir).map((t: any) => (
                       <tr key={t.id}>
                         <td style={{ fontFamily: "var(--font-display)", fontWeight: 700, textTransform: "uppercase" }}>
                           {t.player.firstName} {t.player.lastName}
@@ -1487,6 +1596,12 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
                                 {d.expiresAt && <span style={{ marginLeft: 6, color: isExpired ? "var(--red)" : "var(--muted)" }}>· expires {fmtDate(d.expiresAt)}</span>}
                               </div>
                             </div>
+                            <button className="btn btn-outline" style={{ fontSize: "0.68rem", padding: "4px 8px" }} onClick={() => {
+                              setEditPitch(d);
+                              const ids = d.players?.map((p: any) => p.id) ?? JSON.parse(d.playerIds ?? "[]");
+                              setEditPitchPlayerIds(ids);
+                              setEditPitchError("");
+                            }}>✏️ Edit</button>
                             <button className="btn btn-danger" style={{ fontSize: "0.68rem", padding: "4px 8px" }} onClick={() => handleDeletePitch(d.token)}>🗑</button>
                           </div>
                           <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
@@ -1510,6 +1625,32 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
           </div>
         )}
 
+        {/* ══════════════════ MESSAGES ══════════════════ */}
+        {tab === "messages" && (
+          <div className="tab-content">
+            <div style={{ ...STICKY_HEADER, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.62rem", color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.18em" }}>Messages</span>
+              {unreadMessages > 0 && <span className="badge badge-red" style={{ fontSize: "0.7rem" }}>{unreadMessages} unread</span>}
+            </div>
+            <div className="card" style={{ maxWidth: 560, padding: 32, textAlign: "center" }}>
+              <div style={{ fontSize: "3rem", marginBottom: 16 }}>💬</div>
+              <h4 style={{ marginBottom: 8 }}>Your Messages</h4>
+              {unreadMessages > 0 ? (
+                <p style={{ color: "var(--accent)", marginBottom: 24, fontFamily: "var(--font-mono)", fontSize: "0.9rem" }}>
+                  You have <strong>{unreadMessages}</strong> unread message{unreadMessages !== 1 ? "s" : ""}.
+                </p>
+              ) : (
+                <p style={{ color: "var(--muted)", marginBottom: 24, fontSize: "0.9rem" }}>
+                  Conversations with clubs appear here. Open full inbox to read and reply.
+                </p>
+              )}
+              <Link href="/messages" className="btn btn-primary" style={{ justifyContent: "center", fontSize: "0.9rem", padding: "10px 24px" }}>
+                Open Messages ↗
+              </Link>
+            </div>
+          </div>
+        )}
+
         {/* ══════════════════ SETTINGS ══════════════════ */}
         {tab === "settings" && (
           <div className="tab-content">
@@ -1517,6 +1658,23 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
               <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.62rem", color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.18em" }}>Settings</span>
             </div>
             <div className="card" style={{ maxWidth: 560 }}>
+              {/* Avatar upload */}
+              <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 24, paddingBottom: 20, borderBottom: "1px solid var(--border)" }}>
+                <div style={{ position: "relative", flexShrink: 0 }}>
+                  <div style={{ width: 72, height: 72, borderRadius: "50%", background: "var(--card2)", border: "2px solid var(--border)", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "2rem" }}>
+                    {avatarUrl ? <img src={avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : "👤"}
+                  </div>
+                  {avatarUploading && <div style={{ position: "absolute", inset: 0, borderRadius: "50%", background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center" }}><span className="spinner" /></div>}
+                </div>
+                <div>
+                  <div style={{ fontSize: "0.85rem", fontWeight: 600, marginBottom: 6 }}>Profile Photo</div>
+                  <input ref={avatarInputRef} type="file" accept="image/jpeg,image/png,image/webp" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) handleAvatarUpload(f); }} />
+                  <button type="button" className="btn btn-outline" style={{ fontSize: "0.78rem", padding: "5px 12px" }} onClick={() => avatarInputRef.current?.click()} disabled={avatarUploading}>
+                    {avatarUploading ? "Uploading…" : "Upload Photo"}
+                  </button>
+                  <div style={{ fontSize: "0.7rem", color: "var(--muted)", marginTop: 4 }}>JPG, PNG or WebP</div>
+                </div>
+              </div>
               <form onSubmit={handleSettingsSave}>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
                   <div className="form-group" style={{ margin: 0 }}>
@@ -1906,6 +2064,89 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
           </div>
         </div>
       )}
+      {/* Edit Pitch Modal */}
+      {editPitch && (
+        <div className="modal-overlay" onClick={() => setEditPitch(null)}>
+          <div className="modal" style={{ maxWidth: 460 }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <h3 className="modal-title" style={{ margin: 0 }}>Edit Pitch Deck</h3>
+              <button onClick={() => setEditPitch(null)} style={{ background: "none", border: "none", color: "var(--muted)", fontSize: "1.4rem", cursor: "pointer" }}>✕</button>
+            </div>
+            <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "0.85rem", textTransform: "uppercase", color: "var(--muted)", marginBottom: 16 }}>{editPitch.title}</div>
+            <form onSubmit={handleEditPitchSubmit}>
+              <div className="form-group">
+                <label className="label">Players <span style={{ color: "var(--accent)" }}>*</span></label>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 240, overflowY: "auto", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: 10 }}>
+                  {players.filter(p => p.onboardingCompleted).map((p: any) => (
+                    <label key={p.id} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", padding: "4px 0" }}>
+                      <input type="checkbox" checked={editPitchPlayerIds.includes(p.id)} onChange={() => setEditPitchPlayerIds(ids => ids.includes(p.id) ? ids.filter(x => x !== p.id) : [...ids, p.id])} />
+                      <span style={{ fontSize: "0.85rem" }}>{p.firstName} {p.lastName}</span>
+                      <span style={{ fontSize: "0.72rem", color: "var(--muted)" }}>· {posLabel(p.position)}</span>
+                    </label>
+                  ))}
+                </div>
+                {editPitchPlayerIds.length > 0 && <div style={{ fontSize: "0.75rem", color: "var(--accent)", marginTop: 4 }}>{editPitchPlayerIds.length} selected</div>}
+              </div>
+              {editPitchError && <div style={{ background: "rgba(255,59,59,0.1)", border: "1px solid rgba(255,59,59,0.3)", borderRadius: "var(--radius)", padding: "10px 14px", fontSize: "0.85rem", color: "var(--red)", marginBottom: 16 }}>{editPitchError}</div>}
+              <div style={{ display: "flex", gap: 12 }}>
+                <button type="submit" className="btn btn-primary" style={{ flex: 1, justifyContent: "center" }} disabled={editPitchSaving}>
+                  {editPitchSaving ? <><span className="spinner" /> Saving…</> : "Save Changes"}
+                </button>
+                <button type="button" className="btn btn-outline" onClick={() => setEditPitch(null)}>Cancel</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Notes Modal */}
+      {notesModal && (
+        <div className="modal-overlay" onClick={() => setNotesModal(null)}>
+          <div className="modal" style={{ maxWidth: 520 }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <h3 className="modal-title" style={{ margin: 0 }}>📝 Notes</h3>
+              <button onClick={() => setNotesModal(null)} style={{ background: "none", border: "none", color: "var(--muted)", fontSize: "1.4rem", cursor: "pointer" }}>✕</button>
+            </div>
+            <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "0.85rem", textTransform: "uppercase", color: "var(--muted)", marginBottom: 16 }}>
+              {notesModal.firstName} {notesModal.lastName}
+            </div>
+            <form onSubmit={handleAddNote} style={{ marginBottom: 20 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8, marginBottom: 8 }}>
+                <textarea className="input" rows={2} value={noteContent} onChange={e => setNoteContent(e.target.value)} placeholder="Add a private note…" style={{ resize: "none", fontSize: "0.85rem" }} />
+                <button type="submit" className="btn btn-primary" style={{ alignSelf: "stretch", padding: "0 14px", fontSize: "0.8rem" }} disabled={notesSaving || !noteContent.trim()}>
+                  {notesSaving ? <span className="spinner" /> : "Add"}
+                </button>
+              </div>
+              <select className="input" value={noteCategory} onChange={e => setNoteCategory(e.target.value)} style={{ fontSize: "0.8rem", padding: "5px 10px" }}>
+                <option value="general">General</option>
+                <option value="performance">Performance</option>
+                <option value="medical">Medical</option>
+                <option value="contract">Contract</option>
+                <option value="personal">Personal</option>
+              </select>
+            </form>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 320, overflowY: "auto" }}>
+              {notesLoading ? (
+                <div style={{ textAlign: "center", padding: "20px 0", color: "var(--muted)", fontSize: "0.85rem" }}>Loading…</div>
+              ) : notesList.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "20px 0", color: "var(--muted)", fontSize: "0.85rem" }}>No notes yet.</div>
+              ) : notesList.map((n: any) => (
+                <div key={n.id} style={{ background: "var(--card2)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "10px 12px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+                    <div style={{ fontSize: "0.85rem", color: "var(--white)", flex: 1 }}>{n.content}</div>
+                    <button onClick={() => handleDeleteNote(n.id)} style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: "0.9rem", padding: 0, flexShrink: 0 }}>✕</button>
+                  </div>
+                  <div style={{ display: "flex", gap: 8, marginTop: 6, alignItems: "center" }}>
+                    <span style={{ fontSize: "0.6rem", fontFamily: "var(--font-mono)", color: "var(--accent)", textTransform: "uppercase" }}>{n.category}</span>
+                    <span style={{ fontSize: "0.6rem", color: "var(--muted)" }}>{fmtDate(n.createdAt)}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Health Status Modal */}
       {healthModal && (
         <div className="modal-overlay" onClick={() => setHealthModal(null)}>

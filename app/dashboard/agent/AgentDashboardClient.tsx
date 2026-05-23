@@ -42,9 +42,37 @@ function fmtDate(d: string | Date | null | undefined): string {
 }
 
 function contractRowColor(days: number): string {
+  if (days < 0)  return "rgba(255,59,59,0.08)";
   if (days < 30) return "rgba(255,59,59,0.06)";
-  if (days < 180) return "rgba(232,255,71,0.04)";
+  if (days < 60) return "rgba(255,140,0,0.05)";
+  if (days < 90) return "rgba(232,255,71,0.04)";
   return "transparent";
+}
+
+function contractStatusLabel(days: number): string {
+  if (days < 0)  return "EXPIRED";
+  if (days < 30) return "CRITICAL";
+  if (days < 60) return "WARNING";
+  if (days < 90) return "EXPIRING";
+  return "ACTIVE";
+}
+
+function contractStatusColor(days: number): string {
+  if (days < 0)  return "var(--red)";
+  if (days < 30) return "var(--red)";
+  if (days < 60) return "#ff8c00";
+  if (days < 90) return "var(--accent)";
+  return "#00c864";
+}
+
+function overdueLevel(dueDateStr: string | null | undefined): { days: number; label: string; color: string; bg: string } {
+  if (!dueDateStr) return { days: -1, label: "", color: "", bg: "" };
+  const d = Math.floor((Date.now() - new Date(dueDateStr).getTime()) / 86400000);
+  if (d < 0)  return { days: d, label: "", color: "", bg: "" };
+  if (d >= 60) return { days: d, label: `OVERDUE ${d}d`, color: "#ff4444", bg: "rgba(255,59,59,0.12)" };
+  if (d >= 30) return { days: d, label: `OVERDUE ${d}d`, color: "var(--red)", bg: "rgba(255,59,59,0.08)" };
+  if (d >= 7)  return { days: d, label: `OVERDUE ${d}d`, color: "#ff8c00", bg: "rgba(255,140,0,0.07)" };
+  return { days: d, label: "OVERDUE", color: "var(--accent)", bg: "rgba(232,255,71,0.06)" };
 }
 
 function getAge(dob: string | Date | null | undefined): string {
@@ -111,6 +139,40 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
     }, 30_000);
     return () => clearInterval(id);
   }, []);
+
+  // ── In-app notifications ─────────────────────────────────────────
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
+  const [notifOpen, setNotifOpen] = useState(false);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("hh_dismissed_notifs");
+      if (stored) setDismissedIds(new Set(JSON.parse(stored)));
+    } catch {}
+    const load = () => fetch("/api/agent/notifications").then(r => r.json()).then(d => { if (d.notifications) setNotifications(d.notifications); }).catch(() => {});
+    load();
+    const id = setInterval(load, 60_000);
+    return () => clearInterval(id);
+  }, []);
+
+  function dismissNotification(id: string) {
+    setDismissedIds(prev => {
+      const next = new Set(prev);
+      next.add(id);
+      try { localStorage.setItem("hh_dismissed_notifs", JSON.stringify([...next])); } catch {}
+      return next;
+    });
+  }
+
+  function dismissAll() {
+    const ids = notifications.map(n => n.id);
+    setDismissedIds(prev => {
+      const next = new Set([...prev, ...ids]);
+      try { localStorage.setItem("hh_dismissed_notifs", JSON.stringify([...next])); } catch {}
+      return next;
+    });
+  }
 
   // Add Player modal
   const [showAddModal, setShowAddModal] = useState(false);
@@ -663,11 +725,29 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
       {/* ── Sidebar ── */}
       <aside className={`sidebar${sidebarOpen ? " is-open" : ""}`}>
         <div style={{ padding: "24px 24px 16px", borderBottom: "1px solid var(--border)", marginBottom: 8 }}>
-          <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.65rem", color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.15em", marginBottom: 8 }}>Agent Dashboard</div>
-          <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: "1.1rem", textTransform: "uppercase" }}>
-            {agent.firstName} {agent.lastName}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+            <div>
+              <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.65rem", color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.15em", marginBottom: 8 }}>Agent Dashboard</div>
+              <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: "1.1rem", textTransform: "uppercase" }}>
+                {agent.firstName} {agent.lastName}
+              </div>
+              {agent.country && <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: 2 }}>📍 {agent.country}</div>}
+            </div>
+            {/* Notification bell */}
+            {(() => {
+              const unread = notifications.filter(n => !dismissedIds.has(n.id));
+              return (
+                <button onClick={() => setNotifOpen(o => !o)} style={{ position: "relative", background: "none", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "6px 8px", cursor: "pointer", color: unread.length > 0 ? "var(--accent)" : "var(--muted)", fontSize: "1rem", flexShrink: 0 }}>
+                  🔔
+                  {unread.length > 0 && (
+                    <span style={{ position: "absolute", top: -5, right: -5, background: "var(--red)", color: "#fff", fontSize: "0.55rem", fontWeight: 700, borderRadius: "50%", width: 16, height: 16, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "var(--font-mono)" }}>
+                      {unread.length > 9 ? "9+" : unread.length}
+                    </span>
+                  )}
+                </button>
+              );
+            })()}
           </div>
-          {agent.country && <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: 2 }}>📍 {agent.country}</div>}
         </div>
         <ul className="sidebar-nav">
           {NAV_ITEMS.map(item => (
@@ -790,13 +870,15 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
                     ))}
                     {expiring.map((c: any) => {
                       const d = daysLeft(c.endDate);
+                      const col = contractStatusColor(d);
                       return (
-                        <div key={c.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: d < 30 ? "rgba(255,59,59,0.05)" : "rgba(232,255,71,0.04)", borderRadius: "var(--radius)", borderLeft: `3px solid ${d < 30 ? "var(--red)" : "var(--accent)"}` }}>
+                        <div key={c.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: `${col}11`, borderRadius: "var(--radius)", borderLeft: `3px solid ${col}` }}>
                           <div>
                             <span style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "0.82rem", textTransform: "uppercase" }}>{c.player.firstName} {c.player.lastName}</span>
                             <span style={{ fontSize: "0.72rem", color: "var(--muted)", marginLeft: 8 }}>@ {c.clubName}</span>
+                            <span style={{ fontSize: "0.65rem", fontFamily: "var(--font-mono)", fontWeight: 700, color: col, marginLeft: 8, textTransform: "uppercase" }}>{contractStatusLabel(d)}</span>
                           </div>
-                          <span style={{ fontSize: "0.72rem", color: d < 30 ? "var(--red)" : "var(--accent)", fontFamily: "var(--font-mono)" }}>{d}d left</span>
+                          <span style={{ fontSize: "0.72rem", color: col, fontFamily: "var(--font-mono)" }}>{d}d left</span>
                         </div>
                       );
                     })}
@@ -963,20 +1045,28 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
                   <div style={{ color: "var(--muted)", fontSize: "0.82rem", textAlign: "center", padding: "20px 0" }}>No commissions tracked</div>
                 ) : (
                   <div>
-                    {commissions.slice(0, 7).map((c: any) => (
-                      <div key={c.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 0", borderBottom: "1px solid var(--border)" }}>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "0.82rem", textTransform: "uppercase" }}>
-                            {c.player.firstName} {c.player.lastName}
+                    {commissions.slice(0, 7).map((c: any) => {
+                      const od = c.status === "PENDING" ? overdueLevel(c.dueDate) : { days: -1, label: "", color: "", bg: "" };
+                      const isOverdue = od.days >= 0;
+                      return (
+                        <div key={c.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 0", borderBottom: "1px solid var(--border)", background: isOverdue ? od.bg : "transparent" }}>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "0.82rem", textTransform: "uppercase" }}>
+                              {c.player.firstName} {c.player.lastName}
+                            </div>
+                            <div style={{ fontSize: "0.68rem", color: "var(--muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.description}</div>
                           </div>
-                          <div style={{ fontSize: "0.68rem", color: "var(--muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.description}</div>
+                          <div style={{ textAlign: "right", flexShrink: 0, marginLeft: 8 }}>
+                            <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.8rem" }}>{fmtCents(c.amountCents)}</div>
+                            {isOverdue ? (
+                              <span style={{ fontSize: "0.52rem", fontFamily: "var(--font-mono)", fontWeight: 700, color: od.color, textTransform: "uppercase" }}>{od.label}</span>
+                            ) : (
+                              <span className={`badge ${COMMISSION_STATUS_COLORS[c.status] ?? "badge-muted"}`} style={{ fontSize: "0.52rem" }}>{c.status}</span>
+                            )}
+                          </div>
                         </div>
-                        <div style={{ textAlign: "right", flexShrink: 0, marginLeft: 8 }}>
-                          <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.8rem" }}>{fmtCents(c.amountCents)}</div>
-                          <span className={`badge ${COMMISSION_STATUS_COLORS[c.status] ?? "badge-muted"}`} style={{ fontSize: "0.52rem" }}>{c.status}</span>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                     {commissions.length > 7 && (
                       <div style={{ fontSize: "0.72rem", color: "var(--muted)", textAlign: "center", paddingTop: 8 }}>
                         +{commissions.length - 7} more · <button onClick={() => switchTab("commissions")} style={{ background: "none", border: "none", color: "var(--accent)", cursor: "pointer", fontSize: "0.72rem", padding: 0 }}>view all</button>
@@ -1388,8 +1478,8 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
                           </td>
                           <td style={{ fontFamily: "var(--font-mono)", fontSize: "0.82rem" }}>{fmtCents(c.salaryCents)}</td>
                           <td>
-                            <span className={`badge ${expired ? "badge-red" : days < 180 ? "badge-accent" : "badge-green"}`} style={{ fontSize: "0.6rem" }}>
-                              {expired ? "EXPIRED" : days < 30 ? "CRITICAL" : days < 180 ? "EXPIRING" : "ACTIVE"}
+                            <span style={{ fontSize: "0.6rem", fontFamily: "var(--font-mono)", fontWeight: 700, textTransform: "uppercase", color: contractStatusColor(days), background: `${contractStatusColor(days)}22`, padding: "2px 6px", borderRadius: 3 }}>
+                              {contractStatusLabel(days)}
                             </span>
                           </td>
                           <td>
@@ -1463,21 +1553,24 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
                   </thead>
                   <tbody>
                     {sortItems(commissions, commissionSort.key, commissionSort.dir).map((c: any) => {
-                      const overdue = c.status === "PENDING" && c.dueDate && new Date(c.dueDate) < new Date();
+                      const od = c.status === "PENDING" ? overdueLevel(c.dueDate) : { days: -1, label: "", color: "", bg: "" };
+                      const isOverdue = od.days >= 0;
                       return (
-                      <tr key={c.id} style={{ background: overdue ? "rgba(255,59,59,0.06)" : "transparent" }}>
+                      <tr key={c.id} style={{ background: isOverdue ? od.bg : "transparent" }}>
                         <td style={{ fontFamily: "var(--font-display)", fontWeight: 700, textTransform: "uppercase" }}>
                           {c.player.firstName} {c.player.lastName}
                         </td>
                         <td style={{ fontSize: "0.85rem" }}>{c.description}</td>
                         <td style={{ fontFamily: "var(--font-mono)", fontSize: "0.82rem" }}>{fmtCents(c.amountCents)}</td>
-                        <td style={{ fontSize: "0.82rem", color: overdue ? "var(--red)" : "var(--muted)", fontWeight: overdue ? 700 : 400 }}>
-                          {fmtDate(c.dueDate)}{overdue ? " ⚠" : ""}
+                        <td style={{ fontSize: "0.82rem", color: isOverdue ? od.color : "var(--muted)", fontWeight: isOverdue ? 700 : 400 }}>
+                          {fmtDate(c.dueDate)}{isOverdue ? ` ⚠ ${od.days}d` : ""}
                         </td>
                         <td>
-                          <span className={`badge ${overdue ? "badge-red" : COMMISSION_STATUS_COLORS[c.status] ?? "badge-muted"}`} style={{ fontSize: "0.6rem" }}>
-                            {overdue ? "OVERDUE" : c.status}
-                          </span>
+                          {isOverdue ? (
+                            <span style={{ fontSize: "0.6rem", fontFamily: "var(--font-mono)", fontWeight: 700, textTransform: "uppercase", color: od.color, background: od.bg, padding: "2px 6px", borderRadius: 3, border: `1px solid ${od.color}44` }}>{od.label}</span>
+                          ) : (
+                            <span className={`badge ${COMMISSION_STATUS_COLORS[c.status] ?? "badge-muted"}`} style={{ fontSize: "0.6rem" }}>{c.status}</span>
+                          )}
                         </td>
                         <td>
                           <div style={{ display: "flex", gap: 6 }}>
@@ -2392,6 +2485,68 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
           </div>
         </div>
       )}
+      {/* ══════════════════ NOTIFICATION PANEL ══════════════════ */}
+      {notifOpen && (
+        <>
+          <div onClick={() => setNotifOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(0,0,0,0.4)" }} />
+          <div style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: 360, maxWidth: "100vw", zIndex: 201, background: "var(--card)", borderLeft: "1px solid var(--border)", display: "flex", flexDirection: "column", boxShadow: "-8px 0 32px rgba(0,0,0,0.5)" }}>
+            {/* Header */}
+            <div style={{ padding: "20px 20px 16px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
+              <div>
+                <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: "1rem", textTransform: "uppercase" }}>Notifications</div>
+                {(() => { const u = notifications.filter(n => !dismissedIds.has(n.id)).length; return u > 0 ? <div style={{ fontSize: "0.72rem", color: "var(--accent)", marginTop: 2 }}>{u} unread</div> : null; })()}
+              </div>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                {notifications.some(n => !dismissedIds.has(n.id)) && (
+                  <button onClick={dismissAll} style={{ background: "none", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "4px 10px", fontSize: "0.7rem", color: "var(--muted)", cursor: "pointer" }}>Clear all</button>
+                )}
+                <button onClick={() => setNotifOpen(false)} style={{ background: "none", border: "none", color: "var(--muted)", fontSize: "1.4rem", cursor: "pointer", lineHeight: 1 }}>✕</button>
+              </div>
+            </div>
+
+            {/* List */}
+            <div style={{ flex: 1, overflowY: "auto", padding: "12px 0" }}>
+              {notifications.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "60px 24px", color: "var(--muted)" }}>
+                  <div style={{ fontSize: "2.5rem", marginBottom: 12 }}>🔔</div>
+                  <div style={{ fontSize: "0.88rem" }}>No notifications yet</div>
+                </div>
+              ) : (() => {
+                const active = notifications.filter(n => !dismissedIds.has(n.id));
+                const dismissed = notifications.filter(n => dismissedIds.has(n.id));
+                const NOTIF_ICONS: Record<string, string> = { club_unlock: "🔓", new_free_agent: "⚽" };
+                const renderItem = (n: any, dimmed = false) => (
+                  <div key={n.id} style={{ display: "flex", gap: 10, padding: "12px 20px", opacity: dimmed ? 0.4 : 1, borderBottom: "1px solid rgba(245,243,238,0.06)" }}>
+                    <div style={{ flexShrink: 0, width: 32, height: 32, borderRadius: "50%", background: "var(--card2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.9rem" }}>{NOTIF_ICONS[n.type] ?? "🔔"}</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: "0.82rem", fontWeight: 600, color: "var(--white)", lineHeight: 1.3 }}>{n.title}</div>
+                      <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: 3, lineHeight: 1.4 }}>{n.body}</div>
+                      <div style={{ fontSize: "0.65rem", color: "rgba(107,107,107,0.6)", marginTop: 4, fontFamily: "var(--font-mono)" }}>{fmtDate(n.createdAt)}</div>
+                      {n.link && !dimmed && (
+                        <a href={n.link} target="_blank" rel="noopener noreferrer" style={{ fontSize: "0.7rem", color: "var(--accent)", marginTop: 4, display: "inline-block" }}>View →</a>
+                      )}
+                    </div>
+                    {!dimmed && (
+                      <button onClick={() => dismissNotification(n.id)} style={{ flexShrink: 0, background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: "1rem", padding: "0 4px", alignSelf: "flex-start", lineHeight: 1 }} title="Dismiss">✕</button>
+                    )}
+                  </div>
+                );
+                return (
+                  <>
+                    {active.length === 0 && <div style={{ textAlign: "center", padding: "32px 24px 16px", color: "var(--muted)", fontSize: "0.82rem" }}>All caught up!</div>}
+                    {active.map(n => renderItem(n, false))}
+                    {dismissed.length > 0 && active.length > 0 && (
+                      <div style={{ padding: "10px 20px 4px", fontSize: "0.65rem", color: "rgba(107,107,107,0.5)", textTransform: "uppercase", letterSpacing: "0.1em", fontFamily: "var(--font-mono)" }}>Dismissed</div>
+                    )}
+                    {dismissed.map(n => renderItem(n, true))}
+                  </>
+                );
+              })()}
+            </div>
+          </div>
+        </>
+      )}
+
     </div>
     </main>
   );

@@ -891,20 +891,20 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
               <button className="btn btn-primary" style={{ fontSize: "0.75rem", padding: "6px 14px" }} onClick={() => { setCommissionPlayerId(""); setCommissionInstallments([{ description: "", amountEur: "", dueDate: "", notes: "" }]); setCommissionError(""); setShowCommissionModal(true); }}>+ Add Commission</button>
             </div>
 
-            {stats.pendingCommissions > 0 && (
-              <div className="card" style={{ marginBottom: 20, background: "rgba(232,255,71,0.04)", borderColor: "rgba(232,255,71,0.2)" }}>
-                <div style={{ display: "flex", gap: 32, flexWrap: "wrap" }}>
-                  <div>
-                    <div style={{ fontSize: "0.7rem", color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.1em" }}>Pending Count</div>
-                    <div style={{ fontFamily: "var(--font-display)", fontSize: "2rem", fontWeight: 900, color: "var(--accent)" }}>{stats.pendingCommissions}</div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: "0.7rem", color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.1em" }}>Total Pending Value</div>
-                    <div style={{ fontFamily: "var(--font-display)", fontSize: "2rem", fontWeight: 900, color: "var(--accent)" }}>{fmtCents(stats.totalPendingCents)}</div>
-                  </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 20 }}>
+              {[
+                { label: "Total Commissions", val: commissions.length, sub: "all time", color: "var(--white)" },
+                { label: "Pending Commissions", val: stats.pendingCommissions, sub: "awaiting payment", color: stats.pendingCommissions > 0 ? "var(--accent)" : "var(--muted)" },
+                { label: "Pending Payments", val: fmtCents(stats.totalPendingCents), sub: "total outstanding", color: stats.totalPendingCents > 0 ? "var(--accent)" : "var(--muted)" },
+                { label: "Completed Payments", val: fmtCents(stats.totalPaidCents), sub: `${stats.paidCommissions} paid`, color: stats.paidCommissions > 0 ? "#00c864" : "var(--muted)" },
+              ].map(s => (
+                <div key={s.label} className="card" style={{ textAlign: "center", padding: "16px 12px" }}>
+                  <div style={{ fontFamily: "var(--font-display)", fontWeight: 900, fontSize: "1.6rem", color: s.color, lineHeight: 1 }}>{s.val}</div>
+                  <div style={{ fontSize: "0.65rem", color: "var(--muted)", marginTop: 6, textTransform: "uppercase", letterSpacing: "0.06em", lineHeight: 1.3 }}>{s.label}</div>
+                  <div style={{ fontSize: "0.6rem", color: "rgba(107,107,107,0.6)", marginTop: 2 }}>{s.sub}</div>
                 </div>
-              </div>
-            )}
+              ))}
+            </div>
 
             {commissions.length === 0 ? (
               <div className="card" style={{ textAlign: "center", padding: "48px 24px", color: "var(--muted)" }}>

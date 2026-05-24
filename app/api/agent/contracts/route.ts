@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
   const agent = await getAgent(session);
   if (!agent) return NextResponse.json({ error: "Agent not found" }, { status: 404 });
 
-  const { playerId, clubName, startDate, endDate, salaryCents, bonusDetails, notes } = await req.json();
+  const { playerId, clubName, startDate, endDate, salaryCents, bonusDetails, notes, contractFileUrl } = await req.json();
 
   if (!playerId || !clubName?.trim() || !startDate || !endDate)
     return NextResponse.json({ error: "playerId, clubName, startDate and endDate are required" }, { status: 400 });
@@ -56,6 +56,7 @@ export async function POST(req: NextRequest) {
       salaryCents: salaryCents ? parseInt(salaryCents) : null,
       bonusDetails: bonusDetails?.trim() ?? null,
       notes: notes?.trim() ?? null,
+      contractFileUrl: contractFileUrl ?? null,
     },
     include: { player: { select: { id: true, firstName: true, lastName: true } } },
   });

@@ -518,19 +518,20 @@ model AgentNote {
 }
 
 model AgentContract {
-  id           String   @id @default(cuid())
-  agentId      String
-  agent        Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
-  playerId     String
-  player       Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
-  clubName     String
-  startDate    DateTime
-  endDate      DateTime
-  salaryCents  Int?
-  bonusDetails String?  @db.Text
-  notes        String?  @db.Text
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
+  id              String   @id @default(cuid())
+  agentId         String
+  agent           Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  playerId        String
+  player          Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  clubName        String
+  startDate       DateTime
+  endDate         DateTime
+  salaryCents     Int?
+  bonusDetails    String?  @db.Text
+  notes           String?  @db.Text
+  contractFileUrl String?
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
   @@index([agentId])
   @@index([playerId])
   @@map("agent_contracts")

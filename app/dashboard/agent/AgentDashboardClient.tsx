@@ -1179,24 +1179,28 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
               {transfers.length === 0 ? (
                 <div style={{ color: "var(--muted)", fontSize: "0.82rem", textAlign: "center", padding: "20px 0" }}>No transfer records yet</div>
               ) : (
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 0 }}>
-                  {[...transfers].sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 8).map((t: any) => (
-                    <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: "1px solid var(--border)" }}>
+                <div style={{ display: "flex", flexDirection: "column" }}>
+                  {[...transfers].sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 8).map((t: any, i, arr) => (
+                    <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: i < arr.length - 1 ? "1px solid var(--border)" : "none" }}>
+                      {/* Icon */}
+                      <div style={{ width: 32, height: 32, borderRadius: "50%", background: "rgba(232,255,71,0.08)", border: "1px solid rgba(232,255,71,0.2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.85rem", flexShrink: 0 }}>🔄</div>
+                      {/* Info */}
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "0.85rem", textTransform: "uppercase" }}>
+                        <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "0.85rem", textTransform: "uppercase", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                           {t.player.firstName} {t.player.lastName}
                         </div>
-                        <div style={{ fontSize: "0.7rem", color: "var(--muted)", marginTop: 2 }}>
-                          {t.fromClub ? `${t.fromClub}` : "Free Agent"} → {t.toClub}
+                        <div style={{ fontSize: "0.7rem", color: "var(--muted)", marginTop: 2, display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
+                          <span style={{ maxWidth: 100, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.fromClub || "Free Agent"}</span>
+                          <span style={{ color: "var(--accent)", fontSize: "0.65rem" }}>→</span>
+                          <span style={{ maxWidth: 100, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.toClub}</span>
                         </div>
                       </div>
+                      {/* Right: salary + date */}
                       <div style={{ textAlign: "right", flexShrink: 0 }}>
-                        {t.transferFeeCents ? (
-                          <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.78rem" }}>{fmtCents(t.transferFeeCents)}</div>
-                        ) : t.salaryCents ? (
-                          <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.78rem", color: "var(--muted)" }}>{fmtCents(t.salaryCents)}/mo</div>
+                        {t.salaryCents ? (
+                          <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.75rem", color: "var(--accent)" }}>{fmtCents(t.salaryCents)}<span style={{ color: "var(--muted)", fontSize: "0.65rem" }}>/mo</span></div>
                         ) : null}
-                        <div style={{ fontSize: "0.62rem", color: "var(--muted)" }}>{fmtDate(t.transferDate)}</div>
+                        <div style={{ fontSize: "0.65rem", color: "var(--muted)", marginTop: 2 }}>{fmtDate(t.transferDate)}</div>
                       </div>
                     </div>
                   ))}

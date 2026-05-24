@@ -33,6 +33,7 @@ export async function POST(req: NextRequest) {
       agentName: true,
       agentPhone: true,
       agentEmail: true,
+      agentId: true,
       user: { select: { email: true } },
     },
   });
@@ -66,16 +67,38 @@ export async function POST(req: NextRequest) {
     });
   }
 
+  // If player is managed by a platform agent, use the agent's contact info
+  let contactEmail: string | null = (player as any).user?.email ?? null;
+  let contactPhone: string | null = player.phone ?? null;
+  let agentName: string | null = player.agentName ?? null;
+  let agentPhone: string | null = player.agentPhone ?? null;
+  let agentEmail: string | null = player.agentEmail ?? null;
+
+  if ((player as any).agentId) {
+    const agentRec = await prisma.agent.findUnique({
+      where: { id: (player as any).agentId },
+      select: { firstName: true, lastName: true, phone: true, user: { select: { email: true } } },
+    }).catch(() => null);
+    if (agentRec) {
+      // Agent is the contact — use agent's email and phone as primary
+      contactEmail = agentRec.user?.email ?? contactEmail;
+      contactPhone = agentRec.phone ?? null;
+      agentName = `${agentRec.firstName} ${agentRec.lastName}`;
+      agentPhone = agentRec.phone ?? null;
+      agentEmail = agentRec.user?.email ?? null;
+    }
+  }
+
   return NextResponse.json({
     data: {
       alreadyRevealed,
       interactionId: interaction.id,
       contact: {
-        email: player.user.email,
-        phone: player.phone,
-        agentName: player.agentName,
-        agentPhone: player.agentPhone,
-        agentEmail: player.agentEmail,
+        email: contactEmail,
+        phone: contactPhone,
+        agentName,
+        agentPhone,
+        agentEmail,
       },
     },
   });

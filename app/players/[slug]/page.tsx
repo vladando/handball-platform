@@ -78,9 +78,11 @@ export default async function PlayerProfilePage({
             agentEmail = agentRec.user?.email ?? null;
           }
         }
+        // If agent-managed, use agent's contact as primary (clubs should contact the agent)
+        const hasAgent = !!(player as any).agentId && agentName;
         existingContact = {
-          email: (player as any).user?.email ?? null,
-          phone: player.phone ?? null,
+          email: hasAgent ? (agentEmail ?? (player as any).user?.email ?? null) : ((player as any).user?.email ?? null),
+          phone: hasAgent ? (agentPhone ?? player.phone ?? null) : (player.phone ?? null),
           agentName,
           agentPhone,
           agentEmail,
@@ -133,9 +135,10 @@ export default async function PlayerProfilePage({
             agentEmail = playerAgentRec.user?.email ?? null;
           }
         }
+        const hasPlayerAgent = !!(player as any).agentId && agentName;
         agentInitialContact = {
-          email: (player as any).user?.email ?? null,
-          phone: player.phone ?? null,
+          email: hasPlayerAgent ? (agentEmail ?? (player as any).user?.email ?? null) : ((player as any).user?.email ?? null),
+          phone: hasPlayerAgent ? (agentPhone ?? player.phone ?? null) : (player.phone ?? null),
           agentName,
           agentPhone,
           agentEmail,

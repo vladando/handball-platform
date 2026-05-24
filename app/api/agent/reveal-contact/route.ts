@@ -65,12 +65,17 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // If player has a platform agent, use agent's contact as primary
+  const hasAgent = !!(player.agentId && player.agentId !== agent.id && agentName);
+  const contactEmail = hasAgent ? (agentEmail ?? player.user.email) : player.user.email;
+  const contactPhone = hasAgent ? (agentPhone ?? player.phone) : player.phone;
+
   return NextResponse.json({
     data: {
       alreadyRevealed,
       contact: {
-        email: player.user.email,
-        phone: player.phone,
+        email: contactEmail,
+        phone: contactPhone,
         agentName,
         agentPhone,
         agentEmail,

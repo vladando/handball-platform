@@ -12,7 +12,7 @@ const VERIF_COLORS: Record<string, string> = {
   UNVERIFIED: "badge-muted", PENDING: "badge-accent", VERIFIED: "badge-green", REJECTED: "badge-red",
 };
 
-export default function AdminClient({ clubs, players, interactions, users, stats }: any) {
+export default function AdminClient({ clubs, players, interactions, users, agents, stats }: any) {
   const [tab, setTab] = useState("overview");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [rejectNote, setRejectNote] = useState<Record<string, string>>({});
@@ -40,6 +40,7 @@ export default function AdminClient({ clubs, players, interactions, users, stats
     { id: "subscriptions", label: `Subscriptions${pendingPayment.length > 0 ? ` ⚠${pendingPayment.length}` : ""}`, icon: "💳" },
     { id: "clubs",         label: `Clubs (${clubs.length})`,                                                     icon: "📋" },
     { id: "interactions",  label: "Commission Log",                                                              icon: "💰" },
+    { id: "agents",        label: `Agents (${(agents ?? []).length})`,                                           icon: "🤝" },
   ];
 
   function selectTab(id: string) { setTab(id); setSidebarOpen(false); }
@@ -619,6 +620,86 @@ export default function AdminClient({ clubs, players, interactions, users, stats
                 </tbody>
               </table></div>
             </div>
+          </div>
+        )}
+
+        {/* ══════════ AGENTS TAB ══════════ */}
+        {tab === "agents" && (
+          <div className="tab-content">
+            <div style={{ marginBottom: 20 }}>
+              <h3 style={{ fontFamily: "var(--font-display)", textTransform: "uppercase", fontSize: "1rem", marginBottom: 4 }}>
+                Agent Accounts <span style={{ color: "var(--muted)", fontWeight: 400 }}>({(agents ?? []).length})</span>
+              </h3>
+              <p style={{ fontSize: "0.82rem", color: "var(--muted)" }}>Click <strong style={{ color: "var(--accent)" }}>View Dashboard</strong> to open the agent's full dashboard as admin.</p>
+            </div>
+
+            {(agents ?? []).length === 0 ? (
+              <div className="card" style={{ textAlign: "center", padding: "60px 24px" }}>
+                <div style={{ fontSize: "3rem", marginBottom: 16 }}>🤝</div>
+                <h4>No agents registered yet</h4>
+              </div>
+            ) : (
+              <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+                <div className="table-wrap">
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Agent</th>
+                        <th>Email</th>
+                        <th>Nationality</th>
+                        <th>License</th>
+                        <th>Players</th>
+                        <th>Contracts</th>
+                        <th>Transfers</th>
+                        <th>Status</th>
+                        <th>Registered</th>
+                        <th>Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(agents ?? []).map((a: any) => (
+                        <tr key={a.id}>
+                          <td>
+                            <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, textTransform: "uppercase", fontSize: "0.88rem" }}>
+                              {a.firstName} {a.lastName}
+                            </div>
+                          </td>
+                          <td style={{ fontSize: "0.78rem", color: "var(--muted)" }}>{a.user?.email ?? a.email ?? "—"}</td>
+                          <td style={{ fontSize: "0.78rem" }}>{a.nationality ?? "—"}</td>
+                          <td style={{ fontFamily: "var(--font-mono)", fontSize: "0.72rem", color: "var(--muted)" }}>{a.licenseNumber ?? "—"}</td>
+                          <td style={{ textAlign: "center" }}>
+                            <span style={{ fontFamily: "var(--font-mono)", fontWeight: 700, color: "var(--accent)" }}>{a._count?.players ?? 0}</span>
+                          </td>
+                          <td style={{ textAlign: "center" }}>
+                            <span style={{ fontFamily: "var(--font-mono)", fontWeight: 700 }}>{a._count?.contracts ?? 0}</span>
+                          </td>
+                          <td style={{ textAlign: "center" }}>
+                            <span style={{ fontFamily: "var(--font-mono)", fontWeight: 700 }}>{a._count?.transfers ?? 0}</span>
+                          </td>
+                          <td>
+                            <span className={`badge ${a.onboardingCompleted ? "badge-green" : "badge-accent"}`}>
+                              {a.onboardingCompleted ? "Active" : "Incomplete"}
+                            </span>
+                          </td>
+                          <td style={{ fontFamily: "var(--font-mono)", fontSize: "0.72rem", color: "var(--muted)" }}>
+                            {new Date(a.createdAt).toLocaleDateString("en-GB")}
+                          </td>
+                          <td>
+                            <Link
+                              href={`/admin/agents/${a.id}`}
+                              className="btn btn-primary"
+                              style={{ fontSize: "0.72rem", padding: "5px 12px", whiteSpace: "nowrap" }}
+                            >
+                              View Dashboard →
+                            </Link>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

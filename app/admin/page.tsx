@@ -8,7 +8,7 @@ export default async function AdminPage() {
   const session = await getServerSession(authOptions);
   if (!session || (session.user as any).role !== "ADMIN") redirect("/");
 
-  const [users, clubs, players, interactions] = await Promise.all([
+  const [users, clubs, players, interactions, agents] = await Promise.all([
     prisma.user.findMany({
       orderBy: { createdAt: "desc" },
       select: {
@@ -34,6 +34,16 @@ export default async function AdminPage() {
       orderBy: { createdAt: "desc" }, take: 200,
       include: { club: true, player: true },
     }).catch(() => []),
+    prisma.agent.findMany({
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true, firstName: true, lastName: true, email: true,
+        phone: true, nationality: true, licenseNumber: true,
+        onboardingCompleted: true, createdAt: true,
+        user: { select: { email: true } },
+        _count: { select: { players: true, contracts: true, transfers: true, commissions: true } },
+      },
+    }).catch(() => []),
   ]);
 
   const stats = {
@@ -51,6 +61,7 @@ export default async function AdminPage() {
         clubs={clubs as any}
         players={players as any}
         interactions={interactions as any}
+        agents={agents as any}
         stats={stats}
       />
     </main>

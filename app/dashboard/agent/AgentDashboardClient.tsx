@@ -146,7 +146,7 @@ const STICKY_HEADER: React.CSSProperties = {
   borderBottom: "1px solid rgba(245,243,238,0.06)",
 };
 
-export default function AgentDashboardClient({ agent }: { agent: any }) {
+export default function AgentDashboardClient({ agent, adminView = false }: { agent: any; adminView?: boolean }) {
   const searchParams = useSearchParams();
 
   const [tab, setTab] = useState<Tab>(searchParams.get("tab") as Tab ?? "overview");
@@ -185,6 +185,7 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
   // Unread messages count
   const [unreadMessages, setUnreadMessages] = useState(0);
   useEffect(() => {
+    if (adminView) return;
     fetch("/api/messages/unread-count").then(r => r.json()).then(d => { if (typeof d.count === "number") setUnreadMessages(d.count); }).catch(() => {});
     const id = setInterval(() => {
       fetch("/api/messages/unread-count").then(r => r.json()).then(d => { if (typeof d.count === "number") setUnreadMessages(d.count); }).catch(() => {});
@@ -198,6 +199,7 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
   const [notifOpen, setNotifOpen] = useState(false);
 
   useEffect(() => {
+    if (adminView) return; // admin viewing — skip agent-role API calls
     try {
       const stored = localStorage.getItem("hh_dismissed_notifs");
       if (stored) setDismissedIds(new Set(JSON.parse(stored)));

@@ -38,13 +38,41 @@ export async function POST(req: NextRequest) {
   const agent = await getAgent(session);
   if (!agent) return NextResponse.json({ error: "Agent not found" }, { status: 404 });
 
-  const { playerId, description, amountCents, dueDate, notes } = await req.json();
+  const body = await req.json();
+  const { playerId, installments, description, amountCents, dueDate, notes } = body;
 
-  if (!playerId || !description?.trim() || !amountCents || !dueDate)
-    return NextResponse.json({ error: "playerId, description, amountCents and dueDate are required" }, { status: 400 });
+  if (!playerId) return NextResponse.json({ error: "playerId is required" }, { status: 400 });
 
   const player = await prisma.player.findFirst({ where: { id: playerId, agentId: agent.id }, select: { id: true } });
   if (!player) return NextResponse.json({ error: "Player not found" }, { status: 404 });
+
+  // Multi-installment creation
+  if (Array.isArray(installments) && installments.length > 0) {
+    for (const i of installments) {
+      if (!i.description?.trim() || !i.amountCents || !i.dueDate)
+        return NextResponse.json({ error: "Each installment requires description, amountCents, and dueDate" }, { status: 400 });
+    }
+    const commissions = await Promise.all(
+      installments.map((i: any) =>
+        prisma.agentCommission.create({
+          data: {
+            agentId: agent.id,
+            playerId,
+            description: i.description.trim(),
+            amountCents: parseInt(i.amountCents),
+            dueDate: new Date(i.dueDate),
+            notes: i.notes?.trim() ?? null,
+          },
+          include: { player: { select: { id: true, firstName: true, lastName: true } } },
+        })
+      )
+    );
+    return NextResponse.json({ commissions }, { status: 201 });
+  }
+
+  // Single commission creation (fallback)
+  if (!description?.trim() || !amountCents || !dueDate)
+    return NextResponse.json({ error: "description, amountCents and dueDate are required" }, { status: 400 });
 
   const commission = await prisma.agentCommission.create({
     data: {

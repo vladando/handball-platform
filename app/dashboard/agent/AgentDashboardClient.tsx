@@ -243,9 +243,13 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
   const docInputRef = useRef<HTMLInputElement>(null);
   const contractInputRef = useRef<HTMLInputElement>(null);
 
-  // Delete player confirm
-  const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
+  // Delete confirm (player / contract / commission / transfer)
+  const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string; type: "player" | "contract" | "commission" | "transfer" } | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Mark Paid modal
+  const [markPaidModal, setMarkPaidModal] = useState<{ id: string; playerName: string } | null>(null);
+  const [markPaidDate, setMarkPaidDate] = useState("");
 
   // Players sub-tab: "roster" | "free" | "requests"
   const [playersSubTab, setPlayersSubTab] = useState<"roster" | "free" | "requests">("roster");
@@ -489,20 +493,36 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
     } else { setVerifyMsg(data.error ?? "Upload failed. Please try again."); }
   }
 
-  // ── Delete player ────────────────────────────────────────────────
+  // ── Delete (player / contract / commission / transfer) ───────────
   async function handleDelete() {
     if (!confirmDelete) return;
     setDeleting(true);
-    await fetch(`/api/agent/players/${confirmDelete.id}`, { method: "DELETE" });
+    const { id, type } = confirmDelete;
+    if (type === "player") {
+      await fetch(`/api/agent/players/${id}`, { method: "DELETE" });
+      setPlayers(ps => ps.filter(p => p.id !== id));
+    } else if (type === "contract") {
+      await fetch(`/api/agent/contracts/${id}`, { method: "DELETE" });
+      setContracts(cs => cs.filter(c => c.id !== id));
+    } else if (type === "commission") {
+      await fetch(`/api/agent/commissions/${id}`, { method: "DELETE" });
+      setCommissions(cs => cs.filter(c => c.id !== id));
+    } else if (type === "transfer") {
+      await fetch(`/api/agent/transfers/${id}`, { method: "DELETE" });
+      setTransfers(ts => ts.filter(t => t.id !== id));
+    }
     setDeleting(false);
-    setPlayers(ps => ps.filter(p => p.id !== confirmDelete.id));
     setConfirmDelete(null);
   }
 
   // ── Add Contract ─────────────────────────────────────────────────
   async function handleAddContract(e: React.FormEvent) {
     e.preventDefault();
-    setContractSaving(true); setContractError("");
+    setContractError("");
+    if (contractForm.startDate && contractForm.endDate && contractForm.startDate >= contractForm.endDate) {
+      setContractError("End date must be after start date."); return;
+    }
+    setContractSaving(true);
 
     let contractFileUrl: string | null = null;
     if (contractDocFile) {
@@ -531,15 +551,18 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
     setContractDocFile(null);
   }
 
-  async function handleDeleteContract(id: string) {
-    await fetch(`/api/agent/contracts/${id}`, { method: "DELETE" });
-    setContracts(cs => cs.filter(c => c.id !== id));
+  function handleDeleteContract(id: string, name: string) {
+    setConfirmDelete({ id, name, type: "contract" });
   }
 
   async function handleEditContractSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!editContract) return;
-    setEditContractSaving(true); setEditContractError("");
+    setEditContractError("");
+    if (editContractForm.startDate && editContractForm.endDate && editContractForm.startDate >= editContractForm.endDate) {
+      setEditContractError("End date must be after start date."); return;
+    }
+    setEditContractSaving(true);
     const res = await fetch(`/api/agent/contracts/${editContract.id}`, {
       method: "PUT", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -549,6 +572,7 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
         salaryCents: editContractForm.salaryCents ? Math.round(parseFloat(editContractForm.salaryCents) * 100) : null,
         bonusDetails: editContractForm.bonusDetails,
         notes: editContractForm.notes,
+        contractFileUrl: editContract.contractFileUrl ?? null,
       }),
     });
     const data = await res.json();
@@ -598,18 +622,21 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
     setCommissionInstallments([{ description: "", amountEur: "", dueDate: "", notes: "" }]);
   }
 
-  async function handleMarkPaid(id: string) {
-    const res = await fetch(`/api/agent/commissions/${id}`, {
+  async function handleMarkPaidConfirm() {
+    if (!markPaidModal) return;
+    const paidAt = markPaidDate ? new Date(markPaidDate).toISOString() : new Date().toISOString();
+    const res = await fetch(`/api/agent/commissions/${markPaidModal.id}`, {
       method: "PUT", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: "PAID", paidAt: new Date().toISOString() }),
+      body: JSON.stringify({ status: "PAID", paidAt }),
     });
     const data = await res.json();
-    if (res.ok) setCommissions(cs => cs.map(c => c.id === id ? data.commission : c));
+    if (res.ok) setCommissions(cs => cs.map(c => c.id === markPaidModal.id ? data.commission : c));
+    setMarkPaidModal(null);
+    setMarkPaidDate("");
   }
 
-  async function handleDeleteCommission(id: string) {
-    await fetch(`/api/agent/commissions/${id}`, { method: "DELETE" });
-    setCommissions(cs => cs.filter(c => c.id !== id));
+  function handleDeleteCommission(id: string, description: string) {
+    setConfirmDelete({ id, name: description, type: "commission" });
   }
 
   // ── Add Transfer ─────────────────────────────────────────────────
@@ -657,9 +684,8 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
     setTransferDocFile(null);
   }
 
-  async function handleDeleteTransfer(id: string) {
-    await fetch(`/api/agent/transfers/${id}`, { method: "DELETE" });
-    setTransfers(ts => ts.filter(t => t.id !== id));
+  function handleDeleteTransfer(id: string, name: string) {
+    setConfirmDelete({ id, name, type: "transfer" });
   }
 
   // ── Calendar events ─────────────────────────────────────────────
@@ -1835,7 +1861,7 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
                               setEditContractForm({ clubName: c.clubName ?? "", startDate: toDate(c.startDate), endDate: toDate(c.endDate), salaryCents: c.salaryCents ? String(c.salaryCents / 100) : "", bonusDetails: c.bonusDetails ?? "", notes: c.notes ?? "" });
                               setEditContractError("");
                             }}>✏️ Edit</button>
-                            <button className="btn btn-danger" style={{ fontSize: "0.7rem", padding: "4px 8px" }} onClick={() => handleDeleteContract(c.id)}>🗑</button>
+                            <button className="btn btn-danger" style={{ fontSize: "0.7rem", padding: "4px 8px" }} onClick={() => handleDeleteContract(c.id, `${c.player?.firstName} ${c.player?.lastName} @ ${c.clubName}`)}>🗑</button>
                           </td>
                         </tr>
                       );
@@ -1916,9 +1942,9 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
                         <td onClick={e => e.stopPropagation()}>
                           <div style={{ display: "flex", gap: 6 }}>
                             {c.status === "PENDING" && (
-                              <button className="btn btn-primary" style={{ fontSize: "0.68rem", padding: "4px 8px" }} onClick={() => handleMarkPaid(c.id)}>✓ Mark Paid</button>
+                              <button className="btn btn-primary" style={{ fontSize: "0.68rem", padding: "4px 8px" }} onClick={() => { setMarkPaidModal({ id: c.id, playerName: `${c.player?.firstName} ${c.player?.lastName}` }); setMarkPaidDate(""); }}>✓ Mark Paid</button>
                             )}
-                            <button className="btn btn-danger" style={{ fontSize: "0.68rem", padding: "4px 6px" }} onClick={() => handleDeleteCommission(c.id)}>🗑</button>
+                            <button className="btn btn-danger" style={{ fontSize: "0.68rem", padding: "4px 6px" }} onClick={() => handleDeleteCommission(c.id, c.description ?? "commission")}>🗑</button>
                           </div>
                         </td>
                       </tr>
@@ -2010,7 +2036,7 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
                             : <span style={{ color: "var(--muted)", fontSize: "0.78rem" }}>—</span>}
                         </td>
                         <td onClick={e => e.stopPropagation()}>
-                          <button className="btn btn-danger" style={{ fontSize: "0.7rem", padding: "4px 8px" }} onClick={() => handleDeleteTransfer(t.id)}>🗑</button>
+                          <button className="btn btn-danger" style={{ fontSize: "0.7rem", padding: "4px 8px" }} onClick={() => handleDeleteTransfer(t.id, `${t.player?.firstName} ${t.player?.lastName} → ${t.toClub}`)}>🗑</button>
                         </td>
                       </tr>
                     ))}
@@ -2758,19 +2784,55 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
         </div>
       )}
 
-      {/* Delete Player Confirm */}
+      {/* Delete Confirm (player / contract / commission / transfer) */}
       {confirmDelete && (
         <div className="modal-overlay" onClick={() => setConfirmDelete(null)}>
           <div className="modal" style={{ maxWidth: 400 }} onClick={e => e.stopPropagation()}>
-            <h4 style={{ textTransform: "uppercase", marginBottom: 8, color: "var(--red)" }}>⚠ Remove Player</h4>
+            <h4 style={{ textTransform: "uppercase", marginBottom: 8, color: "var(--red)" }}>
+              ⚠ {confirmDelete.type === "player" ? "Remove Player" : confirmDelete.type === "contract" ? "Delete Contract" : confirmDelete.type === "commission" ? "Delete Commission" : "Delete Transfer"}
+            </h4>
             <p style={{ fontSize: "0.88rem", color: "var(--muted)", marginBottom: 20 }}>
-              Remove <strong style={{ color: "var(--white)" }}>{confirmDelete.name}</strong> from your roster? This cannot be undone.
+              {confirmDelete.type === "player"
+                ? <>Remove <strong style={{ color: "var(--white)" }}>{confirmDelete.name}</strong> from your roster?</>
+                : <>Delete <strong style={{ color: "var(--white)" }}>{confirmDelete.name}</strong>?</>
+              }
+              {" "}This cannot be undone.
             </p>
             <div style={{ display: "flex", gap: 12 }}>
               <button className="btn btn-danger" style={{ flex: 1, justifyContent: "center" }} onClick={handleDelete} disabled={deleting}>
-                {deleting ? <><span className="spinner" /> Removing…</> : "🗑 Remove"}
+                {deleting ? <><span className="spinner" /> Deleting…</> : "🗑 Delete"}
               </button>
               <button className="btn btn-outline" style={{ flex: 1, justifyContent: "center" }} onClick={() => setConfirmDelete(null)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Mark Paid Modal */}
+      {markPaidModal && (
+        <div className="modal-overlay" onClick={() => setMarkPaidModal(null)}>
+          <div className="modal" style={{ maxWidth: 380 }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+              <h3 className="modal-title" style={{ margin: 0 }}>✓ Mark as Paid</h3>
+              <button onClick={() => setMarkPaidModal(null)} style={{ background: "none", border: "none", color: "var(--muted)", fontSize: "1.4rem", cursor: "pointer" }}>✕</button>
+            </div>
+            <p style={{ fontSize: "0.85rem", color: "var(--muted)", marginBottom: 20 }}>
+              Commission for <strong style={{ color: "var(--white)" }}>{markPaidModal.playerName}</strong>. Enter the actual payment date.
+            </p>
+            <div className="form-group">
+              <label className="label">Payment Date</label>
+              <input
+                className="input"
+                type="date"
+                value={markPaidDate}
+                max={new Date().toISOString().split("T")[0]}
+                onChange={e => setMarkPaidDate(e.target.value)}
+              />
+              <div style={{ fontSize: "0.72rem", color: "var(--muted)", marginTop: 6 }}>Leave empty to use today's date.</div>
+            </div>
+            <div style={{ display: "flex", gap: 12, marginTop: 20 }}>
+              <button className="btn btn-primary" style={{ flex: 1, justifyContent: "center" }} onClick={handleMarkPaidConfirm}>✓ Confirm Paid</button>
+              <button className="btn btn-outline" style={{ flex: 1, justifyContent: "center" }} onClick={() => setMarkPaidModal(null)}>Cancel</button>
             </div>
           </div>
         </div>
@@ -2840,7 +2902,7 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
               </div>
               <div className="form-group">
                 <label className="label">Monthly Salary (€)</label>
-                <input className="input" type="number" value={editContractForm.salaryCents} onChange={e => setEditContractForm(f => ({ ...f, salaryCents: e.target.value }))} placeholder="3000" />
+                <input className="input" type="number" min="0" value={editContractForm.salaryCents} onChange={e => setEditContractForm(f => ({ ...f, salaryCents: e.target.value }))} placeholder="3000" />
               </div>
               <div className="form-group">
                 <label className="label">Bonus Details</label>
@@ -2894,7 +2956,7 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
               </div>
               <div className="form-group">
                 <label className="label">Monthly Salary (€)</label>
-                <input className="input" type="number" value={contractForm.salaryCents} onChange={e => setContractForm(f => ({ ...f, salaryCents: e.target.value }))} placeholder="3000" />
+                <input className="input" type="number" min="0" value={contractForm.salaryCents} onChange={e => setContractForm(f => ({ ...f, salaryCents: e.target.value }))} placeholder="3000" />
               </div>
               <div className="form-group">
                 <label className="label">Contract File <span style={{ color: "var(--muted)", fontWeight: 400 }}>(optional — PDF, Excel, image)</span></label>
@@ -2967,7 +3029,7 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
                       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 10 }}>
                         <div className="form-group" style={{ margin: 0 }}>
                           <label className="label" style={{ fontSize: "0.72rem" }}>Amount (€) <span style={{ color: "var(--accent)" }}>*</span></label>
-                          <input className="input" type="number" style={{ fontSize: "0.85rem", padding: "8px 12px" }} value={inst.amountEur} onChange={e => updateInstallment(idx, "amountEur", e.target.value)} placeholder="5000" />
+                          <input className="input" type="number" min="0" style={{ fontSize: "0.85rem", padding: "8px 12px" }} value={inst.amountEur} onChange={e => updateInstallment(idx, "amountEur", e.target.value)} placeholder="5000" />
                         </div>
                         <div className="form-group" style={{ margin: 0 }}>
                           <label className="label" style={{ fontSize: "0.72rem" }}>Due Date <span style={{ color: "var(--accent)" }}>*</span></label>

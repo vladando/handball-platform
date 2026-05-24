@@ -32,6 +32,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       salaryCents: body.salaryCents !== undefined ? (body.salaryCents ? parseInt(body.salaryCents) : null) : existing.salaryCents,
       bonusDetails: body.bonusDetails?.trim() ?? existing.bonusDetails,
       notes: body.notes?.trim() ?? existing.notes,
+      contractFileUrl: body.contractFileUrl !== undefined ? body.contractFileUrl : existing.contractFileUrl,
       isActive: body.isActive !== undefined ? body.isActive : existing.isActive,
     },
     include: { player: { select: { id: true, firstName: true, lastName: true } } },

@@ -146,6 +146,10 @@ const STICKY_HEADER: React.CSSProperties = {
   borderBottom: "1px solid rgba(245,243,238,0.06)",
 };
 
+// ── Toast notification system ────────────────────────────────────
+type Toast = { id: number; msg: string; type: "success" | "error" };
+let _toastId = 0;
+
 export default function AgentDashboardClient({ agent, adminView = false }: { agent: any; adminView?: boolean }) {
   const searchParams = useSearchParams();
 
@@ -156,6 +160,19 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
   const [commissions, setCommissions] = useState<any[]>(agent.commissions ?? []);
   const [transfers, setTransfers] = useState<any[]>(agent.transfers ?? []);
   const [pitchDecks, setPitchDecks] = useState<any[]>(agent.pitchDecks ?? []);
+
+  // Toast notifications
+  const [toasts, setToasts] = useState<Toast[]>([]);
+  function showToast(msg: string, type: "success" | "error" = "success") {
+    const id = ++_toastId;
+    setToasts(ts => [...ts, { id, msg, type }]);
+    setTimeout(() => setToasts(ts => ts.filter(t => t.id !== id)), 3500);
+  }
+
+  // Search filters for list tabs
+  const [contractSearch, setContractSearch] = useState("");
+  const [commissionSearch, setCommissionSearch] = useState("");
+  const [transferSearch, setTransferSearch] = useState("");
   const [calendarEvents, setCalendarEvents] = useState<any[]>(agent.calendarEvents ?? []);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
 
@@ -250,6 +267,25 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
   // Mark Paid modal
   const [markPaidModal, setMarkPaidModal] = useState<{ id: string; playerName: string } | null>(null);
   const [markPaidDate, setMarkPaidDate] = useState("");
+
+  // Escape key — close topmost open modal
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== "Escape") return;
+      if (markPaidModal) { setMarkPaidModal(null); return; }
+      if (confirmDelete) { setConfirmDelete(null); return; }
+      if (detailModal) { setDetailModal(null); return; }
+      if (showEventModal) { setShowEventModal(false); return; }
+      if (notifOpen) { setNotifOpen(false); return; }
+      if (showTransferModal) { setShowTransferModal(false); return; }
+      if (showContractModal) { setShowContractModal(false); return; }
+      if (showCommissionModal) { setShowCommissionModal(false); return; }
+      if (showAddModal) { setShowAddModal(false); return; }
+      if (editContract) { setEditContract(null); return; }
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  });
 
   // Players sub-tab: "roster" | "free" | "requests"
   const [playersSubTab, setPlayersSubTab] = useState<"roster" | "free" | "requests">("roster");
@@ -513,6 +549,7 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
     }
     setDeleting(false);
     setConfirmDelete(null);
+    showToast("Deleted successfully");
   }
 
   // ── Add Contract ─────────────────────────────────────────────────
@@ -549,6 +586,7 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
     setShowContractModal(false);
     setContractForm({ playerId: "", clubName: "", startDate: "", endDate: "", salaryCents: "", bonusDetails: "", notes: "" });
     setContractDocFile(null);
+    showToast("Contract added successfully");
   }
 
   function handleDeleteContract(id: string, name: string) {
@@ -580,6 +618,7 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
     if (!res.ok) { setEditContractError(data.error ?? "Failed to save."); return; }
     setContracts(cs => cs.map(c => c.id === editContract.id ? data.contract : c));
     setEditContract(null);
+    showToast("Contract updated");
   }
 
   // ── Commission helpers ───────────────────────────────────────────
@@ -620,6 +659,7 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
     setShowCommissionModal(false);
     setCommissionPlayerId("");
     setCommissionInstallments([{ description: "", amountEur: "", dueDate: "", notes: "" }]);
+    showToast(`${newItems.length > 1 ? `${newItems.length} commissions` : "Commission"} added`);
   }
 
   async function handleMarkPaidConfirm() {
@@ -630,7 +670,7 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
       body: JSON.stringify({ status: "PAID", paidAt }),
     });
     const data = await res.json();
-    if (res.ok) setCommissions(cs => cs.map(c => c.id === markPaidModal.id ? data.commission : c));
+    if (res.ok) { setCommissions(cs => cs.map(c => c.id === markPaidModal.id ? data.commission : c)); showToast("Commission marked as paid ✓"); }
     setMarkPaidModal(null);
     setMarkPaidDate("");
   }
@@ -682,6 +722,7 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
     setShowTransferModal(false);
     setTransferForm({ playerId: "", fromClub: "", toClub: "", transferDate: "", salaryEur: "", salaryMonths: "", contractStartDate: "", contractEndDate: "", commissionEur: "", commissionDueDate: "", commissionDescription: "", notes: "" });
     setTransferDocFile(null);
+    showToast("Transfer recorded" + (data.commission ? " · Commission created" : "") + (data.contract ? " · Contract created" : ""));
   }
 
   function handleDeleteTransfer(id: string, name: string) {
@@ -986,13 +1027,17 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
             {/* ── Stats ── */}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12, marginBottom: 24 }}>
               {[
-                { label: "Total Players", val: stats.total, sub: "in roster", color: "var(--white)" },
-                { label: "Available", val: stats.available, sub: "for transfer", color: stats.available > 0 ? "#00c864" : "var(--muted)" },
-                { label: "Pending Commissions", val: stats.pendingCommissions, sub: "awaiting payment", color: stats.pendingCommissions > 0 ? "var(--accent)" : "var(--muted)" },
-                { label: "Pending Value", val: fmtCents(stats.totalPendingCents), sub: "total outstanding", color: stats.totalPendingCents > 0 ? "var(--white)" : "var(--muted)" },
-                { label: "Completed Payments", val: fmtCents(stats.totalPaidCents), sub: `${stats.paidCommissions} paid`, color: stats.paidCommissions > 0 ? "#00c864" : "var(--muted)" },
+                { label: "Total Players", val: stats.total, sub: "in roster", color: "var(--white)", goto: "players" as Tab },
+                { label: "Available", val: stats.available, sub: "for transfer", color: stats.available > 0 ? "#00c864" : "var(--muted)", goto: "players" as Tab },
+                { label: "Pending Commissions", val: stats.pendingCommissions, sub: "awaiting payment", color: stats.pendingCommissions > 0 ? "var(--accent)" : "var(--muted)", goto: "commissions" as Tab },
+                { label: "Pending Value", val: fmtCents(stats.totalPendingCents), sub: "total outstanding", color: stats.totalPendingCents > 0 ? "var(--white)" : "var(--muted)", goto: "commissions" as Tab },
+                { label: "Completed Payments", val: fmtCents(stats.totalPaidCents), sub: `${stats.paidCommissions} paid`, color: stats.paidCommissions > 0 ? "#00c864" : "var(--muted)", goto: "commissions" as Tab },
               ].map(s => (
-                <div key={s.label} className="card" style={{ textAlign: "center", padding: "16px 12px" }}>
+                <div key={s.label} className="card" style={{ textAlign: "center", padding: "16px 12px", cursor: "pointer", transition: "border-color 0.15s" }}
+                  onClick={() => switchTab(s.goto)}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = "rgba(232,255,71,0.3)"; }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = ""; }}
+                >
                   <div style={{ fontFamily: "var(--font-display)", fontWeight: 900, fontSize: "1.6rem", color: s.color, lineHeight: 1 }}>{s.val}</div>
                   <div style={{ fontSize: "0.65rem", color: "var(--muted)", marginTop: 6, textTransform: "uppercase", letterSpacing: "0.06em", lineHeight: 1.3 }}>{s.label}</div>
                   <div style={{ fontSize: "0.6rem", color: "rgba(107,107,107,0.6)", marginTop: 2 }}>{s.sub}</div>
@@ -1736,22 +1781,36 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
         {/* ══════════════════ CONTRACTS ══════════════════ */}
         {tab === "contracts" && (
           <div className="tab-content">
-            <div style={{ ...STICKY_HEADER, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.62rem", color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.18em" }}>
-                Contracts <span style={{ color: "var(--muted)", fontWeight: 400 }}>({contracts.length})</span>
-              </span>
-              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                {contracts.length > 0 && (
-                  <div style={{ display: "flex", border: "1px solid rgba(245,243,238,0.12)", borderRadius: "var(--radius)", overflow: "hidden" }}>
-                    {(["table", "gantt"] as const).map(m => (
-                      <button key={m} onClick={() => setContractView(m)} style={{ padding: "4px 10px", background: contractView === m ? "var(--accent)" : "transparent", color: contractView === m ? "var(--black)" : "var(--muted)", border: "none", cursor: "pointer", fontFamily: "var(--font-display)", fontSize: "0.65rem", fontWeight: 700, textTransform: "uppercase" }}>
-                        {m === "table" ? "☰" : "▦"}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                <button className="btn btn-primary" style={{ fontSize: "0.75rem", padding: "6px 14px" }} onClick={() => { setContractForm({ playerId: "", clubName: "", startDate: "", endDate: "", salaryCents: "", bonusDetails: "", notes: "" }); setContractDocFile(null); setContractError(""); setShowContractModal(true); }}>+ Add Contract</button>
+            <div style={{ ...STICKY_HEADER }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: contracts.length > 0 ? 10 : 0 }}>
+                <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.62rem", color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.18em" }}>
+                  Contracts <span style={{ color: "var(--muted)", fontWeight: 400 }}>({contracts.length})</span>
+                </span>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  {contracts.length > 0 && (
+                    <div style={{ display: "flex", border: "1px solid rgba(245,243,238,0.12)", borderRadius: "var(--radius)", overflow: "hidden" }}>
+                      {(["table", "gantt"] as const).map(m => (
+                        <button key={m} onClick={() => setContractView(m)} style={{ padding: "4px 10px", background: contractView === m ? "var(--accent)" : "transparent", color: contractView === m ? "var(--black)" : "var(--muted)", border: "none", cursor: "pointer", fontFamily: "var(--font-display)", fontSize: "0.65rem", fontWeight: 700, textTransform: "uppercase" }}>
+                          {m === "table" ? "☰" : "▦"}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <button className="btn btn-primary" style={{ fontSize: "0.75rem", padding: "6px 14px" }} onClick={() => { setContractForm({ playerId: "", clubName: "", startDate: "", endDate: "", salaryCents: "", bonusDetails: "", notes: "" }); setContractDocFile(null); setContractError(""); setShowContractModal(true); }}>+ Add Contract</button>
+                </div>
               </div>
+              {contracts.length > 0 && (
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <input
+                    value={contractSearch} onChange={e => setContractSearch(e.target.value)}
+                    placeholder="Search by player or club…"
+                    style={{ flex: 1, background: "var(--card2)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "6px 10px", fontSize: "0.78rem", color: "var(--white)", outline: "none", fontFamily: "var(--font-mono)" }}
+                  />
+                  {contractSearch && (
+                    <button onClick={() => setContractSearch("")} style={{ background: "none", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "5px 10px", fontSize: "0.7rem", color: "var(--muted)", cursor: "pointer" }}>✕</button>
+                  )}
+                </div>
+              )}
             </div>
 
             {contracts.length === 0 ? (
@@ -1761,7 +1820,11 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
                 <p style={{ color: "var(--muted)", fontSize: "0.88rem", marginBottom: 24 }}>Track your players&apos; club contracts, salaries, and expiry dates.</p>
                 <button className="btn btn-primary" onClick={() => { setContractForm({ playerId: "", clubName: "", startDate: "", endDate: "", salaryCents: "", bonusDetails: "", notes: "" }); setContractDocFile(null); setContractError(""); setShowContractModal(true); }}>+ Add First Contract</button>
               </div>
-            ) : contractView === "gantt" ? (() => {
+            ) : (() => {
+              const filteredContracts = contractSearch.trim() === ""
+                ? contracts
+                : contracts.filter((c: any) => (`${c.player.firstName} ${c.player.lastName} ${c.clubName}`).toLowerCase().includes(contractSearch.toLowerCase()));
+              return contractView === "gantt" ? (() => {
               const allDates = contracts.flatMap((c: any) => [c.startDate, c.endDate].filter(Boolean).map((d: string) => new Date(d).getTime()));
               const minTs = Math.min(...allDates);
               const maxTs = Math.max(...allDates);
@@ -1780,7 +1843,7 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
                     <div style={{ position: "absolute", left: `${nowPct}%`, top: -16, transform: "translateX(-50%)", fontSize: "0.55rem", color: "var(--accent)", fontFamily: "var(--font-mono)", whiteSpace: "nowrap" }}>Today</div>
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 10, paddingTop: 8 }}>
-                    {sortItems(contracts, contractSort.key, contractSort.dir).map((c: any) => {
+                    {sortItems(filteredContracts, contractSort.key, contractSort.dir).map((c: any) => {
                       const start = c.startDate ? new Date(c.startDate).getTime() : minTs;
                       const end = c.endDate ? new Date(c.endDate).getTime() : maxTs;
                       const left = ((start - minTs) / span) * 100;
@@ -1827,7 +1890,7 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
                     </tr>
                   </thead>
                   <tbody>
-                    {sortItems(contracts, contractSort.key, contractSort.dir).map((c: any) => {
+                    {sortItems(filteredContracts, contractSort.key, contractSort.dir).map((c: any) => {
                       const days = daysLeft(c.endDate);
                       const expired = days < 0;
                       return (
@@ -1869,18 +1932,32 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
                   </tbody>
                 </table>
               </div>
-            )}
+            )})()}
           </div>
         )}
 
         {/* ══════════════════ COMMISSIONS ══════════════════ */}
         {tab === "commissions" && (
           <div className="tab-content">
-            <div style={{ ...STICKY_HEADER, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.62rem", color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.18em" }}>
-                Commissions <span style={{ color: "var(--muted)", fontWeight: 400 }}>({commissions.length})</span>
-              </span>
-              <button className="btn btn-primary" style={{ fontSize: "0.75rem", padding: "6px 14px" }} onClick={() => { setCommissionPlayerId(""); setCommissionInstallments([{ description: "", amountEur: "", dueDate: "", notes: "" }]); setCommissionError(""); setShowCommissionModal(true); }}>+ Add Commission</button>
+            <div style={{ ...STICKY_HEADER }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: commissions.length > 0 ? 10 : 0 }}>
+                <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.62rem", color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.18em" }}>
+                  Commissions <span style={{ color: "var(--muted)", fontWeight: 400 }}>({commissions.length})</span>
+                </span>
+                <button className="btn btn-primary" style={{ fontSize: "0.75rem", padding: "6px 14px" }} onClick={() => { setCommissionPlayerId(""); setCommissionInstallments([{ description: "", amountEur: "", dueDate: "", notes: "" }]); setCommissionError(""); setShowCommissionModal(true); }}>+ Add Commission</button>
+              </div>
+              {commissions.length > 0 && (
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <input
+                    value={commissionSearch} onChange={e => setCommissionSearch(e.target.value)}
+                    placeholder="Search by player or description…"
+                    style={{ flex: 1, background: "var(--card2)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "6px 10px", fontSize: "0.78rem", color: "var(--white)", outline: "none", fontFamily: "var(--font-mono)" }}
+                  />
+                  {commissionSearch && (
+                    <button onClick={() => setCommissionSearch("")} style={{ background: "none", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "5px 10px", fontSize: "0.7rem", color: "var(--muted)", cursor: "pointer" }}>✕</button>
+                  )}
+                </div>
+              )}
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 20 }}>
@@ -1905,7 +1982,11 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
                 <p style={{ color: "var(--muted)", fontSize: "0.88rem", marginBottom: 24 }}>Track pending and paid commissions. Set due dates to get overdue alerts.</p>
                 <button className="btn btn-primary" onClick={() => { setCommissionPlayerId(""); setCommissionInstallments([{ description: "", amountEur: "", dueDate: "", notes: "" }]); setCommissionError(""); setShowCommissionModal(true); }}>+ Add First Commission</button>
               </div>
-            ) : (
+            ) : (() => {
+              const filteredCommissions = commissionSearch.trim() === ""
+                ? commissions
+                : commissions.filter((c: any) => (`${c.player.firstName} ${c.player.lastName} ${c.description ?? ""}`).toLowerCase().includes(commissionSearch.toLowerCase()));
+              return (
               <div className="table-wrap">
                 <table className="table">
                   <thead>
@@ -1919,7 +2000,7 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
                     </tr>
                   </thead>
                   <tbody>
-                    {sortItems(commissions, commissionSort.key, commissionSort.dir).map((c: any) => {
+                    {sortItems(filteredCommissions, commissionSort.key, commissionSort.dir).map((c: any) => {
                       const od = c.status === "PENDING" ? overdueLevel(c.dueDate) : { days: -1, label: "", color: "", bg: "" };
                       const isOverdue = od.days >= 0;
                       return (
@@ -1953,18 +2034,33 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
                   </tbody>
                 </table>
               </div>
-            )}
+            );
+            })()}
           </div>
         )}
 
         {/* ══════════════════ TRANSFERS ══════════════════ */}
         {tab === "transfers" && (
           <div className="tab-content">
-            <div style={{ ...STICKY_HEADER, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.62rem", color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.18em" }}>
-                Transfers <span style={{ color: "var(--muted)", fontWeight: 400 }}>({transfers.length})</span>
-              </span>
-              <button className="btn btn-primary" style={{ fontSize: "0.75rem", padding: "6px 14px" }} onClick={() => { setTransferForm({ playerId: "", fromClub: "", toClub: "", transferDate: "", salaryEur: "", salaryMonths: "", contractStartDate: "", contractEndDate: "", commissionEur: "", commissionDueDate: "", commissionDescription: "", notes: "" }); setTransferDocFile(null); setTransferError(""); setShowTransferModal(true); }}>+ Add Transfer</button>
+            <div style={{ ...STICKY_HEADER }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: transfers.length > 0 ? 10 : 0 }}>
+                <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.62rem", color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.18em" }}>
+                  Transfers <span style={{ color: "var(--muted)", fontWeight: 400 }}>({transfers.length})</span>
+                </span>
+                <button className="btn btn-primary" style={{ fontSize: "0.75rem", padding: "6px 14px" }} onClick={() => { setTransferForm({ playerId: "", fromClub: "", toClub: "", transferDate: "", salaryEur: "", salaryMonths: "", contractStartDate: "", contractEndDate: "", commissionEur: "", commissionDueDate: "", commissionDescription: "", notes: "" }); setTransferDocFile(null); setTransferError(""); setShowTransferModal(true); }}>+ Add Transfer</button>
+              </div>
+              {transfers.length > 0 && (
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <input
+                    value={transferSearch} onChange={e => setTransferSearch(e.target.value)}
+                    placeholder="Search by player, from or to club…"
+                    style={{ flex: 1, background: "var(--card2)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "6px 10px", fontSize: "0.78rem", color: "var(--white)", outline: "none", fontFamily: "var(--font-mono)" }}
+                  />
+                  {transferSearch && (
+                    <button onClick={() => setTransferSearch("")} style={{ background: "none", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "5px 10px", fontSize: "0.7rem", color: "var(--muted)", cursor: "pointer" }}>✕</button>
+                  )}
+                </div>
+              )}
             </div>
 
             {transfers.length > 0 && (() => {
@@ -2000,7 +2096,11 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
                 <p style={{ color: "var(--muted)", fontSize: "0.88rem", marginBottom: 24 }}>Record every move — fees, salaries, and contract length all in one place.</p>
                 <button className="btn btn-primary" onClick={() => { setTransferForm({ playerId: "", fromClub: "", toClub: "", transferDate: "", salaryEur: "", salaryMonths: "", contractStartDate: "", contractEndDate: "", commissionEur: "", commissionDueDate: "", commissionDescription: "", notes: "" }); setTransferDocFile(null); setTransferError(""); setShowTransferModal(true); }}>+ Add First Transfer</button>
               </div>
-            ) : (
+            ) : (() => {
+              const filteredTransfers = transferSearch.trim() === ""
+                ? transfers
+                : transfers.filter((t: any) => (`${t.player.firstName} ${t.player.lastName} ${t.fromClub ?? ""} ${t.toClub}`).toLowerCase().includes(transferSearch.toLowerCase()));
+              return (
               <div className="table-wrap">
                 <table className="table">
                   <thead>
@@ -2016,7 +2116,7 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
                     </tr>
                   </thead>
                   <tbody>
-                    {sortItems(transfers, transferSort.key, transferSort.dir).map((t: any) => (
+                    {sortItems(filteredTransfers, transferSort.key, transferSort.dir).map((t: any) => (
                       <tr key={t.id} style={{ cursor: "pointer" }} onClick={() => setDetailModal({ type: "transfer", item: t })}>
                         <td style={{ fontFamily: "var(--font-display)", fontWeight: 700, textTransform: "uppercase" }}>
                           {t.player.firstName} {t.player.lastName}
@@ -2043,7 +2143,8 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
                   </tbody>
                 </table>
               </div>
-            )}
+              );
+            })()}
           </div>
         )}
 
@@ -3495,6 +3596,28 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
       )}
 
     </div>
+
+    {/* ── Toast notifications ── */}
+    {toasts.length > 0 && (
+      <div style={{ position: "fixed", bottom: 24, right: 24, zIndex: 9999, display: "flex", flexDirection: "column", gap: 8, pointerEvents: "none" }}>
+        {toasts.map(t => (
+          <div key={t.id} style={{
+            background: t.type === "success" ? "rgba(0,200,100,0.96)" : "rgba(220,50,50,0.96)",
+            color: t.type === "success" ? "#000" : "#fff",
+            padding: "10px 16px",
+            borderRadius: "var(--radius)",
+            fontSize: "0.82rem",
+            fontFamily: "var(--font-display)",
+            fontWeight: 700,
+            boxShadow: "0 4px 24px rgba(0,0,0,0.45)",
+            maxWidth: 340,
+            lineHeight: 1.4,
+          }}>
+            {t.type === "success" ? "✓ " : "✕ "}{t.msg}
+          </div>
+        ))}
+      </div>
+    )}
     </main>
   );
 }

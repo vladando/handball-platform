@@ -15,15 +15,17 @@ export default async function PlayersPage() {
   const session = await getServerSession(authOptions);
   const role = (session?.user as any)?.role;
 
-  // CLUB, AGENT, and ADMIN can browse players
-  if (!session || (role !== "CLUB" && role !== "AGENT" && role !== "ADMIN")) {
+  // Only CLUB and ADMIN can browse the public player marketplace
+  // Agents have their own Free Agents section in the dashboard
+  if (!session || (role !== "CLUB" && role !== "ADMIN")) {
+    if (role === "AGENT") redirect("/dashboard/agent");
     redirect("/players/access-denied");
   }
 
   // Check verification/access per role
   let isVerified = role === "ADMIN";
   let hasSubscription = role === "ADMIN";
-  let isAgent = false;
+  const isAgent = false;
 
   if (role === "CLUB") {
     const userId = (session.user as any).id;
@@ -33,18 +35,6 @@ export default async function PlayersPage() {
     }).catch(() => null);
     isVerified = club?.verificationStatus === "VERIFIED";
     hasSubscription = club?.subscriptionStatus === "ACTIVE";
-  }
-
-  if (role === "AGENT") {
-    const userId = (session.user as any).id;
-    const agent = await prisma.agent.findUnique({
-      where: { userId },
-      select: { onboardingCompleted: true },
-    }).catch(() => null);
-    // Agents with completed onboarding get full access (no subscription required)
-    isAgent = true;
-    isVerified = agent?.onboardingCompleted === true;
-    hasSubscription = isVerified; // agents don't need subscription
   }
 
   const players = await prisma.player.findMany({

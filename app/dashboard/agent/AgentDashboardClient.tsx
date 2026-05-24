@@ -912,14 +912,14 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
               {/* Free Players sub-link right below Players */}
               {item.id === "players" && (
                 <li key="free-players-link">
-                  <a href="/players" target="_blank" rel="noopener noreferrer"
-                    style={{ paddingLeft: 36, fontSize: "0.8rem", color: "var(--muted)", display: "flex", alignItems: "center", gap: 8 }}
+                  <button
+                    onClick={() => { switchTab("players"); setPlayersSubTab("free"); }}
+                    style={{ paddingLeft: 36, fontSize: "0.8rem", color: "var(--muted)", display: "flex", alignItems: "center", gap: 8, background: "none", border: "none", cursor: "pointer", width: "100%", textAlign: "left" }}
                     onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "var(--accent)"; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "var(--muted)"; }}>
                     <span style={{ fontSize: "0.85rem" }}>🆓</span>
                     Free Players
-                    <span style={{ marginLeft: "auto", fontSize: "0.6rem", opacity: 0.5 }}>↗</span>
-                  </a>
+                  </button>
                 </li>
               )}
             </>
@@ -1632,7 +1632,7 @@ export default function AgentDashboardClient({ agent }: { agent: any }) {
                       <div style={{ fontSize: "3rem", marginBottom: 16 }}>📨</div>
                       <h4 style={{ marginBottom: 8 }}>No Requests Sent</h4>
                       <p style={{ color: "var(--muted)", marginBottom: 20 }}>Browse the player database to discover players and send representation requests.</p>
-                      <a href="/players" target="_blank" rel="noopener noreferrer" className="btn btn-primary" style={{ justifyContent: "center" }}>🔍 Browse Free Players ↗</a>
+                      <button onClick={() => { switchTab("players"); setPlayersSubTab("free"); }} className="btn btn-primary" style={{ justifyContent: "center" }}>🔍 Browse Free Players</button>
                     </div>
                   ) : (<>
                     {accepted.length > 0 && (

@@ -1440,7 +1440,7 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
                       <button className="btn btn-outline" style={{ fontSize: "0.72rem", padding: "5px 10px" }} onClick={e => { e.stopPropagation(); setHealthModal(p); setHealthForm({ healthStatus: p.healthStatus ?? "HEALTHY", rehabNote: p.rehabNote ?? "", rehabReturnDate: p.rehabReturnDate ? new Date(p.rehabReturnDate).toISOString().split("T")[0] : "" }); setHealthError(""); }}>🏥 Health</button>
                       <button className="btn btn-outline" style={{ fontSize: "0.72rem", padding: "5px 10px" }} onClick={e => { e.stopPropagation(); openNotesModal(p); }}>📝 Notes</button>
                       <Link href={`/dashboard/agent/player/${p.id}/edit`} className="btn btn-outline" style={{ fontSize: "0.72rem", padding: "5px 10px" }} onClick={e => e.stopPropagation()}>✏️ Edit</Link>
-                      <button className="btn btn-danger" style={{ fontSize: "0.72rem", padding: "5px 8px" }} onClick={e => { e.stopPropagation(); setConfirmDelete({ id: p.id, name: `${p.firstName} ${p.lastName}` }); }}>🗑</button>
+                      <button className="btn btn-danger" style={{ fontSize: "0.72rem", padding: "5px 8px" }} onClick={e => { e.stopPropagation(); setConfirmDelete({ id: p.id, name: `${p.firstName} ${p.lastName}`, type: "player" }); }}>🗑</button>
                     </div>
                   </div>
                 ))}
@@ -1525,7 +1525,7 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
                               })()}
                             </div>
                           )}
-                          <button className="btn btn-danger" style={{ fontSize: "0.68rem", padding: "4px 6px" }} onClick={e => { e.stopPropagation(); setConfirmDelete({ id: p.id, name: `${p.firstName} ${p.lastName}` }); }}>🗑</button>
+                          <button className="btn btn-danger" style={{ fontSize: "0.68rem", padding: "4px 6px" }} onClick={e => { e.stopPropagation(); setConfirmDelete({ id: p.id, name: `${p.firstName} ${p.lastName}`, type: "player" }); }}>🗑</button>
                         </div>
                       </div>
                     </div>

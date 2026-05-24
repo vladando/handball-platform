@@ -50,6 +50,9 @@ export default async function AdminAgentViewPage({
       calendarEvents: {
         orderBy: { eventAt: "asc" },
       },
+      cloudFiles: {
+        orderBy: { createdAt: "desc" },
+      },
     },
   });
 

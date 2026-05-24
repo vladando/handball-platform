@@ -43,6 +43,9 @@ export default async function AgentDashboardPage() {
       calendarEvents: {
         orderBy: { eventAt: "asc" },
       },
+      cloudFiles: {
+        orderBy: { createdAt: "desc" },
+      },
     },
   });
 

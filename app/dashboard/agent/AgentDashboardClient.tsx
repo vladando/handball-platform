@@ -120,7 +120,7 @@ function getAge(dob: string | Date | null | undefined): string {
   return String(Math.floor((Date.now() - d.getTime()) / (365.25 * 24 * 3600 * 1000)));
 }
 
-type Tab = "overview" | "players" | "contracts" | "commissions" | "transfers" | "pitch" | "calendar" | "statistics" | "messages" | "settings";
+type Tab = "overview" | "players" | "contracts" | "commissions" | "transfers" | "pitch" | "calendar" | "cloud" | "statistics" | "messages" | "settings";
 
 const NAV_ITEMS: { id: Tab; icon: string; label: string }[] = [
   { id: "overview",     icon: "⊞",  label: "Overview" },
@@ -130,6 +130,7 @@ const NAV_ITEMS: { id: Tab; icon: string; label: string }[] = [
   { id: "transfers",    icon: "🔄", label: "Transfers" },
   { id: "pitch",        icon: "🚀", label: "Pitch Generator" },
   { id: "calendar",     icon: "📅", label: "Calendar" },
+  { id: "cloud",        icon: "☁️", label: "Cloud" },
   { id: "statistics",   icon: "📊", label: "Statistics" },
   { id: "messages",     icon: "💬", label: "Messages" },
   { id: "settings",     icon: "⚙️", label: "Settings" },
@@ -160,6 +161,7 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
   const [commissions, setCommissions] = useState<any[]>(agent.commissions ?? []);
   const [transfers, setTransfers] = useState<any[]>(agent.transfers ?? []);
   const [pitchDecks, setPitchDecks] = useState<any[]>(agent.pitchDecks ?? []);
+  const [cloudFiles, setCloudFiles] = useState<any[]>(agent.cloudFiles ?? []);
 
   // Toast notifications
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -173,6 +175,17 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
   const [contractSearch, setContractSearch] = useState("");
   const [commissionSearch, setCommissionSearch] = useState("");
   const [transferSearch, setTransferSearch] = useState("");
+
+  // Cloud storage state
+  const [cloudSearch, setCloudSearch] = useState("");
+  const [cloudCategory, setCloudCategory] = useState<"all" | "image" | "document" | "other">("all");
+  const [cloudViewMode, setCloudViewMode] = useState<"grid" | "list">("grid");
+  const [cloudUploading, setCloudUploading] = useState(false);
+  const [cloudUploadError, setCloudUploadError] = useState("");
+  const [cloudDragOver, setCloudDragOver] = useState(false);
+  const cloudInputRef = useRef<HTMLInputElement>(null);
+  const [cloudRenameId, setCloudRenameId] = useState<string | null>(null);
+  const [cloudRenameName, setCloudRenameName] = useState("");
   const [calendarEvents, setCalendarEvents] = useState<any[]>(agent.calendarEvents ?? []);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
 
@@ -272,6 +285,7 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key !== "Escape") return;
+      if (cloudRenameId) { setCloudRenameId(null); setCloudRenameName(""); return; }
       if (markPaidModal) { setMarkPaidModal(null); return; }
       if (confirmDelete) { setConfirmDelete(null); return; }
       if (detailModal) { setDetailModal(null); return; }
@@ -529,7 +543,7 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
     } else { setVerifyMsg(data.error ?? "Upload failed. Please try again."); }
   }
 
-  // ── Delete (player / contract / commission / transfer) ───────────
+  // ── Delete (player / contract / commission / transfer / cloud) ───
   async function handleDelete() {
     if (!confirmDelete) return;
     setDeleting(true);
@@ -546,6 +560,9 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
     } else if (type === "transfer") {
       await fetch(`/api/agent/transfers/${id}`, { method: "DELETE" });
       setTransfers(ts => ts.filter(t => t.id !== id));
+    } else if ((type as string) === "cloud") {
+      await fetch(`/api/agent/cloud/${id}`, { method: "DELETE" });
+      setCloudFiles(cf => cf.filter(f => f.id !== id));
     }
     setDeleting(false);
     setConfirmDelete(null);
@@ -807,6 +824,73 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
   async function handleDeletePitch(token: string) {
     await fetch(`/api/agent/pitch/${token}`, { method: "DELETE" });
     setPitchDecks(ds => ds.filter(d => d.token !== token));
+  }
+
+  // ── Cloud Storage ────────────────────────────────────────────────
+  async function handleCloudUpload(files: FileList | File[]) {
+    const arr = Array.from(files);
+    if (arr.length === 0) return;
+    setCloudUploading(true);
+    setCloudUploadError("");
+    let failed = 0;
+    for (const file of arr) {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/agent/cloud", { method: "POST", body: fd });
+      const data = await res.json();
+      if (res.ok) {
+        setCloudFiles(cf => [data.file, ...cf]);
+      } else {
+        failed++;
+        setCloudUploadError(data.error ?? "Upload failed");
+      }
+    }
+    setCloudUploading(false);
+    if (failed === 0) showToast(`${arr.length > 1 ? `${arr.length} files` : "File"} uploaded`);
+  }
+
+  async function handleCloudDelete(id: string) {
+    const res = await fetch(`/api/agent/cloud/${id}`, { method: "DELETE" });
+    if (res.ok) {
+      setCloudFiles(cf => cf.filter(f => f.id !== id));
+      showToast("File deleted");
+    }
+  }
+
+  async function handleCloudRename(id: string) {
+    if (!cloudRenameName.trim()) return;
+    const res = await fetch(`/api/agent/cloud/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: cloudRenameName.trim() }),
+    });
+    const data = await res.json();
+    if (res.ok) {
+      setCloudFiles(cf => cf.map(f => f.id === id ? data.file : f));
+      showToast("Renamed");
+    }
+    setCloudRenameId(null);
+    setCloudRenameName("");
+  }
+
+  function fmtBytes(bytes: number | null | undefined): string {
+    if (!bytes) return "—";
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  function cloudFileIcon(mimeType: string | null): string {
+    if (!mimeType) return "📁";
+    if (mimeType.startsWith("image/")) return "🖼️";
+    if (mimeType === "application/pdf") return "📄";
+    if (mimeType.includes("word") || mimeType === "application/msword") return "📝";
+    if (mimeType.includes("excel") || mimeType.includes("spreadsheet")) return "📊";
+    if (mimeType.includes("powerpoint") || mimeType.includes("presentation")) return "📋";
+    if (mimeType === "text/plain") return "📃";
+    if (mimeType === "text/csv") return "📊";
+    if (mimeType.includes("zip") || mimeType.includes("rar")) return "🗜️";
+    return "📁";
   }
 
   const [editPitch, setEditPitch] = useState<any | null>(null);
@@ -2533,6 +2617,236 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
           );
         })()}
 
+        {/* ══════════════════ CLOUD STORAGE ══════════════════ */}
+        {tab === "cloud" && (
+          <div className="tab-content">
+            {/* Header */}
+            <div style={{ ...STICKY_HEADER }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.62rem", color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.18em" }}>
+                    Cloud <span style={{ color: "var(--muted)", fontWeight: 400 }}>({cloudFiles.length} files · {fmtBytes(cloudFiles.reduce((s, f) => s + (f.size ?? 0), 0))})</span>
+                  </span>
+                </div>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  {/* View toggle */}
+                  <div style={{ display: "flex", border: "1px solid rgba(245,243,238,0.12)", borderRadius: "var(--radius)", overflow: "hidden" }}>
+                    {(["grid", "list"] as const).map(m => (
+                      <button key={m} onClick={() => setCloudViewMode(m)} style={{ padding: "4px 10px", background: cloudViewMode === m ? "var(--accent)" : "transparent", color: cloudViewMode === m ? "var(--black)" : "var(--muted)", border: "none", cursor: "pointer", fontFamily: "var(--font-display)", fontSize: "0.65rem", fontWeight: 700, textTransform: "uppercase" }}>
+                        {m === "grid" ? "⊞" : "☰"}
+                      </button>
+                    ))}
+                  </div>
+                  <button className="btn btn-primary" style={{ fontSize: "0.75rem", padding: "6px 14px" }} onClick={() => cloudInputRef.current?.click()}>
+                    ⬆ Upload
+                  </button>
+                  <input ref={cloudInputRef} type="file" multiple style={{ display: "none" }}
+                    accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.rar"
+                    onChange={e => { if (e.target.files) handleCloudUpload(e.target.files); e.target.value = ""; }}
+                  />
+                </div>
+              </div>
+              {/* Search + category filter */}
+              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                <input
+                  value={cloudSearch} onChange={e => setCloudSearch(e.target.value)}
+                  placeholder="Search files…"
+                  style={{ flex: "1 1 180px", minWidth: 140, background: "var(--card2)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "6px 10px", fontSize: "0.78rem", color: "var(--white)", outline: "none", fontFamily: "var(--font-mono)" }}
+                />
+                <div style={{ display: "flex", border: "1px solid var(--border)", borderRadius: "var(--radius)", overflow: "hidden" }}>
+                  {(["all", "image", "document", "other"] as const).map(cat => (
+                    <button key={cat} onClick={() => setCloudCategory(cat)} style={{ padding: "5px 10px", background: cloudCategory === cat ? "rgba(232,255,71,0.15)" : "transparent", color: cloudCategory === cat ? "var(--accent)" : "var(--muted)", border: "none", cursor: "pointer", fontSize: "0.68rem", fontFamily: "var(--font-display)", fontWeight: 700, textTransform: "uppercase", borderRight: cat !== "other" ? "1px solid var(--border)" : "none" }}>
+                      {cat === "all" ? "All" : cat === "image" ? "🖼 Images" : cat === "document" ? "📄 Docs" : "📁 Other"}
+                    </button>
+                  ))}
+                </div>
+                {cloudSearch && <button onClick={() => setCloudSearch("")} style={{ background: "none", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "5px 10px", fontSize: "0.7rem", color: "var(--muted)", cursor: "pointer" }}>✕</button>}
+              </div>
+            </div>
+
+            {/* Upload error */}
+            {cloudUploadError && (
+              <div style={{ background: "rgba(255,59,59,0.1)", border: "1px solid rgba(255,59,59,0.3)", borderRadius: "var(--radius)", padding: "10px 14px", fontSize: "0.82rem", color: "var(--red)", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                {cloudUploadError}
+                <button onClick={() => setCloudUploadError("")} style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: "1rem" }}>✕</button>
+              </div>
+            )}
+
+            {/* Drag & Drop zone */}
+            <div
+              onDragOver={e => { e.preventDefault(); setCloudDragOver(true); }}
+              onDragLeave={() => setCloudDragOver(false)}
+              onDrop={e => { e.preventDefault(); setCloudDragOver(false); if (e.dataTransfer.files) handleCloudUpload(e.dataTransfer.files); }}
+              onClick={() => cloudInputRef.current?.click()}
+              style={{
+                border: `2px dashed ${cloudDragOver ? "var(--accent)" : "rgba(245,243,238,0.12)"}`,
+                borderRadius: "var(--radius-lg)",
+                padding: "24px",
+                textAlign: "center",
+                cursor: "pointer",
+                marginBottom: 20,
+                background: cloudDragOver ? "rgba(232,255,71,0.04)" : "transparent",
+                transition: "all 0.15s",
+              }}
+            >
+              {cloudUploading ? (
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, color: "var(--accent)" }}>
+                  <span className="spinner" />
+                  <span style={{ fontSize: "0.85rem" }}>Uploading…</span>
+                </div>
+              ) : (
+                <>
+                  <div style={{ fontSize: "2rem", marginBottom: 8 }}>☁️</div>
+                  <div style={{ fontSize: "0.82rem", color: "var(--muted)" }}>
+                    {cloudDragOver ? <span style={{ color: "var(--accent)", fontWeight: 700 }}>Drop to upload</span> : <>Drag & drop files here, or <span style={{ color: "var(--accent)", fontWeight: 700 }}>click to browse</span></>}
+                  </div>
+                  <div style={{ fontSize: "0.68rem", color: "rgba(107,107,107,0.6)", marginTop: 4 }}>Images, PDFs, Word, Excel, PowerPoint, CSV, ZIP · Max 50 MB each</div>
+                </>
+              )}
+            </div>
+
+            {/* File list/grid */}
+            {(() => {
+              const filtered = cloudFiles.filter(f => {
+                const q = cloudSearch.toLowerCase();
+                if (q && !f.name.toLowerCase().includes(q) && !f.originalName?.toLowerCase().includes(q)) return false;
+                if (cloudCategory !== "all" && f.category !== cloudCategory) return false;
+                return true;
+              });
+
+              if (cloudFiles.length === 0) return (
+                <div className="card" style={{ textAlign: "center", padding: "48px 24px" }}>
+                  <div style={{ fontSize: "3rem", marginBottom: 16 }}>☁️</div>
+                  <h4 style={{ marginBottom: 8 }}>Your Cloud is Empty</h4>
+                  <p style={{ color: "var(--muted)", fontSize: "0.88rem", marginBottom: 24 }}>Upload documents, images, contracts, and any files you want to keep safe and accessible.</p>
+                  <button className="btn btn-primary" onClick={() => cloudInputRef.current?.click()}>⬆ Upload First File</button>
+                </div>
+              );
+
+              if (filtered.length === 0) return (
+                <div className="card" style={{ textAlign: "center", padding: "36px 24px", color: "var(--muted)" }}>
+                  No files match your search.
+                  <button onClick={() => { setCloudSearch(""); setCloudCategory("all"); }} style={{ background: "none", border: "none", color: "var(--accent)", cursor: "pointer", fontSize: "inherit", marginLeft: 6 }}>Clear filters</button>
+                </div>
+              );
+
+              if (cloudViewMode === "grid") return (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 12 }}>
+                  {filtered.map((f: any) => {
+                    const isImage = f.category === "image";
+                    const isRenaming = cloudRenameId === f.id;
+                    return (
+                      <div key={f.id} className="card" style={{ padding: 0, overflow: "hidden", display: "flex", flexDirection: "column", transition: "border-color 0.15s" }}
+                        onMouseEnter={e => e.currentTarget.style.borderColor = "rgba(232,255,71,0.25)"}
+                        onMouseLeave={e => e.currentTarget.style.borderColor = ""}
+                      >
+                        {/* Preview / icon */}
+                        <div style={{ height: 110, background: "var(--card2)", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", borderBottom: "1px solid var(--border)", flexShrink: 0 }}>
+                          {isImage
+                            ? <img src={f.url} alt={f.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                            : <span style={{ fontSize: "2.8rem" }}>{cloudFileIcon(f.mimeType)}</span>
+                          }
+                        </div>
+                        {/* Info */}
+                        <div style={{ padding: "10px 12px", flex: 1, display: "flex", flexDirection: "column", gap: 4 }}>
+                          {isRenaming ? (
+                            <form onSubmit={e => { e.preventDefault(); handleCloudRename(f.id); }} style={{ display: "flex", gap: 4 }}>
+                              <input autoFocus className="input" value={cloudRenameName} onChange={e => setCloudRenameName(e.target.value)} style={{ fontSize: "0.78rem", padding: "4px 8px", flex: 1 }} />
+                              <button type="submit" className="btn btn-primary" style={{ padding: "3px 7px", fontSize: "0.7rem" }}>✓</button>
+                            </form>
+                          ) : (
+                            <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "0.78rem", textTransform: "uppercase", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "pointer" }}
+                              title={f.name}
+                              onDoubleClick={() => { setCloudRenameId(f.id); setCloudRenameName(f.name); }}
+                            >
+                              {f.name}
+                            </div>
+                          )}
+                          <div style={{ fontSize: "0.62rem", color: "var(--muted)", display: "flex", justifyContent: "space-between" }}>
+                            <span>{fmtBytes(f.size)}</span>
+                            <span>{fmtDate(f.createdAt)}</span>
+                          </div>
+                        </div>
+                        {/* Actions */}
+                        <div style={{ padding: "6px 10px 10px", display: "flex", gap: 6, borderTop: "1px solid var(--border)" }}>
+                          <a href={f.url} target="_blank" rel="noopener noreferrer" className="btn btn-outline" style={{ flex: 1, fontSize: "0.65rem", padding: "4px 6px", justifyContent: "center", textDecoration: "none" }}>
+                            👁 View
+                          </a>
+                          <button className="btn btn-outline" style={{ fontSize: "0.65rem", padding: "4px 6px" }} title="Rename" onClick={() => { setCloudRenameId(f.id); setCloudRenameName(f.name); }}>✏️</button>
+                          <button className="btn btn-danger" style={{ fontSize: "0.65rem", padding: "4px 6px" }} onClick={() => setConfirmDelete({ id: f.id, name: f.name, type: "cloud" as any })}>🗑</button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+
+              // List view
+              return (
+                <div className="table-wrap">
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>File</th>
+                        <th>Category</th>
+                        <th>Size</th>
+                        <th>Uploaded</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filtered.map((f: any) => {
+                        const isRenaming = cloudRenameId === f.id;
+                        return (
+                          <tr key={f.id}>
+                            <td>
+                              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                {f.category === "image"
+                                  ? <div style={{ width: 36, height: 36, borderRadius: 4, overflow: "hidden", flexShrink: 0, border: "1px solid var(--border)" }}><img src={f.url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /></div>
+                                  : <span style={{ fontSize: "1.4rem", flexShrink: 0 }}>{cloudFileIcon(f.mimeType)}</span>
+                                }
+                                <div>
+                                  {isRenaming ? (
+                                    <form onSubmit={e => { e.preventDefault(); handleCloudRename(f.id); }} style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                                      <input autoFocus className="input" value={cloudRenameName} onChange={e => setCloudRenameName(e.target.value)} style={{ fontSize: "0.82rem", padding: "4px 8px", width: 200 }} />
+                                      <button type="submit" className="btn btn-primary" style={{ padding: "4px 10px", fontSize: "0.72rem" }}>✓ Save</button>
+                                      <button type="button" className="btn btn-outline" style={{ padding: "4px 10px", fontSize: "0.72rem" }} onClick={() => setCloudRenameId(null)}>Cancel</button>
+                                    </form>
+                                  ) : (
+                                    <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "0.82rem", textTransform: "uppercase", cursor: "pointer" }}
+                                      onDoubleClick={() => { setCloudRenameId(f.id); setCloudRenameName(f.name); }}
+                                      title="Double-click to rename"
+                                    >{f.name}</div>
+                                  )}
+                                  {f.originalName !== f.name && <div style={{ fontSize: "0.65rem", color: "var(--muted)" }}>{f.originalName}</div>}
+                                </div>
+                              </div>
+                            </td>
+                            <td>
+                              <span style={{ fontSize: "0.68rem", fontFamily: "var(--font-mono)", textTransform: "uppercase", color: f.category === "image" ? "#00c864" : f.category === "document" ? "var(--accent)" : "var(--muted)" }}>
+                                {f.category}
+                              </span>
+                            </td>
+                            <td style={{ fontFamily: "var(--font-mono)", fontSize: "0.78rem", color: "var(--muted)" }}>{fmtBytes(f.size)}</td>
+                            <td style={{ fontSize: "0.78rem", color: "var(--muted)" }}>{fmtDate(f.createdAt)}</td>
+                            <td>
+                              <div style={{ display: "flex", gap: 6 }}>
+                                <a href={f.url} target="_blank" rel="noopener noreferrer" className="btn btn-outline" style={{ fontSize: "0.7rem", padding: "4px 8px", textDecoration: "none" }}>👁 View</a>
+                                <button className="btn btn-outline" style={{ fontSize: "0.7rem", padding: "4px 8px" }} onClick={() => { setCloudRenameId(f.id); setCloudRenameName(f.name); }}>✏️</button>
+                                <button className="btn btn-danger" style={{ fontSize: "0.7rem", padding: "4px 8px" }} onClick={() => setConfirmDelete({ id: f.id, name: f.name, type: "cloud" as any })}>🗑</button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })()}
+          </div>
+        )}
+
         {/* ══════════════════ STATISTICS ══════════════════ */}
         {tab === "statistics" && (() => {
           const paidCommissions = commissions.filter((c: any) => c.status === "PAID");
@@ -2890,7 +3204,7 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
         <div className="modal-overlay" onClick={() => setConfirmDelete(null)}>
           <div className="modal" style={{ maxWidth: 400 }} onClick={e => e.stopPropagation()}>
             <h4 style={{ textTransform: "uppercase", marginBottom: 8, color: "var(--red)" }}>
-              ⚠ {confirmDelete.type === "player" ? "Remove Player" : confirmDelete.type === "contract" ? "Delete Contract" : confirmDelete.type === "commission" ? "Delete Commission" : "Delete Transfer"}
+              ⚠ {confirmDelete.type === "player" ? "Remove Player" : confirmDelete.type === "contract" ? "Delete Contract" : confirmDelete.type === "commission" ? "Delete Commission" : (confirmDelete.type as string) === "cloud" ? "Delete File" : "Delete Transfer"}
             </h4>
             <p style={{ fontSize: "0.88rem", color: "var(--muted)", marginBottom: 20 }}>
               {confirmDelete.type === "player"

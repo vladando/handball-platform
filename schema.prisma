@@ -499,8 +499,26 @@ model Agent {
   pitchDecks              PitchDeck[]
   representationRequests  RepresentationRequest[]
   contactReveals          AgentContactReveal[]
+  cloudFiles              AgentCloudFile[]
 
   @@map("agents")
+}
+
+model AgentCloudFile {
+  id           String   @id @default(cuid())
+  agentId      String
+  agent        Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  name         String
+  originalName String
+  url          String
+  size         Int?
+  mimeType     String?
+  category     String   @default("other")
+  notes        String?  @db.Text
+  createdAt    DateTime @default(now())
+
+  @@index([agentId])
+  @@map("agent_cloud_files")
 }
 
 model AgentNote {

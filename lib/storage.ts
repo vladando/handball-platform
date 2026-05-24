@@ -238,6 +238,75 @@ export async function saveClubLogo(
   }
 }
 
+// ── Cloud file storage (any file type, up to 50 MB) ───────────────
+const LOCAL_CLOUD_DIR = path.join(PUBLIC_BASE, "uploads", "cloud");
+const CLOUD_MAX_SIZE = 50 * 1024 * 1024; // 50 MB
+
+// Determine file extension from mime type or original name
+function getExtension(file: File): string {
+  const byMime: Record<string, string> = {
+    "image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp", "image/gif": ".gif",
+    "application/pdf": ".pdf",
+    "application/msword": ".doc",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": ".docx",
+    "application/vnd.ms-excel": ".xls",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": ".xlsx",
+    "application/vnd.ms-powerpoint": ".ppt",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation": ".pptx",
+    "text/plain": ".txt",
+    "text/csv": ".csv",
+    "application/zip": ".zip",
+    "application/x-rar-compressed": ".rar",
+  };
+  if (byMime[file.type]) return byMime[file.type];
+  const dotIdx = file.name.lastIndexOf(".");
+  if (dotIdx !== -1) return file.name.slice(dotIdx);
+  return ".bin";
+}
+
+export function getCloudCategory(mimeType: string): string {
+  if (mimeType.startsWith("image/")) return "image";
+  if (
+    mimeType === "application/pdf" ||
+    mimeType === "application/msword" ||
+    mimeType.includes("officedocument") ||
+    mimeType === "text/plain" ||
+    mimeType === "text/csv"
+  ) return "document";
+  return "other";
+}
+
+export async function saveCloudFile(
+  agentId: string,
+  file: File
+): Promise<{ url: string; error?: never } | { url?: never; error: string }> {
+  if (file.size > CLOUD_MAX_SIZE) {
+    return { error: "File is too large. Maximum 50 MB." };
+  }
+
+  const bytes = await file.arrayBuffer();
+  const buffer = Buffer.from(bytes);
+  const ext = getExtension(file);
+  const filename = `${randomUUID()}${ext}`;
+
+  try {
+    const isImage = file.type.startsWith("image/");
+
+    if (useCloudinary && isImage) {
+      // Images → Cloudinary (auto quality/format)
+      const url = await uploadToCloudinary(buffer, `handball/cloud/${agentId}`, file.type);
+      return { url };
+    } else {
+      // All other files (and images when no Cloudinary) → local storage
+      const dir = path.join(LOCAL_CLOUD_DIR, agentId);
+      const url = await uploadLocally(buffer, dir, filename);
+      return { url };
+    }
+  } catch (err: any) {
+    return { error: err?.message ?? "Upload failed." };
+  }
+}
+
 export function deleteLocalFile(url: string) {
   if (!url) return;
   if (url.includes("cloudinary.com")) {

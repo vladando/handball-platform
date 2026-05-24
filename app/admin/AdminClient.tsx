@@ -665,7 +665,7 @@ export default function AdminClient({ clubs, players, interactions, users, agent
                             </div>
                           </td>
                           <td style={{ fontSize: "0.78rem", color: "var(--muted)" }}>{a.user?.email ?? a.email ?? "—"}</td>
-                          <td style={{ fontSize: "0.78rem" }}>{a.nationality ?? "—"}</td>
+                          <td style={{ fontSize: "0.78rem" }}>{a.country ?? "—"}</td>
                           <td style={{ fontFamily: "var(--font-mono)", fontSize: "0.72rem", color: "var(--muted)" }}>{a.licenseNumber ?? "—"}</td>
                           <td style={{ textAlign: "center" }}>
                             <span style={{ fontFamily: "var(--font-mono)", fontWeight: 700, color: "var(--accent)" }}>{a._count?.players ?? 0}</span>

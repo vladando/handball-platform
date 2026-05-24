@@ -38,7 +38,7 @@ export default async function AdminPage() {
       orderBy: { createdAt: "desc" },
       select: {
         id: true, firstName: true, lastName: true,
-        phone: true, nationality: true, licenseNumber: true,
+        phone: true, country: true, licenseNumber: true,
         onboardingCompleted: true, createdAt: true,
         user: { select: { email: true } },
         _count: { select: { players: true, contracts: true, transfers: true, commissions: true } },

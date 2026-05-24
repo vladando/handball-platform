@@ -37,7 +37,7 @@ export default async function AdminPage() {
     prisma.agent.findMany({
       orderBy: { createdAt: "desc" },
       select: {
-        id: true, firstName: true, lastName: true, email: true,
+        id: true, firstName: true, lastName: true,
         phone: true, nationality: true, licenseNumber: true,
         onboardingCompleted: true, createdAt: true,
         user: { select: { email: true } },

@@ -1160,7 +1160,7 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
                         : p.expectedSalaryMax ? `up to €${Math.round(p.expectedSalaryMax / 100).toLocaleString()}/yr`
                         : null;
                       const age = getAge(p.dateOfBirth);
-                      const healthColor = { HEALTHY: "#00c864", INJURED: "var(--red)", REHAB: "#ff8c00", SUSPENDED: "var(--muted)" }[p.healthStatus ?? "HEALTHY"] ?? "#00c864";
+                      const healthColor = ({ HEALTHY: "#00c864", INJURED: "var(--red)", REHAB: "#ff8c00", SUSPENDED: "var(--muted)" } as Record<string, string>)[p.healthStatus ?? "HEALTHY"] ?? "#00c864";
                       return (
                         <div key={p.id}
                           style={{ background: "var(--card2)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", overflow: "hidden", display: "flex", flexDirection: "column", cursor: p.slug && p.onboardingCompleted ? "pointer" : "default", transition: "border-color 0.18s, transform 0.18s", position: "relative" }}

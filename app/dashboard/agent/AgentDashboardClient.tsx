@@ -1149,7 +1149,7 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
                 </div>
               ) : (
                 <>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 10 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 14 }}>
                     {overviewPlayers.map((p: any) => {
                       const pc = contracts.filter(c => c.playerId === p.id);
                       const nc = pc[0];
@@ -1159,58 +1159,101 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
                         : p.expectedSalaryMin ? `from €${Math.round(p.expectedSalaryMin / 100).toLocaleString()}/yr`
                         : p.expectedSalaryMax ? `up to €${Math.round(p.expectedSalaryMax / 100).toLocaleString()}/yr`
                         : null;
+                      const age = getAge(p.dateOfBirth);
+                      const healthColor = { HEALTHY: "#00c864", INJURED: "var(--red)", REHAB: "#ff8c00", SUSPENDED: "var(--muted)" }[p.healthStatus ?? "HEALTHY"] ?? "#00c864";
                       return (
                         <div key={p.id}
-                          style={{ background: "var(--card2)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "12px", display: "flex", gap: 10, alignItems: "flex-start", cursor: p.slug && p.onboardingCompleted ? "pointer" : "default", transition: "border-color 0.15s" }}
+                          style={{ background: "var(--card2)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", overflow: "hidden", display: "flex", flexDirection: "column", cursor: p.slug && p.onboardingCompleted ? "pointer" : "default", transition: "border-color 0.18s, transform 0.18s", position: "relative" }}
                           onClick={e => { if ((e.target as HTMLElement).closest("button,a")) return; if (p.slug && p.onboardingCompleted) window.open(`/players/${p.slug}`, "_blank"); }}
-                          onMouseEnter={e => { if (p.slug && p.onboardingCompleted) e.currentTarget.style.borderColor = "rgba(232,255,71,0.3)"; }}
-                          onMouseLeave={e => { e.currentTarget.style.borderColor = ""; }}
+                          onMouseEnter={e => { if (p.slug && p.onboardingCompleted) { e.currentTarget.style.borderColor = "rgba(232,255,71,0.4)"; e.currentTarget.style.transform = "translateY(-2px)"; } }}
+                          onMouseLeave={e => { e.currentTarget.style.borderColor = ""; e.currentTarget.style.transform = ""; }}
                         >
-                          <div style={{ flexShrink: 0, textAlign: "center" }}>
-                            <div style={{ width: 42, height: 42, borderRadius: "50%", background: "var(--card)", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.1rem", border: "1px solid var(--border)" }}>
-                              {p.photoUrl ? <img src={p.photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : "👤"}
+                          {/* Photo area */}
+                          <div style={{ position: "relative", height: 160, background: "var(--card)", overflow: "hidden", flexShrink: 0 }}>
+                            {p.photoUrl
+                              ? <img src={p.photoUrl} alt={p.firstName} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top center" }} />
+                              : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "4rem", opacity: 0.3 }}>👤</div>
+                            }
+                            {/* Gradient overlay at bottom */}
+                            <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(9,9,9,0.85) 0%, rgba(9,9,9,0.1) 55%, transparent 100%)" }} />
+                            {/* Position pill — top left */}
+                            <div style={{ position: "absolute", top: 8, left: 8, background: "rgba(232,255,71,0.92)", color: "#000", fontFamily: "var(--font-display)", fontWeight: 900, fontSize: "0.6rem", textTransform: "uppercase", letterSpacing: "0.08em", padding: "2px 7px", borderRadius: 3 }}>
+                              {posLabel(p.position)}
                             </div>
+                            {/* Health dot — top right */}
+                            <div style={{ position: "absolute", top: 9, right: 9, width: 9, height: 9, borderRadius: "50%", background: healthColor, boxShadow: `0 0 6px ${healthColor}` }} title={p.healthStatus ?? "HEALTHY"} />
+                            {/* Name overlay — bottom */}
+                            <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: "10px 12px 8px" }}>
+                              <div style={{ fontFamily: "var(--font-display)", fontWeight: 900, fontSize: "0.95rem", textTransform: "uppercase", lineHeight: 1.15, color: "#fff", textShadow: "0 1px 4px rgba(0,0,0,0.8)" }}>
+                                {p.firstName}
+                              </div>
+                              <div style={{ fontFamily: "var(--font-display)", fontWeight: 900, fontSize: "0.95rem", textTransform: "uppercase", lineHeight: 1.1, color: "var(--accent)", textShadow: "0 1px 4px rgba(0,0,0,0.8)" }}>
+                                {p.lastName}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Info body */}
+                          <div style={{ padding: "12px 12px 10px", flex: 1, display: "flex", flexDirection: "column", gap: 7 }}>
+                            {/* Nationality + age */}
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                              <span style={{ fontSize: "0.72rem", color: "var(--muted)" }}>
+                                {p.nationality && p.nationality !== "Unknown" ? p.nationality : "—"}
+                              </span>
+                              {age !== "—" && <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.7rem", color: "var(--muted)" }}>{age} yrs</span>}
+                            </div>
+
+                            {/* Current club */}
                             {p.currentClub && (
-                              <div style={{ fontSize: "0.52rem", color: "var(--muted)", marginTop: 3, maxWidth: 48, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={p.currentClub}>
-                                {p.currentClub}
+                              <div style={{ fontSize: "0.72rem", color: "rgba(245,243,238,0.6)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={p.currentClub}>
+                                🏟 {p.currentClub}
+                              </div>
+                            )}
+
+                            {/* Salary */}
+                            {salaryText && (
+                              <div style={{ fontSize: "0.68rem", color: "var(--accent)", fontFamily: "var(--font-mono)", fontWeight: 700 }}>{salaryText}</div>
+                            )}
+
+                            {/* Status badges */}
+                            <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                              <span className={`badge ${p.isAvailable ? "badge-green" : "badge-muted"}`} style={{ fontSize: "0.58rem" }}>{p.isAvailable ? "● Available" : "N/A"}</span>
+                              {(p.healthStatus && p.healthStatus !== "HEALTHY") && (
+                                <span className={`badge ${HEALTH_COLORS[p.healthStatus]}`} style={{ fontSize: "0.58rem" }}>{p.healthStatus}</span>
+                              )}
+                              {p.verificationStatus === "VERIFIED" && <span className="badge badge-green" style={{ fontSize: "0.58rem" }}>✓ Verified</span>}
+                            </div>
+
+                            {/* Contract days left */}
+                            {cd !== null && (
+                              <div style={{ fontSize: "0.65rem", fontFamily: "var(--font-mono)", color: cd < 0 ? "rgba(107,107,107,0.6)" : cd < 30 ? "var(--red)" : cd < 180 ? "var(--accent)" : "#00c864", display: "flex", alignItems: "center", gap: 4 }}>
+                                <span style={{ opacity: 0.6 }}>📄</span>
+                                {cd < 0 ? "Contract expired" : `${cd}d contract left`}
                               </div>
                             )}
                           </div>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: "0.82rem", textTransform: "uppercase", lineHeight: 1.2 }}>
-                              {p.firstName} {p.lastName}
-                            </div>
-                            <div style={{ fontSize: "0.68rem", color: "var(--muted)", marginTop: 2 }}>
-                              {posLabel(p.position)}{p.nationality && p.nationality !== "Unknown" ? ` · ${p.nationality}` : ""}
-                            </div>
-                            <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 5, alignItems: "center" }}>
-                              <span className={`badge ${HEALTH_COLORS[p.healthStatus ?? "HEALTHY"]}`} style={{ fontSize: "0.55rem" }}>{p.healthStatus ?? "HEALTHY"}</span>
-                              <span className={`badge ${p.isAvailable ? "badge-green" : "badge-muted"}`} style={{ fontSize: "0.55rem" }}>{p.isAvailable ? "Available" : "N/A"}</span>
-                            </div>
-                            {salaryText && (
-                              <div style={{ fontSize: "0.6rem", color: "var(--accent)", fontFamily: "var(--font-mono)", marginTop: 4 }}>{salaryText}</div>
+
+                          {/* Footer actions */}
+                          <div style={{ padding: "8px 12px 10px", borderTop: "1px solid var(--border)", display: "flex", gap: 6, alignItems: "center" }}>
+                            {p.onboardingCompleted && p.verificationStatus !== "VERIFIED" && p.verificationStatus !== "PENDING" && (
+                              <button className="btn btn-primary" style={{ fontSize: "0.62rem", padding: "4px 8px", flex: 1, justifyContent: "center" }}
+                                onClick={e => { e.stopPropagation(); setVerifyPlayer({ id: p.id, name: `${p.firstName} ${p.lastName}`, status: p.verificationStatus }); setDocFile(null); setContractFile(null); setVerifyMsg(""); }}>
+                                🔐 Verify
+                              </button>
                             )}
-                            {cd !== null && (
-                              <div style={{ fontSize: "0.62rem", marginTop: 3, color: cd < 0 ? "var(--muted)" : cd < 30 ? "var(--red)" : cd < 180 ? "var(--accent)" : "var(--muted)" }}>
-                                {cd < 0 ? "Contract expired" : `Contract: ${cd}d left`}
-                              </div>
-                            )}
-                            <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
-                              {p.onboardingCompleted && p.verificationStatus !== "VERIFIED" && p.verificationStatus !== "PENDING" && (
-                                <button className="btn btn-primary" style={{ fontSize: "0.55rem", padding: "3px 7px" }}
-                                  onClick={e => { e.stopPropagation(); setVerifyPlayer({ id: p.id, name: `${p.firstName} ${p.lastName}`, status: p.verificationStatus }); setDocFile(null); setContractFile(null); setVerifyMsg(""); }}>
-                                  🔐 Verify
-                                </button>
-                              )}
-                              <Link href={`/dashboard/agent/player/${p.id}/edit`} style={{ fontSize: "0.6rem", color: "var(--muted)" }} onClick={e => e.stopPropagation()}>✏ Edit</Link>
-                            </div>
+                            <Link href={`/dashboard/agent/player/${p.id}/edit`}
+                              className="btn btn-outline"
+                              style={{ fontSize: "0.62rem", padding: "4px 8px", flex: 1, justifyContent: "center", textDecoration: "none" }}
+                              onClick={e => e.stopPropagation()}>
+                              ✏ Edit
+                            </Link>
                           </div>
                         </div>
                       );
                     })}
                   </div>
                   {players.length > 5 && (
-                    <div style={{ fontSize: "0.72rem", color: "var(--muted)", textAlign: "center", paddingTop: 12 }}>
+                    <div style={{ fontSize: "0.72rem", color: "var(--muted)", textAlign: "center", paddingTop: 14 }}>
                       +{players.length - 5} more · <button onClick={() => switchTab("players")} style={{ background: "none", border: "none", color: "var(--accent)", cursor: "pointer", fontSize: "0.72rem", padding: 0 }}>view all</button>
                     </div>
                   )}

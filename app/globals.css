@@ -363,6 +363,10 @@ input,textarea,select,button{max-width:100%}
   .tab-btn{padding:10px 12px;font-size:0.72rem}
 }
 
+/* ── Roster slider — hide scrollbar ────────────────────── */
+.roster-slider::-webkit-scrollbar { display: none; }
+.roster-slider { -ms-overflow-style: none; scrollbar-width: none; }
+
 /* ── Landscape phone ─────────────────────────────────────── */
 @media(max-width:900px) and (orientation:landscape){
   .sidebar{height:calc(100vh - 64px)}

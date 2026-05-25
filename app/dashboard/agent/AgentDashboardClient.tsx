@@ -184,6 +184,7 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
   const [cloudUploadError, setCloudUploadError] = useState("");
   const [cloudDragOver, setCloudDragOver] = useState(false);
   const cloudInputRef = useRef<HTMLInputElement>(null);
+  const rosterScrollRef = useRef<HTMLDivElement>(null);
   const [cloudRenameId, setCloudRenameId] = useState<string | null>(null);
   const [cloudRenameName, setCloudRenameName] = useState("");
   const [calendarEvents, setCalendarEvents] = useState<any[]>(agent.calendarEvents ?? []);
@@ -473,7 +474,7 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
 
   // ── Random 5 players for overview (re-randomised on each mount) ─
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const overviewPlayers = useMemo(() => [...players].sort(() => Math.random() - 0.5).slice(0, 5), []);
+  const overviewPlayers = players;
 
   // ── Filtered players (Players tab) ──────────────────────────────
   const filteredPlayers = players.filter(p => {
@@ -1149,7 +1150,20 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
                 </div>
               ) : (
                 <>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 14 }}>
+                  {/* Slider wrapper */}
+                  <div style={{ position: "relative" }}>
+                    {/* Left arrow */}
+                    {players.length > 1 && (
+                      <button
+                        onClick={() => rosterScrollRef.current?.scrollBy({ left: -234, behavior: "smooth" })}
+                        style={{ position: "absolute", left: -14, top: "50%", transform: "translateY(-50%)", zIndex: 2, width: 32, height: 32, borderRadius: "50%", background: "var(--card2)", border: "1px solid var(--border)", color: "var(--fg)", fontSize: "1.1rem", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 8px rgba(0,0,0,0.4)", padding: 0, lineHeight: 1 }}
+                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = "var(--accent)"; (e.currentTarget as HTMLElement).style.color = "var(--accent)"; }}
+                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = ""; (e.currentTarget as HTMLElement).style.color = ""; }}
+                      >‹</button>
+                    )}
+                    {/* Scroll container */}
+                    <div ref={rosterScrollRef} style={{ display: "flex", gap: 14, overflowX: "auto", scrollSnapType: "x mandatory", scrollBehavior: "smooth", paddingBottom: 4, msOverflowStyle: "none" }}
+                      className="roster-slider">
                     {overviewPlayers.map((p: any) => {
                       const pc = contracts.filter(c => c.playerId === p.id);
                       const nc = pc[0];
@@ -1163,7 +1177,7 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
                       const healthColor = ({ HEALTHY: "#00c864", INJURED: "var(--red)", REHAB: "#ff8c00", SUSPENDED: "var(--muted)" } as Record<string, string>)[p.healthStatus ?? "HEALTHY"] ?? "#00c864";
                       return (
                         <div key={p.id}
-                          style={{ background: "var(--card2)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", overflow: "hidden", display: "flex", flexDirection: "column", cursor: p.slug && p.onboardingCompleted ? "pointer" : "default", transition: "border-color 0.18s, transform 0.18s", position: "relative" }}
+                          style={{ minWidth: 220, flex: "0 0 220px", scrollSnapAlign: "start", background: "var(--card2)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", overflow: "hidden", display: "flex", flexDirection: "column", cursor: p.slug && p.onboardingCompleted ? "pointer" : "default", transition: "border-color 0.18s, transform 0.18s", position: "relative" }}
                           onClick={e => { if ((e.target as HTMLElement).closest("button,a")) return; if (p.slug && p.onboardingCompleted) window.open(`/players/${p.slug}`, "_blank"); }}
                           onMouseEnter={e => { if (p.slug && p.onboardingCompleted) { e.currentTarget.style.borderColor = "rgba(232,255,71,0.4)"; e.currentTarget.style.transform = "translateY(-2px)"; } }}
                           onMouseLeave={e => { e.currentTarget.style.borderColor = ""; e.currentTarget.style.transform = ""; }}
@@ -1251,12 +1265,17 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
                         </div>
                       );
                     })}
-                  </div>
-                  {players.length > 5 && (
-                    <div style={{ fontSize: "0.72rem", color: "var(--muted)", textAlign: "center", paddingTop: 14 }}>
-                      +{players.length - 5} more · <button onClick={() => switchTab("players")} style={{ background: "none", border: "none", color: "var(--accent)", cursor: "pointer", fontSize: "0.72rem", padding: 0 }}>view all</button>
                     </div>
-                  )}
+                    {/* Right arrow */}
+                    {players.length > 1 && (
+                      <button
+                        onClick={() => rosterScrollRef.current?.scrollBy({ left: 234, behavior: "smooth" })}
+                        style={{ position: "absolute", right: -14, top: "50%", transform: "translateY(-50%)", zIndex: 2, width: 32, height: 32, borderRadius: "50%", background: "var(--card2)", border: "1px solid var(--border)", color: "var(--fg)", fontSize: "1.1rem", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 8px rgba(0,0,0,0.4)", padding: 0, lineHeight: 1 }}
+                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = "var(--accent)"; (e.currentTarget as HTMLElement).style.color = "var(--accent)"; }}
+                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = ""; (e.currentTarget as HTMLElement).style.color = ""; }}
+                      >›</button>
+                    )}
+                  </div>
                 </>
               )}
             </div>

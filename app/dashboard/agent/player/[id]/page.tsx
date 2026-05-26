@@ -361,7 +361,7 @@ export default function PlayerDetailPage() {
                     {e.description && <div style={{ fontSize: "0.78rem", color: "rgba(245,243,238,0.7)", marginTop: 6 }}>{e.description}</div>}
                   </div>
                   <div style={{ textAlign: "right", fontFamily: "var(--font-mono)", fontSize: "0.78rem", color: "var(--muted)" }}>
-                    {e.startYear}{e.endYear ? ` — ${e.endYear}` : " — Present"}
+                    {e.startDate ? new Date(e.startDate).getFullYear() : "?"}{e.endDate ? ` — ${new Date(e.endDate).getFullYear()}` : " — Present"}
                     {e.appearances != null && <div style={{ marginTop: 2 }}>{e.appearances} apps{e.goals != null ? ` · ${e.goals} goals` : ""}</div>}
                   </div>
                 </div>

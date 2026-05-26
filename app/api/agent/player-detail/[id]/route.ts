@@ -23,7 +23,7 @@ export async function GET(
   const player = await prisma.player.findFirst({
     where: { id: playerId, agentId: agent.id },
     include: {
-      careerEntries: { orderBy: { startYear: "desc" } },
+      careerEntries: { orderBy: { startDate: "desc" } },
       medicalRecords: { orderBy: { recordDate: "desc" }, take: 10 },
       galleryImages: { orderBy: { createdAt: "desc" } },
       videos: { orderBy: { createdAt: "desc" } },

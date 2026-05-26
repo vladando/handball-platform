@@ -1868,6 +1868,7 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
             {/* ══ Free Players sub-tab ══ */}
             {playersSubTab === "free" && (() => {
               const filtered = freeAgents.filter(p => {
+                if (p.verificationStatus !== "VERIFIED") return false;
                 if (faSearch && !`${p.firstName} ${p.lastName}`.toLowerCase().includes(faSearch.toLowerCase())) return false;
                 if (faFilterPos && p.position !== faFilterPos) return false;
                 return true;

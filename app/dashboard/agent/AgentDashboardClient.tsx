@@ -1091,7 +1091,7 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
         {tab === "overview" && (
           <div className="tab-content">
             {/* Overview header — NOT sticky so stats are always fully visible */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, paddingBottom: 12, borderBottom: "1px solid rgba(245,243,238,0.06)" }}>
+            <div className="agent-overview-header">
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.62rem", color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.18em" }}>Overview</span>
                 <span style={{ fontSize: "0.7rem", color: "rgba(107,107,107,0.5)" }}>·</span>
@@ -1110,7 +1110,7 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
             </div>
 
             {/* ── Stats ── */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12, marginBottom: 24 }}>
+            <div className="agent-stats-grid">
               {[
                 { label: "Total Players", val: stats.total, sub: "in roster", color: "var(--white)", goto: "players" as Tab },
                 { label: "Available", val: stats.available, sub: "for transfer", color: stats.available > 0 ? "#00c864" : "var(--muted)", goto: "players" as Tab },
@@ -1151,10 +1151,10 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
               ) : (
                 <>
                   {/* Slider wrapper */}
-                  <div style={{ position: "relative" }}>
+                  <div className="roster-slider-wrap">
                     {/* Left arrow */}
                     {players.length > 1 && (
-                      <button
+                      <button className="slider-arrow"
                         onClick={() => rosterScrollRef.current?.scrollBy({ left: -234, behavior: "smooth" })}
                         style={{ position: "absolute", left: -14, top: "50%", transform: "translateY(-50%)", zIndex: 2, width: 32, height: 32, borderRadius: "50%", background: "var(--card2)", border: "1px solid var(--border)", color: "var(--fg)", fontSize: "1.1rem", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 8px rgba(0,0,0,0.4)", padding: 0, lineHeight: 1 }}
                         onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = "var(--accent)"; (e.currentTarget as HTMLElement).style.color = "var(--accent)"; }}
@@ -1268,7 +1268,7 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
                     </div>
                     {/* Right arrow */}
                     {players.length > 1 && (
-                      <button
+                      <button className="slider-arrow"
                         onClick={() => rosterScrollRef.current?.scrollBy({ left: 234, behavior: "smooth" })}
                         style={{ position: "absolute", right: -14, top: "50%", transform: "translateY(-50%)", zIndex: 2, width: 32, height: 32, borderRadius: "50%", background: "var(--card2)", border: "1px solid var(--border)", color: "var(--fg)", fontSize: "1.1rem", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 8px rgba(0,0,0,0.4)", padding: 0, lineHeight: 1 }}
                         onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = "var(--accent)"; (e.currentTarget as HTMLElement).style.color = "var(--accent)"; }}
@@ -1281,7 +1281,7 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
             </div>
 
             {/* ── Contracts + Commissions ── */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 20 }}>
+            <div className="agent-2col">
 
               {/* Contracts */}
               <div className="card">
@@ -1978,7 +1978,8 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
               const now = Date.now();
               const nowPct = Math.min(100, Math.max(0, ((now - minTs) / span) * 100));
               return (
-                <div className="card">
+                <div className="card gantt-scroll">
+                  <div className="gantt-inner">
                   <div style={{ fontSize: "0.65rem", color: "var(--muted)", fontFamily: "var(--font-mono)", marginBottom: 12, display: "flex", justifyContent: "space-between" }}>
                     <span>{fmtDate(new Date(minTs))}</span>
                     <span>Timeline</span>
@@ -2017,6 +2018,7 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
                       );
                     })}
                   </div>
+                  </div>{/* /gantt-inner */}
                 </div>
               );
             })() : (
@@ -2519,7 +2521,7 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
                 {/* Day-of-week headers */}
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2, marginBottom: 2 }}>
                   {DOW_LABELS.map(d => (
-                    <div key={d} style={{ textAlign: "center", fontSize: "0.62rem", color: "var(--muted)", fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.08em", paddingBottom: 6 }}>{d}</div>
+                    <div key={d} className="cal-dow-label" style={{ textAlign: "center", fontSize: "0.62rem", color: "var(--muted)", fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.08em", paddingBottom: 6 }}>{d}</div>
                   ))}
                 </div>
 
@@ -2535,6 +2537,7 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
                     return (
                       <div
                         key={idx}
+                        className="cal-day-cell"
                         onClick={() => { setSelectedDay(day); }}
                         style={{
                           minHeight: 44,
@@ -2715,10 +2718,10 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
                   placeholder="Search files…"
                   style={{ flex: "1 1 180px", minWidth: 140, background: "var(--card2)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "6px 10px", fontSize: "0.78rem", color: "var(--white)", outline: "none", fontFamily: "var(--font-mono)" }}
                 />
-                <div style={{ display: "flex", border: "1px solid var(--border)", borderRadius: "var(--radius)", overflow: "hidden" }}>
+                <div className="cloud-cat-filter">
                   {(["all", "image", "document", "other"] as const).map(cat => (
-                    <button key={cat} onClick={() => setCloudCategory(cat)} style={{ padding: "5px 10px", background: cloudCategory === cat ? "rgba(232,255,71,0.15)" : "transparent", color: cloudCategory === cat ? "var(--accent)" : "var(--muted)", border: "none", cursor: "pointer", fontSize: "0.68rem", fontFamily: "var(--font-display)", fontWeight: 700, textTransform: "uppercase", borderRight: cat !== "other" ? "1px solid var(--border)" : "none" }}>
-                      {cat === "all" ? "All" : cat === "image" ? "🖼 Images" : cat === "document" ? "📄 Docs" : "📁 Other"}
+                    <button key={cat} onClick={() => setCloudCategory(cat)} style={{ padding: "5px 10px", background: cloudCategory === cat ? "rgba(232,255,71,0.15)" : "transparent", color: cloudCategory === cat ? "var(--accent)" : "var(--muted)", border: "none", cursor: "pointer", fontSize: "0.68rem", fontFamily: "var(--font-display)", fontWeight: 700, textTransform: "uppercase", borderRight: cat !== "other" ? "1px solid var(--border)" : "none", whiteSpace: "nowrap" }}>
+                      {cat === "all" ? "All" : cat === "image" ? "🖼 Imgs" : cat === "document" ? "📄 Docs" : "📁 Other"}
                     </button>
                   ))}
                 </div>

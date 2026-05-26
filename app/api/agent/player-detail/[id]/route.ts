@@ -24,7 +24,7 @@ export async function GET(
     where: { id: playerId, agentId: agent.id },
     include: {
       careerEntries: { orderBy: { startDate: "desc" } },
-      medicalRecords: { orderBy: { recordDate: "desc" }, take: 10 },
+      medicalRecords: { orderBy: { createdAt: "desc" }, take: 10 },
       galleryImages: { orderBy: { createdAt: "desc" } },
       videos: { orderBy: { createdAt: "desc" } },
     },

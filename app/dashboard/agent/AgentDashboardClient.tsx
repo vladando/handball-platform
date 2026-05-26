@@ -1022,22 +1022,16 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
         />
       )}
 
-      {/* ── Mobile sidebar tab — fixed left edge ── */}
+      {/* ── Mobile FAB — fixed below navbar ── */}
       <button
-        className="mobile-nav-tab"
+        className="mobile-nav-fab"
         onClick={() => setSidebarOpen(o => !o)}
         aria-label={sidebarOpen ? "Close menu" : "Open menu"}
       >
-        {sidebarOpen ? (
-          <span style={{ fontSize: "1.1rem", lineHeight: 1 }}>✕</span>
-        ) : (
-          <>
-            <span style={{ fontSize: "1.2rem", lineHeight: 1 }}>☰</span>
-            <span className="mobile-nav-tab-label">
-              {NAV_ITEMS.find(n => n.id === tab)?.icon ?? "☰"}
-            </span>
-          </>
-        )}
+        {sidebarOpen
+          ? <span style={{ fontSize: "1rem" }}>✕</span>
+          : <span style={{ fontSize: "1.1rem" }}>☰</span>
+        }
       </button>
 
       {/* ── Sidebar ── */}

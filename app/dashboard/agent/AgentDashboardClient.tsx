@@ -1900,81 +1900,94 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
                       <p style={{ color: "var(--muted)" }}>All available players are currently represented or no players match your filters.</p>
                     </div>
                   ) : (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                      {filtered.map((p: any) => (
-                        <div key={p.id} className="card" style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", cursor: "pointer", transition: "border-color 0.15s" }}
-                          onClick={e => { if ((e.target as HTMLElement).closest("button,input,textarea")) return; if (p.slug) window.open(`/players/${p.slug}`, "_blank"); }}
-                          onMouseEnter={e => { e.currentTarget.style.borderColor = "rgba(232,255,71,0.3)"; }}
-                          onMouseLeave={e => { e.currentTarget.style.borderColor = ""; }}
-                        >
-                          <div style={{ width: 48, height: 48, borderRadius: "50%", background: "var(--card2)", border: "2px solid var(--border)", overflow: "hidden", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.2rem" }}>
-                            {p.photoUrl ? <img src={p.photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : "👤"}
-                          </div>
-                          <div style={{ flex: 1, minWidth: 160 }}>
-                            <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: "1rem", textTransform: "uppercase" }}>{p.firstName} {p.lastName}</div>
-                            <div style={{ fontSize: "0.78rem", color: "var(--muted)", marginTop: 2 }}>
-                              {posLabel(p.position)} · {p.nationality ?? "—"}
-                              {p.heightCm && ` · ${p.heightCm}cm`}
-                              {p.currentClub && ` · ${p.currentClub}`}
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 16 }}>
+                      {filtered.map((p: any) => {
+                        const sal = p.expectedSalaryMin && p.expectedSalaryMax
+                          ? `€${Math.round(p.expectedSalaryMin/100).toLocaleString()} – €${Math.round(p.expectedSalaryMax/100).toLocaleString()}/yr`
+                          : p.expectedSalaryMin ? `from €${Math.round(p.expectedSalaryMin/100).toLocaleString()}/yr`
+                          : p.expectedSalaryMax ? `up to €${Math.round(p.expectedSalaryMax/100).toLocaleString()}/yr`
+                          : null;
+                        const healthColor = ({ HEALTHY: "#00c864", INJURED: "var(--red)", REHAB: "#ff8c00", SUSPENDED: "var(--muted)" } as Record<string, string>)[p.healthStatus ?? "HEALTHY"] ?? "#00c864";
+                        return (
+                          <div key={p.id} className="card" style={{ padding: 0, overflow: "hidden", cursor: p.slug ? "pointer" : "default", transition: "border-color 0.15s" }}
+                            onClick={e => { if ((e.target as HTMLElement).closest("button,a,textarea")) return; if (p.slug) window.open(`/players/${p.slug}`, "_blank"); }}
+                            onMouseEnter={e => { if (p.slug) e.currentTarget.style.borderColor = "rgba(232,255,71,0.3)"; }}
+                            onMouseLeave={e => { e.currentTarget.style.borderColor = ""; }}
+                          >
+                            {/* Photo area */}
+                            <div style={{ position: "relative", height: 160, background: "var(--card2)", overflow: "hidden", flexShrink: 0 }}>
+                              {p.photoUrl
+                                ? <img src={p.photoUrl} alt={p.firstName} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top center" }} />
+                                : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "4rem", opacity: 0.3 }}>👤</div>
+                              }
+                              <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(9,9,9,0.85) 0%, rgba(9,9,9,0.1) 55%, transparent 100%)" }} />
+                              <div style={{ position: "absolute", top: 8, left: 8, background: "rgba(232,255,71,0.92)", color: "#000", fontFamily: "var(--font-display)", fontWeight: 900, fontSize: "0.6rem", textTransform: "uppercase", letterSpacing: "0.08em", padding: "2px 7px", borderRadius: 3 }}>
+                                {posLabel(p.position)}
+                              </div>
+                              <div style={{ position: "absolute", top: 9, right: 9, width: 9, height: 9, borderRadius: "50%", background: healthColor, boxShadow: `0 0 6px ${healthColor}` }} title={p.healthStatus ?? "HEALTHY"} />
+                              <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: "10px 12px 8px" }}>
+                                <div style={{ fontFamily: "var(--font-display)", fontWeight: 900, fontSize: "0.95rem", textTransform: "uppercase", lineHeight: 1.15, color: "#fff", textShadow: "0 1px 4px rgba(0,0,0,0.8)" }}>{p.firstName}</div>
+                                <div style={{ fontFamily: "var(--font-display)", fontWeight: 900, fontSize: "0.95rem", textTransform: "uppercase", lineHeight: 1.1, color: "var(--accent)", textShadow: "0 1px 4px rgba(0,0,0,0.8)" }}>{p.lastName}</div>
+                              </div>
                             </div>
-                            {(p.expectedSalaryMin || p.expectedSalaryMax) && (
-                              <div style={{ fontSize: "0.72rem", color: "var(--accent)", fontFamily: "var(--font-mono)", marginTop: 2 }}>
-                                {p.expectedSalaryMin && p.expectedSalaryMax
-                                  ? `€${Math.round(p.expectedSalaryMin/100).toLocaleString()} – €${Math.round(p.expectedSalaryMax/100).toLocaleString()}/yr`
-                                  : p.expectedSalaryMin ? `from €${Math.round(p.expectedSalaryMin/100).toLocaleString()}/yr`
-                                  : `up to €${Math.round(p.expectedSalaryMax/100).toLocaleString()}/yr`}
+                            {/* Info body */}
+                            <div style={{ padding: "12px 12px 10px", display: "flex", flexDirection: "column", gap: 6 }}>
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                <span style={{ fontSize: "0.72rem", color: "var(--muted)" }}>{p.nationality && p.nationality !== "Unknown" ? p.nationality : "—"}</span>
+                                {p.dateOfBirth && <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.7rem", color: "var(--muted)" }}>{getAge(p.dateOfBirth)} yrs</span>}
                               </div>
-                            )}
-                          </div>
-                          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-                            <span className={`badge ${p.isAvailable ? "badge-green" : "badge-muted"}`}>{p.isAvailable ? "Available" : "N/A"}</span>
-                            {p.verificationStatus === "VERIFIED" && <span className="badge badge-green">✅ Verified</span>}
-                          </div>
-
-                          {/* Request area */}
-                          <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }} onClick={e => e.stopPropagation()}>
-                            {p.requestStatus === "ACCEPTED" ? (
-                              <span className="badge badge-green">✓ Accepted</span>
-                            ) : p.requestStatus === "PENDING" ? (
-                              <span className="badge badge-accent">⏳ Pending</span>
-                            ) : p.requestStatus === "REJECTED" ? (
-                              <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-end" }}>
-                                <span className="badge badge-muted">✕ Declined</span>
-                                <button className="btn btn-outline" style={{ fontSize: "0.68rem", padding: "4px 10px" }}
-                                  onClick={() => setFaShowMsgFor(faShowMsgFor === p.id ? null : p.id)}>↺ Re-send</button>
+                              {p.currentClub && (
+                                <div style={{ fontSize: "0.72rem", color: "rgba(245,243,238,0.6)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>🏟 {p.currentClub}</div>
+                              )}
+                              {sal && <div style={{ fontSize: "0.68rem", color: "var(--accent)", fontFamily: "var(--font-mono)", fontWeight: 700 }}>{sal}</div>}
+                              <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                                <span className={`badge ${p.isAvailable ? "badge-green" : "badge-muted"}`} style={{ fontSize: "0.58rem" }}>{p.isAvailable ? "● Available" : "N/A"}</span>
+                                {p.verificationStatus === "VERIFIED" && <span className="badge badge-green" style={{ fontSize: "0.58rem" }}>✓ Verified</span>}
                               </div>
-                            ) : (
-                              faShowMsgFor === p.id ? (
-                                <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 220 }}>
+                            </div>
+                            {/* Footer — request */}
+                            <div style={{ padding: "8px 12px 12px", borderTop: "1px solid var(--border)" }} onClick={e => e.stopPropagation()}>
+                              {p.requestStatus === "ACCEPTED" ? (
+                                <span className="badge badge-green" style={{ width: "100%", justifyContent: "center" }}>✓ Accepted</span>
+                              ) : p.requestStatus === "PENDING" ? (
+                                <span className="badge badge-accent" style={{ width: "100%", justifyContent: "center" }}>⏳ Pending</span>
+                              ) : p.requestStatus === "REJECTED" ? (
+                                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                                  <span className="badge badge-muted" style={{ justifyContent: "center" }}>✕ Declined</span>
+                                  <button className="btn btn-outline" style={{ fontSize: "0.68rem", padding: "5px 10px", width: "100%", justifyContent: "center" }}
+                                    onClick={() => setFaShowMsgFor(faShowMsgFor === p.id ? null : p.id)}>↺ Re-send Request</button>
+                                </div>
+                              ) : faShowMsgFor === p.id ? (
+                                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                                   <textarea
                                     value={faRequestInput[p.id] ?? ""}
                                     onChange={e => setFaRequestInput(prev => ({ ...prev, [p.id]: e.target.value }))}
-                                    placeholder="Optional message to player…"
+                                    placeholder="Optional message…"
                                     rows={2}
-                                    style={{ background: "var(--card2)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "8px 10px", fontSize: "0.78rem", color: "var(--white)", resize: "vertical", fontFamily: "var(--font-mono)", outline: "none" }}
+                                    style={{ background: "var(--card2)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "6px 8px", fontSize: "0.75rem", color: "var(--white)", resize: "none", fontFamily: "var(--font-mono)", outline: "none", width: "100%" }}
                                   />
                                   <div style={{ display: "flex", gap: 6 }}>
-                                    <button className="btn btn-primary" style={{ flex: 1, justifyContent: "center", fontSize: "0.72rem", padding: "5px 10px" }}
+                                    <button className="btn btn-primary" style={{ flex: 1, justifyContent: "center", fontSize: "0.68rem", padding: "5px 8px" }}
                                       disabled={faRequestingId === p.id}
                                       onClick={() => sendRepRequest(p.id)}>
-                                      {faRequestingId === p.id ? <><span className="spinner" /> Sending…</> : "📨 Send Request"}
+                                      {faRequestingId === p.id ? <><span className="spinner" /> Sending…</> : "📨 Send"}
                                     </button>
-                                    <button className="btn btn-outline" style={{ fontSize: "0.72rem", padding: "5px 8px" }} onClick={() => setFaShowMsgFor(null)}>✕</button>
+                                    <button className="btn btn-outline" style={{ fontSize: "0.68rem", padding: "5px 8px" }} onClick={() => setFaShowMsgFor(null)}>✕</button>
                                   </div>
                                 </div>
                               ) : (
-                                <button className="btn btn-primary" style={{ fontSize: "0.72rem", padding: "5px 12px" }}
+                                <button className="btn btn-primary" style={{ width: "100%", justifyContent: "center", fontSize: "0.7rem", padding: "7px 10px" }}
                                   onClick={() => setFaShowMsgFor(p.id)}>
                                   🤝 Request Representation
                                 </button>
-                              )
-                            )}
-                            {faRequestMsg[p.id] && (
-                              <div style={{ fontSize: "0.72rem", color: faRequestMsg[p.id].startsWith("✓") ? "#00c864" : "var(--red)" }}>{faRequestMsg[p.id]}</div>
-                            )}
+                              )}
+                              {faRequestMsg[p.id] && (
+                                <div style={{ fontSize: "0.72rem", color: faRequestMsg[p.id].startsWith("✓") ? "#00c864" : "var(--red)", marginTop: 6 }}>{faRequestMsg[p.id]}</div>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>

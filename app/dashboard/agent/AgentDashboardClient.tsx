@@ -1142,7 +1142,7 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
             {/* Alerts are shown only in the notification bell panel — not on Overview */}
 
             {/* ── Players Roster ── */}
-            <div className="card" style={{ marginBottom: 20 }}>
+            <div className="card overview-roster-card" style={{ marginBottom: 20 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
                 <h4 style={{ textTransform: "uppercase", fontSize: "0.88rem", margin: 0 }}>
                   Players <span style={{ color: "var(--muted)", fontWeight: 400, textTransform: "none" }}>({players.length})</span>

@@ -493,6 +493,11 @@ input,textarea,select,button{max-width:100%}
   .roster-slider > div { min-width: 160px !important; flex: 0 0 160px !important; }
 }
 
+/* ── Overview roster card — hidden on mobile ──────────────────── */
+@media(max-width:768px) {
+  .overview-roster-card { display: none !important; }
+}
+
 /* ── Commission / statistics KPI 4-card grid ──────────────────── */
 .commission-stats-grid {
   display: grid;

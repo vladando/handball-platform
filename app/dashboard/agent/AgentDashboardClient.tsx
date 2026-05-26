@@ -1288,6 +1288,52 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
               )}
             </div>
 
+            {/* ── Transfer History ── */}
+            <div className="card" style={{ marginBottom: 20 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                <h4 style={{ textTransform: "uppercase", fontSize: "0.88rem", margin: 0 }}>
+                  Transfer History <span style={{ color: "var(--muted)", fontWeight: 400, textTransform: "none" }}>({transfers.length})</span>
+                </h4>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button className="btn btn-outline" style={{ fontSize: "0.7rem", padding: "4px 8px" }} onClick={() => switchTab("transfers")}>All →</button>
+                  <button className="btn btn-primary" style={{ fontSize: "0.7rem", padding: "4px 8px" }}
+                    onClick={() => { setTransferForm({ playerId: "", fromClub: "", toClub: "", transferDate: "", salaryEur: "", salaryMonths: "", contractStartDate: "", contractEndDate: "", commissionEur: "", commissionDueDate: "", commissionDescription: "", notes: "" }); setTransferDocFile(null); setTransferError(""); setShowTransferModal(true); }}>+ Add</button>
+                </div>
+              </div>
+              {transfers.length === 0 ? (
+                <div style={{ color: "var(--muted)", fontSize: "0.82rem", textAlign: "center", padding: "20px 0" }}>No transfer records yet</div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column" }}>
+                  {[...transfers].sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 8).map((t: any, i, arr) => (
+                    <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: i < arr.length - 1 ? "1px solid var(--border)" : "none" }}>
+                      <div style={{ width: 32, height: 32, borderRadius: "50%", background: "rgba(232,255,71,0.08)", border: "1px solid rgba(232,255,71,0.2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.85rem", flexShrink: 0 }}>🔄</div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "0.85rem", textTransform: "uppercase", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {t.player.firstName} {t.player.lastName}
+                        </div>
+                        <div style={{ fontSize: "0.7rem", color: "var(--muted)", marginTop: 2, display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
+                          <span style={{ maxWidth: 100, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.fromClub || "Free Agent"}</span>
+                          <span style={{ color: "var(--accent)", fontSize: "0.65rem" }}>→</span>
+                          <span style={{ maxWidth: 100, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.toClub}</span>
+                        </div>
+                      </div>
+                      <div style={{ textAlign: "right", flexShrink: 0 }}>
+                        {t.salaryCents ? (
+                          <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.75rem", color: "var(--accent)" }}>{fmtCents(t.salaryCents)}<span style={{ color: "var(--muted)", fontSize: "0.65rem" }}>/mo</span></div>
+                        ) : null}
+                        <div style={{ fontSize: "0.65rem", color: "var(--muted)", marginTop: 2 }}>{fmtDate(t.transferDate)}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {transfers.length > 8 && (
+                <div style={{ fontSize: "0.72rem", color: "var(--muted)", textAlign: "center", paddingTop: 10 }}>
+                  +{transfers.length - 8} more · <button onClick={() => switchTab("transfers")} style={{ background: "none", border: "none", color: "var(--accent)", cursor: "pointer", fontSize: "0.72rem", padding: 0 }}>view all</button>
+                </div>
+              )}
+            </div>
+
             {/* ── Contracts + Commissions ── */}
             <div className="agent-2col">
 
@@ -1389,55 +1435,6 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
                   </div>
                 )}
               </div>
-            </div>
-
-            {/* ── Transfer History ── */}
-            <div className="card">
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-                <h4 style={{ textTransform: "uppercase", fontSize: "0.88rem", margin: 0 }}>
-                  Transfer History <span style={{ color: "var(--muted)", fontWeight: 400, textTransform: "none" }}>({transfers.length})</span>
-                </h4>
-                <div style={{ display: "flex", gap: 6 }}>
-                  <button className="btn btn-outline" style={{ fontSize: "0.7rem", padding: "4px 8px" }} onClick={() => switchTab("transfers")}>All →</button>
-                  <button className="btn btn-primary" style={{ fontSize: "0.7rem", padding: "4px 8px" }}
-                    onClick={() => { setTransferForm({ playerId: "", fromClub: "", toClub: "", transferDate: "", salaryEur: "", salaryMonths: "", contractStartDate: "", contractEndDate: "", commissionEur: "", commissionDueDate: "", commissionDescription: "", notes: "" }); setTransferDocFile(null); setTransferError(""); setShowTransferModal(true); }}>+ Add</button>
-                </div>
-              </div>
-              {transfers.length === 0 ? (
-                <div style={{ color: "var(--muted)", fontSize: "0.82rem", textAlign: "center", padding: "20px 0" }}>No transfer records yet</div>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column" }}>
-                  {[...transfers].sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 8).map((t: any, i, arr) => (
-                    <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: i < arr.length - 1 ? "1px solid var(--border)" : "none" }}>
-                      {/* Icon */}
-                      <div style={{ width: 32, height: 32, borderRadius: "50%", background: "rgba(232,255,71,0.08)", border: "1px solid rgba(232,255,71,0.2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.85rem", flexShrink: 0 }}>🔄</div>
-                      {/* Info */}
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "0.85rem", textTransform: "uppercase", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                          {t.player.firstName} {t.player.lastName}
-                        </div>
-                        <div style={{ fontSize: "0.7rem", color: "var(--muted)", marginTop: 2, display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
-                          <span style={{ maxWidth: 100, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.fromClub || "Free Agent"}</span>
-                          <span style={{ color: "var(--accent)", fontSize: "0.65rem" }}>→</span>
-                          <span style={{ maxWidth: 100, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.toClub}</span>
-                        </div>
-                      </div>
-                      {/* Right: salary + date */}
-                      <div style={{ textAlign: "right", flexShrink: 0 }}>
-                        {t.salaryCents ? (
-                          <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.75rem", color: "var(--accent)" }}>{fmtCents(t.salaryCents)}<span style={{ color: "var(--muted)", fontSize: "0.65rem" }}>/mo</span></div>
-                        ) : null}
-                        <div style={{ fontSize: "0.65rem", color: "var(--muted)", marginTop: 2 }}>{fmtDate(t.transferDate)}</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {transfers.length > 8 && (
-                <div style={{ fontSize: "0.72rem", color: "var(--muted)", textAlign: "center", paddingTop: 10 }}>
-                  +{transfers.length - 8} more · <button onClick={() => switchTab("transfers")} style={{ background: "none", border: "none", color: "var(--accent)", cursor: "pointer", fontSize: "0.72rem", padding: 0 }}>view all</button>
-                </div>
-              )}
             </div>
 
             {/* ── Income Chart ── */}

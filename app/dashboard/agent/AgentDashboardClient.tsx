@@ -120,7 +120,7 @@ function getAge(dob: string | Date | null | undefined): string {
   return String(Math.floor((Date.now() - d.getTime()) / (365.25 * 24 * 3600 * 1000)));
 }
 
-type Tab = "overview" | "players" | "contracts" | "commissions" | "transfers" | "pitch" | "calendar" | "cloud" | "statistics" | "messages" | "notespad" | "settings";
+type Tab = "overview" | "players" | "contracts" | "commissions" | "transfers" | "pitch" | "calendar" | "cloud" | "statistics" | "messages" | "notespad" | "dossier" | "settings";
 
 const NAV_ITEMS: { id: Tab; icon: string; label: string }[] = [
   { id: "overview",     icon: "⊞",  label: "Overview" },
@@ -133,6 +133,7 @@ const NAV_ITEMS: { id: Tab; icon: string; label: string }[] = [
   { id: "statistics",   icon: "📊", label: "Statistics" },
   { id: "messages",     icon: "💬", label: "Messages" },
   { id: "notespad",     icon: "📓", label: "Notes" },
+  { id: "dossier",      icon: "📁", label: "Player Files" },
   { id: "pitch",        icon: "🚀", label: "Pitch Generator" },
   { id: "settings",     icon: "⚙️", label: "Settings" },
 ];
@@ -298,6 +299,7 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
       if (cloudRenameId) { setCloudRenameId(null); setCloudRenameName(""); return; }
       if (markPaidModal) { setMarkPaidModal(null); return; }
       if (confirmDelete) { setConfirmDelete(null); return; }
+      if (gnViewNote) { setGnViewNote(null); return; }
       if (detailModal) { setDetailModal(null); return; }
       if (showEventModal) { setShowEventModal(false); return; }
       if (notifOpen) { setNotifOpen(false); return; }
@@ -437,11 +439,12 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
   // General notes (Notes tab)
   const [generalNotes, setGeneralNotes] = useState<any[]>([]);
   const [gnLoading, setGnLoading] = useState(false);
-  const [gnForm, setGnForm] = useState({ title: "", content: "", color: "default" });
+  const [gnForm, setGnForm] = useState({ title: "", content: "", color: "default", playerId: "" });
   const [gnSaving, setGnSaving] = useState(false);
   const [gnError, setGnError] = useState("");
   const [gnEditId, setGnEditId] = useState<string | null>(null);
   const [gnSearch, setGnSearch] = useState("");
+  const [gnViewNote, setGnViewNote] = useState<any | null>(null); // full-view modal
 
   // Pitch form
   const [pitchForm, setPitchForm] = useState({ title: "", selectedPlayerIds: [] as string[], message: "", expiresAt: "" });
@@ -987,16 +990,16 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
       });
       const d = await res.json();
       setGnSaving(false);
-      if (res.ok) { setGeneralNotes(ns => ns.map(n => n.id === gnEditId ? d.note : n)); setGnEditId(null); setGnForm({ title: "", content: "", color: "default" }); }
+      if (res.ok) { setGeneralNotes(ns => ns.map(n => n.id === gnEditId ? d.note : n)); setGnEditId(null); setGnForm({ title: "", content: "", color: "default", playerId: "" }); }
       else setGnError(d.error ?? "Error saving.");
     } else {
       const res = await fetch("/api/agent/general-notes", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(gnForm),
+        body: JSON.stringify({ ...gnForm, playerId: gnForm.playerId || null }),
       });
       const d = await res.json();
       setGnSaving(false);
-      if (res.ok) { setGeneralNotes(ns => [d.note, ...ns]); setGnForm({ title: "", content: "", color: "default" }); }
+      if (res.ok) { setGeneralNotes(ns => [d.note, ...ns]); setGnForm({ title: "", content: "", color: "default", playerId: "" }); }
       else setGnError(d.error ?? "Error saving.");
     }
   }
@@ -1005,7 +1008,8 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
     if (!confirm("Delete this note?")) return;
     await fetch(`/api/agent/general-notes/${id}`, { method: "DELETE" });
     setGeneralNotes(ns => ns.filter(n => n.id !== id));
-    if (gnEditId === id) { setGnEditId(null); setGnForm({ title: "", content: "", color: "default" }); }
+    if (gnEditId === id) { setGnEditId(null); setGnForm({ title: "", content: "", color: "default", playerId: "" }); }
+    if (gnViewNote?.id === id) setGnViewNote(null);
   }
 
   async function handleTogglePin(note: any) {
@@ -3353,8 +3357,19 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
                     value={gnForm.content}
                     onChange={e => setGnForm(f => ({ ...f, content: e.target.value }))}
                     placeholder="Write your note here…"
-                    style={{ resize: "vertical", fontSize: "0.88rem", lineHeight: 1.6 }}
+                    style={{ resize: "vertical", fontSize: "0.88rem", lineHeight: 1.6, marginBottom: 8 }}
                   />
+                  <select
+                    className="input"
+                    value={gnForm.playerId}
+                    onChange={e => setGnForm(f => ({ ...f, playerId: e.target.value }))}
+                    style={{ fontSize: "0.85rem" }}
+                  >
+                    <option value="">🔗 Link to player (optional)</option>
+                    {players.map((p: any) => (
+                      <option key={p.id} value={p.id}>{p.firstName} {p.lastName}</option>
+                    ))}
+                  </select>
                 </div>
                 <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                   <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
@@ -3373,7 +3388,7 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
                   <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
                     {gnEditId && (
                       <button type="button" className="btn btn-outline" style={{ fontSize: "0.78rem", padding: "7px 14px" }}
-                        onClick={() => { setGnEditId(null); setGnForm({ title: "", content: "", color: "default" }); setGnError(""); }}>
+                        onClick={() => { setGnEditId(null); setGnForm({ title: "", content: "", color: "default", playerId: "" }); setGnError(""); }}>
                         Cancel
                       </button>
                     )}
@@ -3417,7 +3432,16 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
                               {n.title}
                             </div>
                           )}
-                          <div style={{ fontSize: "0.82rem", lineHeight: 1.6, color: "rgba(245,243,238,0.85)", whiteSpace: "pre-wrap", wordBreak: "break-word", maxHeight: 120, overflow: "hidden" }}>
+                          {n.player && (
+                            <div style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "rgba(245,243,238,0.08)", border: "1px solid rgba(245,243,238,0.14)", borderRadius: 999, padding: "2px 8px", marginBottom: 6, fontSize: "0.68rem", color: "var(--accent)", cursor: "pointer" }}
+                              onClick={() => window.open(`/dashboard/agent/player/${n.player.id}`, "_blank")}>
+                              {n.player.photoUrl
+                                ? <img src={n.player.photoUrl} alt="" style={{ width: 14, height: 14, borderRadius: "50%", objectFit: "cover" }} />
+                                : <span>👤</span>}
+                              {n.player.firstName} {n.player.lastName}
+                            </div>
+                          )}
+                          <div style={{ fontSize: "0.82rem", lineHeight: 1.6, color: "rgba(245,243,238,0.85)", whiteSpace: "pre-wrap", wordBreak: "break-word", maxHeight: 100, overflow: "hidden" }}>
                             {n.content}
                           </div>
                         </div>
@@ -3434,7 +3458,11 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
                         </span>
                         <div style={{ display: "flex", gap: 6 }}>
                           <button className="btn btn-outline" style={{ fontSize: "0.65rem", padding: "3px 8px" }}
-                            onClick={() => { setGnEditId(n.id); setGnForm({ title: n.title ?? "", content: n.content, color: n.color ?? "default" }); window.scrollTo({ top: 0, behavior: "smooth" }); }}>
+                            onClick={() => setGnViewNote(n)}>
+                            🔍 View
+                          </button>
+                          <button className="btn btn-outline" style={{ fontSize: "0.65rem", padding: "3px 8px" }}
+                            onClick={() => { setGnEditId(n.id); setGnForm({ title: n.title ?? "", content: n.content, color: n.color ?? "default", playerId: n.player?.id ?? "" }); window.scrollTo({ top: 0, behavior: "smooth" }); }}>
                             ✏️ Edit
                           </button>
                           <button className="btn btn-danger" style={{ fontSize: "0.65rem", padding: "3px 8px" }}
@@ -3448,6 +3476,65 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
                 </div>
               );
             })()}
+          </div>
+        )}
+
+        {/* ══════════════════ PLAYER DOSSIER ══════════════════ */}
+        {tab === "dossier" && (
+          <div className="tab-content">
+            <div style={{ ...STICKY_HEADER }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.62rem", color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.18em" }}>
+                  Player Files <span style={{ color: "var(--muted)", fontWeight: 400 }}>({players.length})</span>
+                </span>
+              </div>
+            </div>
+            {players.length === 0 ? (
+              <div className="card" style={{ textAlign: "center", padding: "60px 24px" }}>
+                <div style={{ fontSize: "3rem", marginBottom: 16 }}>📁</div>
+                <h4 style={{ marginBottom: 8 }}>No Players</h4>
+                <p style={{ color: "var(--muted)", fontSize: "0.88rem" }}>Add players to see their files here.</p>
+              </div>
+            ) : (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 14 }}>
+                {players.map((p: any) => {
+                  const age = p.dateOfBirth ? Math.floor((Date.now() - new Date(p.dateOfBirth).getTime()) / 31557600000) : null;
+                  const pos = ({ GK: "Goalkeeper", LW: "Left Wing", RW: "Right Wing", LB: "Left Back", RB: "Right Back", CB: "Centre Back", PV: "Pivot" } as Record<string, string>)[p.position ?? ""] ?? p.position ?? "—";
+                  return (
+                    <a key={p.id} href={`/dashboard/agent/player/${p.id}`} target="_blank" rel="noopener noreferrer"
+                      style={{ textDecoration: "none", color: "inherit", display: "block" }}>
+                      <div className="card" style={{ display: "flex", flexDirection: "column", gap: 10, cursor: "pointer", transition: "border-color 0.15s" }}
+                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = "var(--accent)"; }}
+                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = ""; }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                          <div style={{ width: 52, height: 52, borderRadius: "50%", background: "var(--card2)", border: "2px solid var(--border)", overflow: "hidden", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.5rem" }}>
+                            {p.photoUrl ? <img src={p.photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : "👤"}
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: "0.92rem", textTransform: "uppercase", letterSpacing: "0.02em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {p.firstName} {p.lastName}
+                            </div>
+                            <div style={{ fontSize: "0.72rem", color: "var(--muted)", marginTop: 2 }}>{pos}{age ? ` · ${age}y` : ""}{p.nationality ? ` · ${p.nationality}` : ""}</div>
+                          </div>
+                          <span style={{ fontSize: "0.65rem", padding: "2px 8px", borderRadius: 999, background: p.verificationStatus === "VERIFIED" ? "#00c86422" : "#94a3b822", color: p.verificationStatus === "VERIFIED" ? "#00c864" : "var(--muted)", border: `1px solid ${p.verificationStatus === "VERIFIED" ? "#00c86433" : "#94a3b833"}`, flexShrink: 0 }}>
+                            {p.verificationStatus === "VERIFIED" ? "✓" : "—"}
+                          </span>
+                        </div>
+                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                          {p.currentClub && (
+                            <span style={{ fontSize: "0.68rem", color: "var(--muted)", background: "var(--card2)", padding: "2px 8px", borderRadius: 999 }}>🏟 {p.currentClub}</span>
+                          )}
+                          {p.healthStatus && p.healthStatus !== "HEALTHY" && (
+                            <span style={{ fontSize: "0.68rem", color: "#fca5a5", background: "#2a000033", padding: "2px 8px", borderRadius: 999 }}>⚕ {p.healthStatus}</span>
+                          )}
+                        </div>
+                        <div style={{ fontSize: "0.68rem", color: "var(--accent)", fontFamily: "var(--font-mono)", textAlign: "right" }}>Open full profile →</div>
+                      </div>
+                    </a>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 
@@ -4148,6 +4235,88 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
           </div>
         </>
       )}
+
+      {/* ══ NOTE FULL-VIEW MODAL ══ */}
+      {gnViewNote && (() => {
+        const n = generalNotes.find((x: any) => x.id === gnViewNote.id) ?? gnViewNote;
+        const bgMap: Record<string, string> = { default: "var(--card)", yellow: "#2a2700", green: "#002a0f", blue: "#001a2a", red: "#2a0000", purple: "#1a0028" };
+        const dotMap: Record<string, string> = { default: "var(--accent)", yellow: "#fef08a", green: "#86efac", blue: "#7dd3fc", red: "#fca5a5", purple: "#c4b5fd" };
+        const isEditingView = gnEditId === n.id;
+        return (
+          <div className="modal-overlay" onClick={() => { setGnViewNote(null); if (gnEditId === n.id) { setGnEditId(null); setGnForm({ title: "", content: "", color: "default", playerId: "" }); } }}>
+            <div className="modal" style={{ maxWidth: 640, background: bgMap[n.color] ?? "var(--card)", border: `1px solid ${dotMap[n.color] ?? "var(--accent)"}44` }} onClick={e => e.stopPropagation()}>
+              {/* Header */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ width: 10, height: 10, borderRadius: "50%", background: dotMap[n.color] ?? "var(--accent)", flexShrink: 0, display: "inline-block" }} />
+                  <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.6rem", color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.12em" }}>
+                    {new Date(n.updatedAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
+                    {n.pinned && <span style={{ marginLeft: 8, color: dotMap[n.color] ?? "var(--accent)" }}>📌 pinned</span>}
+                  </span>
+                </div>
+                <button style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: "1.2rem" }}
+                  onClick={() => { setGnViewNote(null); if (gnEditId === n.id) { setGnEditId(null); setGnForm({ title: "", content: "", color: "default", playerId: "" }); } }}>✕</button>
+              </div>
+
+              {/* Player badge */}
+              {n.player && (
+                <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "rgba(245,243,238,0.08)", border: "1px solid rgba(245,243,238,0.14)", borderRadius: 999, padding: "4px 10px", marginBottom: 14, fontSize: "0.75rem", color: dotMap[n.color] ?? "var(--accent)", cursor: "pointer" }}
+                  onClick={() => window.open(`/dashboard/agent/player/${n.player.id}`, "_blank")}>
+                  {n.player.photoUrl
+                    ? <img src={n.player.photoUrl} alt="" style={{ width: 18, height: 18, borderRadius: "50%", objectFit: "cover" }} />
+                    : <span>👤</span>}
+                  {n.player.firstName} {n.player.lastName}
+                </div>
+              )}
+
+              {/* Content / Edit form */}
+              {isEditingView ? (
+                <form onSubmit={handleSaveGeneralNote}>
+                  <input className="input" value={gnForm.title} onChange={ev => setGnForm(f => ({ ...f, title: ev.target.value }))} placeholder="Title (optional)" style={{ marginBottom: 8 }} />
+                  <textarea className="input" rows={8} value={gnForm.content} onChange={ev => setGnForm(f => ({ ...f, content: ev.target.value }))} placeholder="Write your note here…" style={{ resize: "vertical", fontSize: "0.9rem", lineHeight: 1.7 }} />
+                  <select className="input" value={gnForm.playerId} onChange={ev => setGnForm(f => ({ ...f, playerId: ev.target.value }))} style={{ marginTop: 8, fontSize: "0.85rem" }}>
+                    <option value="">🔗 Link to player (optional)</option>
+                    {players.map((p: any) => <option key={p.id} value={p.id}>{p.firstName} {p.lastName}</option>)}
+                  </select>
+                  {/* Colour picker */}
+                  <div style={{ display: "flex", gap: 6, alignItems: "center", margin: "12px 0" }}>
+                    <span style={{ fontSize: "0.65rem", color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.08em" }}>Colour:</span>
+                    {(["default", "yellow", "green", "blue", "red", "purple"] as const).map(c => {
+                      const bg: Record<string, string> = { default: "var(--card2)", yellow: "#fef08a", green: "#bbf7d0", blue: "#bae6fd", red: "#fecaca", purple: "#e9d5ff" };
+                      return <button key={c} type="button" onClick={() => setGnForm(f => ({ ...f, color: c }))} style={{ width: 22, height: 22, borderRadius: "50%", background: bg[c], border: gnForm.color === c ? "2px solid var(--accent)" : "2px solid transparent", cursor: "pointer", padding: 0 }} title={c} />;
+                    })}
+                  </div>
+                  {gnError && <div style={{ color: "var(--red)", fontSize: "0.78rem", marginBottom: 8 }}>{gnError}</div>}
+                  <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                    <button type="button" className="btn btn-outline" onClick={() => { setGnEditId(null); setGnForm({ title: "", content: "", color: "default", playerId: "" }); setGnError(""); }}>Cancel</button>
+                    <button type="submit" className="btn btn-primary" disabled={gnSaving || !gnForm.content.trim()}>{gnSaving ? <span className="spinner" /> : "Save Changes"}</button>
+                  </div>
+                </form>
+              ) : (
+                <>
+                  {n.title && (
+                    <h3 style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: "1.15rem", textTransform: "uppercase", letterSpacing: "0.03em", marginBottom: 12 }}>{n.title}</h3>
+                  )}
+                  <div style={{ fontSize: "0.92rem", lineHeight: 1.75, color: "rgba(245,243,238,0.9)", whiteSpace: "pre-wrap", wordBreak: "break-word", minHeight: 80 }}>{n.content}</div>
+                  <div style={{ display: "flex", gap: 8, marginTop: 20, justifyContent: "flex-end", borderTop: "1px solid rgba(245,243,238,0.07)", paddingTop: 14 }}>
+                    <button className="btn btn-outline" style={{ fontSize: "0.78rem" }} onClick={() => handleTogglePin(n)}>
+                      {n.pinned ? "📌 Unpin" : "📌 Pin"}
+                    </button>
+                    <button className="btn btn-outline" style={{ fontSize: "0.78rem" }}
+                      onClick={() => { setGnEditId(n.id); setGnForm({ title: n.title ?? "", content: n.content, color: n.color ?? "default", playerId: n.player?.id ?? "" }); }}>
+                      ✏️ Edit
+                    </button>
+                    <button className="btn btn-danger" style={{ fontSize: "0.78rem" }}
+                      onClick={() => { handleDeleteGeneralNote(n.id); setGnViewNote(null); }}>
+                      🗑 Delete
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ══ DETAIL MODAL (Transfer / Commission / Contract) ══ */}
       {detailModal && (

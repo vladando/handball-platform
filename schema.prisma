@@ -224,6 +224,7 @@ model Player {
   watchlistItems  WatchlistItem[]
   galleryImages   PlayerGalleryImage[]
   agentNotes              AgentNote[]
+  generalNotes            AgentGeneralNote[]
   agentContracts          AgentContract[]
   agentCommissions        AgentCommission[]
   transferRecords         TransferRecord[]
@@ -662,6 +663,8 @@ model AgentGeneralNote {
   id        String   @id @default(cuid())
   agentId   String
   agent     Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  playerId  String?
+  player    Player?  @relation(fields: [playerId], references: [id], onDelete: SetNull)
   title     String?
   content   String   @db.Text
   color     String   @default("default")
@@ -670,6 +673,7 @@ model AgentGeneralNote {
   updatedAt DateTime @updatedAt
 
   @@index([agentId])
+  @@index([playerId])
   @@map("agent_general_notes")
 }
 

@@ -29,6 +29,12 @@ export async function PUT(
   });
   if (!existing) return NextResponse.json({ error: "Note not found" }, { status: 404 });
 
+  // Verify player belongs to agent if provided
+  if (body.playerId) {
+    const player = await prisma.player.findFirst({ where: { id: body.playerId, agentId: agent.id }, select: { id: true } });
+    if (!player) return NextResponse.json({ error: "Player not found" }, { status: 404 });
+  }
+
   const note = await (prisma as any).agentGeneralNote.update({
     where: { id },
     data: {
@@ -36,7 +42,9 @@ export async function PUT(
       content: body.content?.trim() ?? existing.content,
       color: body.color ?? existing.color,
       pinned: typeof body.pinned === "boolean" ? body.pinned : existing.pinned,
+      playerId: "playerId" in body ? (body.playerId || null) : existing.playerId,
     },
+    include: { player: { select: { id: true, firstName: true, lastName: true, photoUrl: true } } },
   });
   return NextResponse.json({ note });
 }

@@ -213,6 +213,13 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
     setSidebarOpen(false);
   }
 
+  // Listen for sidebar toggle fired by the Nav button on mobile
+  useEffect(() => {
+    const handler = () => setSidebarOpen(o => !o);
+    window.addEventListener("agent-sidebar-toggle", handler);
+    return () => window.removeEventListener("agent-sidebar-toggle", handler);
+  }, []);
+
   // Unread messages count
   const [unreadMessages, setUnreadMessages] = useState(0);
   useEffect(() => {
@@ -1021,18 +1028,6 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
           style={{ position: "fixed", inset: 0, zIndex: 199, background: "rgba(0,0,0,0.65)", backdropFilter: "blur(2px)" }}
         />
       )}
-
-      {/* ── Mobile FAB — fixed below navbar ── */}
-      <button
-        className="mobile-nav-fab"
-        onClick={() => setSidebarOpen(o => !o)}
-        aria-label={sidebarOpen ? "Close menu" : "Open menu"}
-      >
-        {sidebarOpen
-          ? <span style={{ fontSize: "1rem" }}>✕</span>
-          : <span style={{ fontSize: "1.1rem" }}>☰</span>
-        }
-      </button>
 
       {/* ── Sidebar ── */}
       <aside className={`sidebar${sidebarOpen ? " is-open" : ""}`}>

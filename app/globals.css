@@ -367,34 +367,31 @@ input,textarea,select,button{max-width:100%}
 .roster-slider::-webkit-scrollbar { display: none; }
 .roster-slider { -ms-overflow-style: none; scrollbar-width: none; }
 
-/* ── Mobile nav FAB — fixed just below navbar ────────────────── */
-.mobile-nav-fab {
+/* ── Agent sidebar toggle button inside Navbar (mobile only) ── */
+.agent-sidebar-nav-btn {
   display: none;
 }
 
 @media(max-width:768px) {
-  .mobile-nav-fab {
+  .agent-sidebar-nav-btn {
     display: flex;
-    align-items: center;
+    flex-direction: column;
     justify-content: center;
-    position: fixed;
-    top: 72px;        /* 64px nav + 8px gap */
-    left: 16px;
-    z-index: 201;
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    background: var(--card2);
-    border: 1px solid rgba(232,255,71,0.35);
-    color: var(--accent);
-    font-size: 1.1rem;
+    gap: 5px;
+    background: none;
+    border: none;
     cursor: pointer;
-    box-shadow: 0 4px 16px rgba(0,0,0,0.55);
-    transition: background 0.15s, border-color 0.15s, transform 0.15s;
+    padding: 6px 4px;
+    margin-right: 10px;
+    flex-shrink: 0;
   }
-  .mobile-nav-fab:active {
-    transform: scale(0.93);
-    background: rgba(232,255,71,0.12);
+  .agent-sidebar-nav-btn span {
+    display: block;
+    width: 22px;
+    height: 2px;
+    background: var(--accent);
+    border-radius: 1px;
+    transition: transform 0.25s ease, opacity 0.2s ease;
   }
 }
 

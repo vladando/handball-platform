@@ -97,6 +97,19 @@ export default function Nav({ session, playerSlug, unreadCount: initialUnread = 
     <>
       <nav className="nav">
         <div className="nav-inner">
+          {/* Agent sidebar toggle — left of logo, mobile only */}
+          {role === "AGENT" && (
+            <button
+              className="agent-sidebar-nav-btn"
+              onClick={() => window.dispatchEvent(new CustomEvent("agent-sidebar-toggle"))}
+              aria-label="Open dashboard menu"
+            >
+              <span />
+              <span />
+              <span />
+            </button>
+          )}
+
           <Link href={role === "AGENT" ? "/dashboard/agent" : "/"} className="nav-logo">
             Handball<span>Hub</span>
           </Link>

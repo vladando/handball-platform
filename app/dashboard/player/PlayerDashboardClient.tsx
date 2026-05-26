@@ -1365,6 +1365,20 @@ export default function PlayerDashboardClient({ player, revealCount }: { player:
                       <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--border)", fontSize: "0.8rem", color: "var(--muted)", lineHeight: 1.6 }}>
                         Your agent&apos;s contact details are automatically shown on your player profile when clubs unlock your contact. You retain full control of your profile at all times.
                       </div>
+                      <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--border)" }}>
+                        <button
+                          className="btn btn-danger"
+                          style={{ fontSize: "0.78rem", padding: "7px 16px" }}
+                          onClick={async () => {
+                            if (!confirm("Are you sure you want to end representation with your agent? This cannot be undone.")) return;
+                            const res = await fetch("/api/player/representation", { method: "DELETE" });
+                            if (res.ok) { alert("Representation ended."); window.location.reload(); }
+                            else { const d = await res.json(); alert(d.error ?? "Error ending representation."); }
+                          }}
+                        >
+                          🚫 End Representation
+                        </button>
+                      </div>
                     </div>
                   ) : (
                     <div className="card" style={{ textAlign: "center", padding: "32px 24px" }}>

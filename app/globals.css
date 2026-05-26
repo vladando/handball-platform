@@ -492,3 +492,17 @@ input,textarea,select,button{max-width:100%}
   .agent-stats-grid .card { padding: 12px 8px; }
   .roster-slider > div { min-width: 160px !important; flex: 0 0 160px !important; }
 }
+
+/* ── Commission / statistics KPI 4-card grid ──────────────────── */
+.commission-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+@media(max-width:768px) {
+  .commission-stats-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media(max-width:400px) {
+  .commission-stats-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+}

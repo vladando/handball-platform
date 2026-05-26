@@ -125,9 +125,9 @@ type Tab = "overview" | "players" | "contracts" | "commissions" | "transfers" | 
 const NAV_ITEMS: { id: Tab; icon: string; label: string }[] = [
   { id: "overview",     icon: "⊞",  label: "Overview" },
   { id: "players",      icon: "👥", label: "Players" },
+  { id: "transfers",    icon: "🔄", label: "Transfers" },
   { id: "contracts",    icon: "📄", label: "Contracts" },
   { id: "commissions",  icon: "💰", label: "Commissions" },
-  { id: "transfers",    icon: "🔄", label: "Transfers" },
   { id: "pitch",        icon: "🚀", label: "Pitch Generator" },
   { id: "calendar",     icon: "📅", label: "Calendar" },
   { id: "cloud",        icon: "☁️", label: "Cloud" },
@@ -1474,6 +1474,66 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
               );
             })()}
 
+            {/* ── Quick Statistics card ── */}
+            {players.length > 0 && (() => {
+              const posMap: Record<string, number> = {};
+              players.forEach((p: any) => { if (p.position) posMap[p.position] = (posMap[p.position] ?? 0) + 1; });
+              const topPos = Object.entries(posMap).sort((a, b) => b[1] - a[1]).slice(0, 5);
+              const maxPos = Math.max(...topPos.map(([, n]) => n), 1);
+              const healthMap = { HEALTHY: 0, INJURED: 0, REHAB: 0, SUSPENDED: 0 } as Record<string, number>;
+              players.forEach((p: any) => { const h = p.healthStatus ?? "HEALTHY"; healthMap[h] = (healthMap[h] ?? 0) + 1; });
+              const HCOLOR: Record<string, string> = { HEALTHY: "#00c864", INJURED: "var(--red)", REHAB: "#ff8c00", SUSPENDED: "var(--muted)" };
+              return (
+                <div className="card" style={{ marginTop: 20 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                    <h4 style={{ textTransform: "uppercase", fontSize: "0.88rem", margin: 0 }}>📊 Quick Statistics</h4>
+                    <button onClick={() => switchTab("statistics")} style={{ background: "none", border: "none", color: "var(--accent)", cursor: "pointer", fontSize: "0.72rem", fontFamily: "var(--font-display)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>View Full →</button>
+                  </div>
+                  <div className="agent-2col" style={{ marginBottom: 0, gap: 16 }}>
+                    {/* Positions */}
+                    <div>
+                      <div style={{ fontSize: "0.62rem", color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.12em", fontFamily: "var(--font-mono)", marginBottom: 10 }}>By Position</div>
+                      {topPos.map(([pos, n]) => (
+                        <div key={pos} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                          <div style={{ width: 80, fontSize: "0.68rem", color: "var(--muted)", flexShrink: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{posLabel(pos)}</div>
+                          <div style={{ flex: 1, background: "var(--card2)", borderRadius: 3, height: 10, overflow: "hidden" }}>
+                            <div style={{ width: `${(n / maxPos) * 100}%`, height: "100%", background: "var(--accent)", borderRadius: 3 }} />
+                          </div>
+                          <div style={{ width: 18, textAlign: "right", fontSize: "0.68rem", fontFamily: "var(--font-mono)", color: "var(--white)", flexShrink: 0 }}>{n}</div>
+                        </div>
+                      ))}
+                    </div>
+                    {/* Health */}
+                    <div>
+                      <div style={{ fontSize: "0.62rem", color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.12em", fontFamily: "var(--font-mono)", marginBottom: 10 }}>Health Status</div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                        {Object.entries(healthMap).filter(([, n]) => n > 0).map(([status, n]) => (
+                          <div key={status} style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--card2)", border: `1px solid ${HCOLOR[status]}33`, borderRadius: "var(--radius)", padding: "6px 12px" }}>
+                            <div style={{ width: 8, height: 8, borderRadius: "50%", background: HCOLOR[status], flexShrink: 0 }} />
+                            <span style={{ fontSize: "0.72rem", fontFamily: "var(--font-display)", fontWeight: 700, textTransform: "uppercase" }}>{n}</span>
+                            <span style={{ fontSize: "0.65rem", color: "var(--muted)" }}>{status}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{ marginTop: 16 }}>
+                        <div style={{ fontSize: "0.62rem", color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.12em", fontFamily: "var(--font-mono)", marginBottom: 8 }}>Availability</div>
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <div style={{ flex: 1, background: "rgba(0,200,100,0.08)", border: "1px solid rgba(0,200,100,0.25)", borderRadius: "var(--radius)", padding: "8px", textAlign: "center" }}>
+                            <div style={{ fontFamily: "var(--font-display)", fontWeight: 900, fontSize: "1.4rem", color: "#00c864", lineHeight: 1 }}>{players.filter((p: any) => p.isAvailable).length}</div>
+                            <div style={{ fontSize: "0.58rem", color: "var(--muted)", marginTop: 4, textTransform: "uppercase" }}>Available</div>
+                          </div>
+                          <div style={{ flex: 1, background: "var(--card2)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "8px", textAlign: "center" }}>
+                            <div style={{ fontFamily: "var(--font-display)", fontWeight: 900, fontSize: "1.4rem", color: "var(--muted)", lineHeight: 1 }}>{players.filter((p: any) => !p.isAvailable).length}</div>
+                            <div style={{ fontSize: "0.58rem", color: "var(--muted)", marginTop: 4, textTransform: "uppercase" }}>Unavailable</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
           </div>
         )}
 
@@ -1640,6 +1700,9 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
                       <button className="btn btn-outline" style={{ fontSize: "0.72rem", padding: "5px 10px" }} onClick={e => { e.stopPropagation(); setHealthModal(p); setHealthForm({ healthStatus: p.healthStatus ?? "HEALTHY", rehabNote: p.rehabNote ?? "", rehabReturnDate: p.rehabReturnDate ? new Date(p.rehabReturnDate).toISOString().split("T")[0] : "" }); setHealthError(""); }}>🏥 Health</button>
                       <button className="btn btn-outline" style={{ fontSize: "0.72rem", padding: "5px 10px" }} onClick={e => { e.stopPropagation(); openNotesModal(p); }}>📝 Notes</button>
                       <Link href={`/dashboard/agent/player/${p.id}/edit`} className="btn btn-outline" style={{ fontSize: "0.72rem", padding: "5px 10px" }} onClick={e => e.stopPropagation()}>✏️ Edit</Link>
+                      {p.agentId && (
+                        <button className="btn btn-outline" style={{ fontSize: "0.72rem", padding: "5px 10px", color: "var(--red)", borderColor: "var(--red)" }} onClick={async e => { e.stopPropagation(); if (!confirm(`End representation with ${p.firstName} ${p.lastName}? This cannot be undone.`)) return; const res = await fetch(`/api/agent/players/${p.id}/representation`, { method: "DELETE" }); if (res.ok) { alert("Representation ended."); window.location.reload(); } else { const d = await res.json(); alert(d.error ?? "Error ending representation."); } }}>🚫 End Rep</button>
+                      )}
                       <button className="btn btn-danger" style={{ fontSize: "0.72rem", padding: "5px 8px" }} onClick={e => { e.stopPropagation(); setConfirmDelete({ id: p.id, name: `${p.firstName} ${p.lastName}`, type: "player" }); }}>🗑</button>
                     </div>
                   </div>
@@ -1724,6 +1787,9 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
                                 );
                               })()}
                             </div>
+                          )}
+                          {p.agentId && (
+                            <button className="btn btn-outline" style={{ fontSize: "0.68rem", padding: "4px 6px", color: "var(--red)", borderColor: "var(--red)" }} onClick={async e => { e.stopPropagation(); if (!confirm(`End representation with ${p.firstName} ${p.lastName}? This cannot be undone.`)) return; const res = await fetch(`/api/agent/players/${p.id}/representation`, { method: "DELETE" }); if (res.ok) { alert("Representation ended."); window.location.reload(); } else { const d = await res.json(); alert(d.error ?? "Error ending representation."); } }}>🚫</button>
                           )}
                           <button className="btn btn-danger" style={{ fontSize: "0.68rem", padding: "4px 6px" }} onClick={e => { e.stopPropagation(); setConfirmDelete({ id: p.id, name: `${p.firstName} ${p.lastName}`, type: "player" }); }}>🗑</button>
                         </div>
@@ -2117,14 +2183,14 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
               )}
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 20 }}>
+            <div className="commission-stats-grid">
               {[
                 { label: "Total Commissions", val: commissions.length, sub: "all time", color: "var(--white)" },
                 { label: "Pending Commissions", val: stats.pendingCommissions, sub: "awaiting payment", color: stats.pendingCommissions > 0 ? "var(--accent)" : "var(--muted)" },
                 { label: "Pending Payments", val: fmtCents(stats.totalPendingCents), sub: "total outstanding", color: stats.totalPendingCents > 0 ? "var(--accent)" : "var(--muted)" },
                 { label: "Completed Payments", val: fmtCents(stats.totalPaidCents), sub: `${stats.paidCommissions} paid`, color: stats.paidCommissions > 0 ? "#00c864" : "var(--muted)" },
               ].map(s => (
-                <div key={s.label} className="card" style={{ textAlign: "center", padding: "16px 12px" }}>
+                <div key={s.label} className="card" style={{ textAlign: "center", padding: "14px 10px" }}>
                   <div style={{ fontFamily: "var(--font-display)", fontWeight: 900, fontSize: "1.6rem", color: s.color, lineHeight: 1 }}>{s.val}</div>
                   <div style={{ fontSize: "0.65rem", color: "var(--muted)", marginTop: 6, textTransform: "uppercase", letterSpacing: "0.06em", lineHeight: 1.3 }}>{s.label}</div>
                   <div style={{ fontSize: "0.6rem", color: "rgba(107,107,107,0.6)", marginTop: 2 }}>{s.sub}</div>
@@ -3003,7 +3069,7 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
               </div>
 
               {/* ── Top KPI row ── */}
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 20 }}>
+              <div className="commission-stats-grid" style={{ marginBottom: 20 }}>
                 <StatCard label="Total Earned" val={fmtCents(totalEarned)} sub={`${paidCommissions.length} payments`} color="#00c864" />
                 <StatCard label="Pending Income" val={fmtCents(totalPending)} sub={`${pendingCommissions.length} unpaid`} color={totalPending > 0 ? "var(--accent)" : "var(--muted)"} />
                 <StatCard label="Total Transfers" val={transfers.length} sub={`${transfers.filter((t: any) => t.transferFeeCents).length} with fee`} color="var(--white)" />

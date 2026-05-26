@@ -120,7 +120,7 @@ function getAge(dob: string | Date | null | undefined): string {
   return String(Math.floor((Date.now() - d.getTime()) / (365.25 * 24 * 3600 * 1000)));
 }
 
-type Tab = "overview" | "players" | "contracts" | "commissions" | "transfers" | "pitch" | "calendar" | "cloud" | "statistics" | "messages" | "settings";
+type Tab = "overview" | "players" | "contracts" | "commissions" | "transfers" | "pitch" | "calendar" | "cloud" | "statistics" | "messages" | "notespad" | "settings";
 
 const NAV_ITEMS: { id: Tab; icon: string; label: string }[] = [
   { id: "overview",     icon: "⊞",  label: "Overview" },
@@ -132,6 +132,7 @@ const NAV_ITEMS: { id: Tab; icon: string; label: string }[] = [
   { id: "cloud",        icon: "☁️", label: "Cloud" },
   { id: "statistics",   icon: "📊", label: "Statistics" },
   { id: "messages",     icon: "💬", label: "Messages" },
+  { id: "notespad",     icon: "📓", label: "Notes" },
   { id: "pitch",        icon: "🚀", label: "Pitch Generator" },
   { id: "settings",     icon: "⚙️", label: "Settings" },
 ];
@@ -211,6 +212,7 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
   function switchTab(id: Tab) {
     setTab(id);
     setSidebarOpen(false);
+    if (id === "notespad") loadGeneralNotes();
   }
 
   // Listen for sidebar toggle fired by the Nav button on mobile
@@ -431,6 +433,15 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
   const [noteCategory, setNoteCategory] = useState("general");
   const [notesLoading, setNotesLoading] = useState(false);
   const [notesSaving, setNotesSaving] = useState(false);
+
+  // General notes (Notes tab)
+  const [generalNotes, setGeneralNotes] = useState<any[]>([]);
+  const [gnLoading, setGnLoading] = useState(false);
+  const [gnForm, setGnForm] = useState({ title: "", content: "", color: "default" });
+  const [gnSaving, setGnSaving] = useState(false);
+  const [gnError, setGnError] = useState("");
+  const [gnEditId, setGnEditId] = useState<string | null>(null);
+  const [gnSearch, setGnSearch] = useState("");
 
   // Pitch form
   const [pitchForm, setPitchForm] = useState({ title: "", selectedPlayerIds: [] as string[], message: "", expiresAt: "" });
@@ -955,6 +966,55 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
   async function handleDeleteNote(id: string) {
     await fetch(`/api/agent/notes/${id}`, { method: "DELETE" });
     setNotesList(ns => ns.filter(n => n.id !== id));
+  }
+
+  // ── General Notes tab ─────────────────────────────────────────────
+  async function loadGeneralNotes() {
+    setGnLoading(true);
+    const res = await fetch("/api/agent/general-notes").catch(() => null);
+    setGnLoading(false);
+    if (res?.ok) { const d = await res.json(); setGeneralNotes(d.notes ?? []); }
+  }
+
+  async function handleSaveGeneralNote(e: React.FormEvent) {
+    e.preventDefault();
+    if (!gnForm.content.trim()) { setGnError("Content cannot be empty."); return; }
+    setGnSaving(true); setGnError("");
+    if (gnEditId) {
+      const res = await fetch(`/api/agent/general-notes/${gnEditId}`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(gnForm),
+      });
+      const d = await res.json();
+      setGnSaving(false);
+      if (res.ok) { setGeneralNotes(ns => ns.map(n => n.id === gnEditId ? d.note : n)); setGnEditId(null); setGnForm({ title: "", content: "", color: "default" }); }
+      else setGnError(d.error ?? "Error saving.");
+    } else {
+      const res = await fetch("/api/agent/general-notes", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(gnForm),
+      });
+      const d = await res.json();
+      setGnSaving(false);
+      if (res.ok) { setGeneralNotes(ns => [d.note, ...ns]); setGnForm({ title: "", content: "", color: "default" }); }
+      else setGnError(d.error ?? "Error saving.");
+    }
+  }
+
+  async function handleDeleteGeneralNote(id: string) {
+    if (!confirm("Delete this note?")) return;
+    await fetch(`/api/agent/general-notes/${id}`, { method: "DELETE" });
+    setGeneralNotes(ns => ns.filter(n => n.id !== id));
+    if (gnEditId === id) { setGnEditId(null); setGnForm({ title: "", content: "", color: "default" }); }
+  }
+
+  async function handleTogglePin(note: any) {
+    const res = await fetch(`/api/agent/general-notes/${note.id}`, {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pinned: !note.pinned }),
+    });
+    const d = await res.json();
+    if (res.ok) setGeneralNotes(ns => ns.map(n => n.id === note.id ? d.note : n).sort((a: any, b: any) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()));
   }
 
   async function handleAvatarUpload(file: File) {
@@ -3240,6 +3300,140 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
                 Open Messages ↗
               </Link>
             </div>
+          </div>
+        )}
+
+        {/* ══════════════════ NOTES PAD ══════════════════ */}
+        {tab === "notespad" && (
+          <div className="tab-content">
+            <div style={{ ...STICKY_HEADER }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.62rem", color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.18em" }}>
+                  Notes <span style={{ color: "var(--muted)", fontWeight: 400 }}>({generalNotes.length})</span>
+                </span>
+              </div>
+              <input
+                value={gnSearch} onChange={e => setGnSearch(e.target.value)}
+                placeholder="Search notes…"
+                style={{ width: "100%", background: "var(--card2)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "6px 10px", fontSize: "0.78rem", color: "var(--white)", outline: "none", fontFamily: "var(--font-mono)" }}
+              />
+            </div>
+
+            {/* ── Write / Edit form ── */}
+            <div className="card" style={{ marginBottom: 20 }}>
+              <h4 style={{ textTransform: "uppercase", fontSize: "0.82rem", marginBottom: 14 }}>
+                {gnEditId ? "✏️ Edit Note" : "📝 New Note"}
+              </h4>
+              <form onSubmit={handleSaveGeneralNote}>
+                <div className="form-group">
+                  <input
+                    className="input"
+                    value={gnForm.title}
+                    onChange={e => setGnForm(f => ({ ...f, title: e.target.value }))}
+                    placeholder="Title (optional)"
+                    style={{ marginBottom: 8 }}
+                  />
+                  <textarea
+                    className="input"
+                    rows={4}
+                    value={gnForm.content}
+                    onChange={e => setGnForm(f => ({ ...f, content: e.target.value }))}
+                    placeholder="Write your note here…"
+                    style={{ resize: "vertical", fontSize: "0.88rem", lineHeight: 1.6 }}
+                  />
+                </div>
+                <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                  <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                    <span style={{ fontSize: "0.65rem", color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.08em" }}>Colour:</span>
+                    {(["default", "yellow", "green", "blue", "red", "purple"] as const).map(c => {
+                      const bg: Record<string, string> = { default: "var(--card2)", yellow: "#fef08a", green: "#bbf7d0", blue: "#bae6fd", red: "#fecaca", purple: "#e9d5ff" };
+                      return (
+                        <button key={c} type="button"
+                          onClick={() => setGnForm(f => ({ ...f, color: c }))}
+                          style={{ width: 22, height: 22, borderRadius: "50%", background: bg[c], border: gnForm.color === c ? "2px solid var(--accent)" : "2px solid transparent", cursor: "pointer", padding: 0, flexShrink: 0 }}
+                          title={c}
+                        />
+                      );
+                    })}
+                  </div>
+                  <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+                    {gnEditId && (
+                      <button type="button" className="btn btn-outline" style={{ fontSize: "0.78rem", padding: "7px 14px" }}
+                        onClick={() => { setGnEditId(null); setGnForm({ title: "", content: "", color: "default" }); setGnError(""); }}>
+                        Cancel
+                      </button>
+                    )}
+                    <button type="submit" className="btn btn-primary" style={{ fontSize: "0.78rem", padding: "7px 18px" }} disabled={gnSaving || !gnForm.content.trim()}>
+                      {gnSaving ? <span className="spinner" /> : gnEditId ? "Save Changes" : "Save Note"}
+                    </button>
+                  </div>
+                </div>
+                {gnError && <div style={{ color: "var(--red)", fontSize: "0.78rem", marginTop: 8 }}>{gnError}</div>}
+              </form>
+            </div>
+
+            {/* ── Notes list ── */}
+            {gnLoading ? (
+              <div style={{ textAlign: "center", padding: "40px 0", color: "var(--muted)" }}><span className="spinner" /></div>
+            ) : (() => {
+              const filtered = gnSearch.trim()
+                ? generalNotes.filter(n => (`${n.title ?? ""} ${n.content}`).toLowerCase().includes(gnSearch.toLowerCase()))
+                : generalNotes;
+              const bgMap: Record<string, string> = { default: "var(--card)", yellow: "#2a2700", green: "#002a0f", blue: "#001a2a", red: "#2a0000", purple: "#1a0028" };
+              const borderMap: Record<string, string> = { default: "var(--border)", yellow: "#fef08a44", green: "#bbf7d044", blue: "#bae6fd44", red: "#fecaca44", purple: "#e9d5ff44" };
+              const dotMap: Record<string, string> = { default: "var(--muted)", yellow: "#fef08a", green: "#86efac", blue: "#7dd3fc", red: "#fca5a5", purple: "#c4b5fd" };
+              if (filtered.length === 0) return (
+                <div className="card" style={{ textAlign: "center", padding: "60px 24px" }}>
+                  <div style={{ fontSize: "3rem", marginBottom: 16 }}>📓</div>
+                  <h4 style={{ marginBottom: 8 }}>{gnSearch ? "No notes match" : "No notes yet"}</h4>
+                  <p style={{ color: "var(--muted)", fontSize: "0.88rem" }}>{gnSearch ? "Try a different search." : "Write your first note using the form above."}</p>
+                </div>
+              );
+              return (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 14 }}>
+                  {filtered.map((n: any) => (
+                    <div key={n.id} style={{ background: bgMap[n.color] ?? "var(--card)", border: `1px solid ${borderMap[n.color] ?? "var(--border)"}`, borderRadius: "var(--radius-lg)", padding: "16px 18px", display: "flex", flexDirection: "column", gap: 8, position: "relative", transition: "border-color 0.15s" }}
+                      onMouseEnter={e => { e.currentTarget.style.borderColor = dotMap[n.color] ?? "var(--accent)"; }}
+                      onMouseLeave={e => { e.currentTarget.style.borderColor = borderMap[n.color] ?? "var(--border)"; }}>
+                      {/* Header */}
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          {n.title && (
+                            <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: "0.92rem", textTransform: "uppercase", letterSpacing: "0.02em", marginBottom: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {n.title}
+                            </div>
+                          )}
+                          <div style={{ fontSize: "0.82rem", lineHeight: 1.6, color: "rgba(245,243,238,0.85)", whiteSpace: "pre-wrap", wordBreak: "break-word", maxHeight: 120, overflow: "hidden" }}>
+                            {n.content}
+                          </div>
+                        </div>
+                        <button onClick={() => handleTogglePin(n)} title={n.pinned ? "Unpin" : "Pin"}
+                          style={{ background: "none", border: "none", cursor: "pointer", fontSize: "1rem", opacity: n.pinned ? 1 : 0.35, flexShrink: 0, padding: "2px 0" }}>
+                          📌
+                        </button>
+                      </div>
+                      {/* Footer */}
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4, borderTop: "1px solid rgba(245,243,238,0.07)", paddingTop: 8 }}>
+                        <span style={{ fontSize: "0.6rem", color: "var(--muted)", fontFamily: "var(--font-mono)" }}>
+                          {new Date(n.updatedAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "2-digit" })}
+                          {n.pinned && <span style={{ marginLeft: 6, color: dotMap[n.color] ?? "var(--accent)" }}>pinned</span>}
+                        </span>
+                        <div style={{ display: "flex", gap: 6 }}>
+                          <button className="btn btn-outline" style={{ fontSize: "0.65rem", padding: "3px 8px" }}
+                            onClick={() => { setGnEditId(n.id); setGnForm({ title: n.title ?? "", content: n.content, color: n.color ?? "default" }); window.scrollTo({ top: 0, behavior: "smooth" }); }}>
+                            ✏️ Edit
+                          </button>
+                          <button className="btn btn-danger" style={{ fontSize: "0.65rem", padding: "3px 8px" }}
+                            onClick={() => handleDeleteGeneralNote(n.id)}>
+                            🗑
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
           </div>
         )}
 

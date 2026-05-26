@@ -395,10 +395,10 @@ input,textarea,select,button{max-width:100%}
   }
 }
 
-/* ── Agent dashboard — responsive stats grid (5 → 3 → 2 cols) ── */
+/* ── Agent dashboard — responsive stats grid (4 → 2 cols) ── */
 .agent-stats-grid {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 12px;
   margin-bottom: 24px;
 }
@@ -475,8 +475,8 @@ input,textarea,select,button{max-width:100%}
 
 /* ── Tablet (769px – 1024px) ───────────────────────────────────── */
 @media(min-width:769px) and (max-width:1024px) {
-  /* Stats grid → 3 cols on tablet (3+2 layout) */
-  .agent-stats-grid { grid-template-columns: repeat(3, 1fr); }
+  /* Stats grid → 4 cols on tablet (fits nicely) */
+  .agent-stats-grid { grid-template-columns: repeat(4, 1fr); }
   .main-content { padding: 28px 24px; }
 }
 
@@ -491,11 +491,6 @@ input,textarea,select,button{max-width:100%}
   .agent-stats-grid { gap: 8px; }
   .agent-stats-grid .card { padding: 12px 8px; }
   .roster-slider > div { min-width: 160px !important; flex: 0 0 160px !important; }
-}
-
-/* ── Overview roster card — hidden on mobile ──────────────────── */
-@media(max-width:768px) {
-  .overview-roster-card { display: none !important; }
 }
 
 /* ── Commission / statistics KPI 4-card grid ──────────────────── */

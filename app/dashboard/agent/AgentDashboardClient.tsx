@@ -1122,8 +1122,7 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
             <div className="agent-stats-grid">
               {[
                 { label: "Total Players", val: stats.total, sub: "in roster", color: "var(--white)", goto: "players" as Tab },
-                { label: "Available", val: stats.available, sub: "for transfer", color: stats.available > 0 ? "#00c864" : "var(--muted)", goto: "players" as Tab },
-                { label: "Pending Commissions", val: stats.pendingCommissions, sub: "awaiting payment", color: stats.pendingCommissions > 0 ? "var(--accent)" : "var(--muted)", goto: "commissions" as Tab },
+                { label: "Total Transfers", val: transfers.length, sub: "all time", color: transfers.length > 0 ? "var(--accent)" : "var(--muted)", goto: "transfers" as Tab },
                 { label: "Pending Value", val: fmtCents(stats.totalPendingCents), sub: "total outstanding", color: stats.totalPendingCents > 0 ? "var(--white)" : "var(--muted)", goto: "commissions" as Tab },
                 { label: "Completed Payments", val: fmtCents(stats.totalPaidCents), sub: `${stats.paidCommissions} paid`, color: stats.paidCommissions > 0 ? "#00c864" : "var(--muted)", goto: "commissions" as Tab },
               ].map(s => (
@@ -1142,7 +1141,7 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
             {/* Alerts are shown only in the notification bell panel — not on Overview */}
 
             {/* ── Players Roster ── */}
-            <div className="card overview-roster-card" style={{ marginBottom: 20 }}>
+            <div className="card" style={{ marginBottom: 20 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
                 <h4 style={{ textTransform: "uppercase", fontSize: "0.88rem", margin: 0 }}>
                   Players <span style={{ color: "var(--muted)", fontWeight: 400, textTransform: "none" }}>({players.length})</span>

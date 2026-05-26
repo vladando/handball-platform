@@ -367,6 +367,48 @@ input,textarea,select,button{max-width:100%}
 .roster-slider::-webkit-scrollbar { display: none; }
 .roster-slider { -ms-overflow-style: none; scrollbar-width: none; }
 
+/* ── Mobile sidebar tab button — fixed to left edge ─────────── */
+.mobile-nav-tab {
+  display: none; /* hidden on desktop */
+}
+
+@media(max-width:768px) {
+  .mobile-nav-tab {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    position: fixed;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 201; /* above overlay (199) and sidebar (200) */
+    background: var(--accent);
+    border: none;
+    border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
+    padding: 16px 10px;
+    cursor: pointer;
+    box-shadow: 3px 0 16px rgba(0,0,0,0.5);
+    min-width: 40px;
+    color: var(--black);
+    transition: background 0.15s, box-shadow 0.15s;
+  }
+  .mobile-nav-tab:hover, .mobile-nav-tab:active {
+    background: var(--accent-dim);
+    box-shadow: 3px 0 20px rgba(0,0,0,0.6);
+  }
+  .mobile-nav-tab-label {
+    font-size: 1.1rem;
+    line-height: 1;
+  }
+
+  /* Push main content slightly right so tab doesn't overlap text */
+  .sidebar-layout .main-content {
+    padding-left: 56px;
+  }
+}
+
 /* ── Agent dashboard — responsive stats grid (5 → 3 → 2 cols) ── */
 .agent-stats-grid {
   display: grid;

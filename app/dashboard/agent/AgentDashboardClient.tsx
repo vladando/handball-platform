@@ -1014,7 +1014,31 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
   return (
     <main className="page">
     <div className="sidebar-layout">
-      {sidebarOpen && <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 50, background: "rgba(0,0,0,0.6)" }} />}
+      {/* ── Mobile sidebar overlay ── */}
+      {sidebarOpen && (
+        <div
+          onClick={() => setSidebarOpen(false)}
+          style={{ position: "fixed", inset: 0, zIndex: 199, background: "rgba(0,0,0,0.65)", backdropFilter: "blur(2px)" }}
+        />
+      )}
+
+      {/* ── Mobile sidebar tab — fixed left edge ── */}
+      <button
+        className="mobile-nav-tab"
+        onClick={() => setSidebarOpen(o => !o)}
+        aria-label={sidebarOpen ? "Close menu" : "Open menu"}
+      >
+        {sidebarOpen ? (
+          <span style={{ fontSize: "1.1rem", lineHeight: 1 }}>✕</span>
+        ) : (
+          <>
+            <span style={{ fontSize: "1.2rem", lineHeight: 1 }}>☰</span>
+            <span className="mobile-nav-tab-label">
+              {NAV_ITEMS.find(n => n.id === tab)?.icon ?? "☰"}
+            </span>
+          </>
+        )}
+      </button>
 
       {/* ── Sidebar ── */}
       <aside className={`sidebar${sidebarOpen ? " is-open" : ""}`}>
@@ -1048,7 +1072,7 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
             <>
               <li key={item.id}>
                 <a href="#" className={tab === item.id ? "active" : ""}
-                  onClick={e => { e.preventDefault(); switchTab(item.id); }}>
+                  onClick={e => { e.preventDefault(); switchTab(item.id); setSidebarOpen(false); }}>
                   <span style={{ fontSize: "1rem" }}>{item.icon}</span>
                   {item.label}
                   {item.id === "players" && <span style={{ marginLeft: "auto", fontSize: "0.7rem", color: "var(--muted)" }}>{players.length}</span>}
@@ -1067,7 +1091,7 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
               {item.id === "players" && (
                 <li key="free-players-link">
                   <button
-                    onClick={() => { switchTab("players"); setPlayersSubTab("free"); }}
+                    onClick={() => { switchTab("players"); setPlayersSubTab("free"); setSidebarOpen(false); }}
                     style={{ paddingLeft: 36, fontSize: "0.8rem", color: "var(--muted)", display: "flex", alignItems: "center", gap: 8, background: "none", border: "none", cursor: "pointer", width: "100%", textAlign: "left" }}
                     onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "var(--accent)"; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "var(--muted)"; }}>
@@ -1082,10 +1106,6 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
       </aside>
 
       <div className="main-content">
-        {/* Mobile header */}
-        <button className="sidebar-toggle" onClick={() => setSidebarOpen(o => !o)}>
-          {sidebarOpen ? "✕ Close" : `☰ ${NAV_ITEMS.find(n => n.id === tab)?.label ?? "Menu"}`}
-        </button>
 
         {/* ══════════════════ OVERVIEW ══════════════════ */}
         {tab === "overview" && (

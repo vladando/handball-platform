@@ -493,6 +493,45 @@ input,textarea,select,button{max-width:100%}
   .roster-slider > div { min-width: 160px !important; flex: 0 0 160px !important; }
 }
 
+/* ── Responsive tables — hide secondary columns on mobile ──────── */
+@media(max-width:768px) {
+  /* Remove overflow-x scroll; let column hiding handle fit */
+  .contracts-table-wrap,
+  .commissions-table-wrap,
+  .transfers-table-wrap { overflow-x: visible; }
+
+  /* Contracts: hide Start(3), End(4), Salary(6), File(8) */
+  .contracts-table-wrap th:nth-child(3),
+  .contracts-table-wrap td:nth-child(3),
+  .contracts-table-wrap th:nth-child(4),
+  .contracts-table-wrap td:nth-child(4),
+  .contracts-table-wrap th:nth-child(6),
+  .contracts-table-wrap td:nth-child(6),
+  .contracts-table-wrap th:nth-child(8),
+  .contracts-table-wrap td:nth-child(8) { display: none; }
+
+  /* Commissions: hide Description(2), Due Date(4) */
+  .commissions-table-wrap th:nth-child(2),
+  .commissions-table-wrap td:nth-child(2),
+  .commissions-table-wrap th:nth-child(4),
+  .commissions-table-wrap td:nth-child(4) { display: none; }
+
+  /* Transfers: hide From(2), Salary(5), Contract(6), File(7) */
+  .transfers-table-wrap th:nth-child(2),
+  .transfers-table-wrap td:nth-child(2),
+  .transfers-table-wrap th:nth-child(5),
+  .transfers-table-wrap td:nth-child(5),
+  .transfers-table-wrap th:nth-child(6),
+  .transfers-table-wrap td:nth-child(6),
+  .transfers-table-wrap th:nth-child(7),
+  .transfers-table-wrap td:nth-child(7) { display: none; }
+
+  /* Ensure table fills width without overflow */
+  .contracts-table-wrap .table,
+  .commissions-table-wrap .table,
+  .transfers-table-wrap .table { min-width: unset; width: 100%; }
+}
+
 /* ── Commission / statistics KPI 4-card grid ──────────────────── */
 .commission-stats-grid {
   display: grid;

@@ -2093,7 +2093,7 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
                 </div>
               );
             })() : (
-              <div className="table-wrap">
+              <div className="table-wrap contracts-table-wrap">
                 <table className="table">
                   <thead>
                     <tr>
@@ -2206,7 +2206,7 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
                 ? commissions
                 : commissions.filter((c: any) => (`${c.player.firstName} ${c.player.lastName} ${c.description ?? ""}`).toLowerCase().includes(commissionSearch.toLowerCase()));
               return (
-              <div className="table-wrap">
+              <div className="table-wrap commissions-table-wrap">
                 <table className="table">
                   <thead>
                     <tr>
@@ -2291,7 +2291,7 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
               const paidCount = commissions.filter((c: any) => c.status === "PAID").length;
               const pendingCount = commissions.filter((c: any) => c.status === "PENDING").length;
               return (
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 20 }}>
+                <div className="commission-stats-grid" style={{ marginBottom: 20 }}>
                   {[
                     { label: "Total Transfers", val: transfers.length, sub: "all time", color: "var(--white)" },
                     { label: "Total Commissions", val: totalCommissions > 0 ? fmtCents(totalCommissions) : "—", sub: `${paidCount} paid · ${pendingCount} pending`, color: totalCommissions > 0 ? "#00c864" : "var(--muted)" },
@@ -2320,7 +2320,7 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
                 ? transfers
                 : transfers.filter((t: any) => (`${t.player.firstName} ${t.player.lastName} ${t.fromClub ?? ""} ${t.toClub}`).toLowerCase().includes(transferSearch.toLowerCase()));
               return (
-              <div className="table-wrap">
+              <div className="table-wrap transfers-table-wrap">
                 <table className="table">
                   <thead>
                     <tr>

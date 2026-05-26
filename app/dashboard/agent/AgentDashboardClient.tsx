@@ -128,11 +128,11 @@ const NAV_ITEMS: { id: Tab; icon: string; label: string }[] = [
   { id: "transfers",    icon: "🔄", label: "Transfers" },
   { id: "contracts",    icon: "📄", label: "Contracts" },
   { id: "commissions",  icon: "💰", label: "Commissions" },
-  { id: "pitch",        icon: "🚀", label: "Pitch Generator" },
   { id: "calendar",     icon: "📅", label: "Calendar" },
   { id: "cloud",        icon: "☁️", label: "Cloud" },
   { id: "statistics",   icon: "📊", label: "Statistics" },
   { id: "messages",     icon: "💬", label: "Messages" },
+  { id: "pitch",        icon: "🚀", label: "Pitch Generator" },
   { id: "settings",     icon: "⚙️", label: "Settings" },
 ];
 

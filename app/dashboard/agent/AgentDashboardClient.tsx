@@ -1305,7 +1305,10 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
               ) : (
                 <div style={{ display: "flex", flexDirection: "column" }}>
                   {[...transfers].sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 8).map((t: any, i, arr) => (
-                    <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: i < arr.length - 1 ? "1px solid var(--border)" : "none" }}>
+                    <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: i < arr.length - 1 ? "1px solid var(--border)" : "none", cursor: "pointer", borderRadius: "var(--radius)", transition: "background 0.12s" }}
+                      onClick={() => setDetailModal({ type: "transfer", item: t })}
+                      onMouseEnter={e => { e.currentTarget.style.background = "rgba(232,255,71,0.04)"; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}>
                       <div style={{ width: 32, height: 32, borderRadius: "50%", background: "rgba(232,255,71,0.08)", border: "1px solid rgba(232,255,71,0.2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.85rem", flexShrink: 0 }}>🔄</div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "0.85rem", textTransform: "uppercase", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
@@ -1358,7 +1361,10 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
                       const d = daysLeft(c.endDate);
                       const expired = d < 0;
                       return (
-                        <div key={c.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 0", borderBottom: "1px solid var(--border)" }}>
+                        <div key={c.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 4px", borderBottom: "1px solid var(--border)", cursor: "pointer", borderRadius: "var(--radius)", transition: "background 0.12s" }}
+                          onClick={() => setDetailModal({ type: "contract", item: c })}
+                          onMouseEnter={e => { e.currentTarget.style.background = "rgba(232,255,71,0.04)"; }}
+                          onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}>
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "0.82rem", textTransform: "uppercase" }}>
                               {c.player.firstName} {c.player.lastName}
@@ -1409,7 +1415,10 @@ export default function AgentDashboardClient({ agent, adminView = false }: { age
                       const od = c.status === "PENDING" ? overdueLevel(c.dueDate) : { days: -1, label: "", color: "", bg: "" };
                       const isOverdue = od.days >= 0;
                       return (
-                        <div key={c.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 0", borderBottom: "1px solid var(--border)", background: isOverdue ? od.bg : "transparent" }}>
+                        <div key={c.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 4px", borderBottom: "1px solid var(--border)", background: isOverdue ? od.bg : "transparent", cursor: "pointer", borderRadius: "var(--radius)", transition: "filter 0.12s" }}
+                          onClick={() => setDetailModal({ type: "commission", item: c })}
+                          onMouseEnter={e => { e.currentTarget.style.filter = "brightness(1.25)"; }}
+                          onMouseLeave={e => { e.currentTarget.style.filter = ""; }}>
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "0.82rem", textTransform: "uppercase" }}>
                               {c.player.firstName} {c.player.lastName}
